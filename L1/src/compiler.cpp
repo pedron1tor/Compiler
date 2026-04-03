@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+#include "parser.h"
+#include "codegen.h"
 
 #include <utils.h>
 
@@ -56,7 +58,7 @@ int main(int argc, char **argv) {
   /*
    * Parse the input file.
    */
-  // TODO
+  auto p = L1::parse_file(argv[optind]);
 
   /*
    * Print the source program.
@@ -64,12 +66,15 @@ int main(int argc, char **argv) {
   if (Utils::verbose) {
     // TODO
   }
+  /*
+  Code optimizations (Not optional... )
+  */
 
   /*
    * Generate x86_64 assembly.
    */
   if (enable_code_generator) {
-    // TODO
+    L1::generate_code(p);
   }
 
   return 0;

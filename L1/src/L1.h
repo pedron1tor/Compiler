@@ -72,11 +72,11 @@ namespace L1 {
   };
 
   // p ::= (l f+)
-  struct Program {
+  struct p {
     l entry_point;  // @name
     std::vector<f> functions;
   };
 
-  Program parse_file(char *filename);
+  p parse_file(char *filename);
 
 }
