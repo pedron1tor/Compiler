@@ -137,7 +137,15 @@ namespace L1
     template <typename Input>
     static void apply(const Input &in, p &program)
     {
-      program.entry_point.name = in.string();
+      if (program.entry_point.name.empty())
+      {
+        program.entry_point.name = in.string(); 
+      }
+      else {
+          f newF;
+          newF.name.name = in.string();
+          program.functions.push_back(newF);
+      }
     }
   };
 
