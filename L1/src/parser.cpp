@@ -26,7 +26,7 @@ namespace L1
   /*
    * Grammar rules definitions from now on.
    */
-  struct name : pegtl::seq<
+  struct parse_name : pegtl::seq<
                     pegtl::plus<
                         pegtl::sor<
                             pegtl::alpha,
@@ -39,48 +39,48 @@ namespace L1
   {
   };
 
-  struct label : pegtl::seq<
+  struct parse_label : pegtl::seq<
                      pegtl::one<':'>,
-                     name>
+                     parse_name>
   {
   };
 
-  struct function_name_rule : pegtl::seq<
+  struct parse_function_name_rule : pegtl::seq<
                                   pegtl::one<'@'>,
-                                  name>
+                                parse_name>
   {
   };
 
   /*
    * Separators.
    */
-  struct spaces : pegtl::star<
+  struct parse_spaces : pegtl::star<
                       pegtl::sor<
                           pegtl::one<' '>,
                           pegtl::one<'\t'>>>
   {
   };
 
-  struct seps : pegtl::star<
+  struct parse_seps : pegtl::star<
                     pegtl::seq<
-                        spaces,
+                        parse_spaces,
                         pegtl::eol>>
   {
   };
 
-  struct entry_point_rule : pegtl::seq<
-                                seps,
-                                pegtl::seq<spaces, pegtl::one<'('>>,
-                                seps,
-                                function_name_rule,
-                                seps,
-                                pegtl::seq<spaces, pegtl::one<')'>>,
-                                seps>
+  struct parse_entry_point_rule : pegtl::seq<
+                                parse_seps,
+                                pegtl::seq<parse_spaces, pegtl::one<'('>>,
+                                parse_seps,
+                                parse_function_name_rule,
+                                parse_seps,
+                                pegtl::seq<parse_spaces, pegtl::one<')'>>,
+                                parse_seps>
   {
   };
 
   struct grammar : pegtl::must<
-                       entry_point_rule>
+                       parse_entry_point_rule>
   {
   };
 
@@ -93,12 +93,12 @@ namespace L1
   };
 
   template <>
-  struct action<function_name_rule>
+  struct action<parse_function_name_rule>
   {
     template <typename Input>
-    static void apply(const Input &in, p &p)
+    static void apply(const Input &in, p &program)
     {
-      p.entryPointLabel = in.string();
+      program.entry_point.name = in.string();
     }
   };
 
@@ -117,7 +117,8 @@ namespace L1
      * Parse.
      */
     file_input<> fileInput(filename);
-    p program;
-    parse<grammar, action>(fileInput, program);
+    p program_ast;
+    parse<grammar, action>(fileInput, program_ast);
+    return program_ast;
   }
 }
