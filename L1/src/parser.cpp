@@ -26,6 +26,15 @@ namespace L1
   /*
    * Grammar rules definitions from now on.
    */
+  
+   struct parse_number : pegtl::seq<pegtl::sor<
+                            pegtl::seq<
+                                pegtl::opt<pegtl::sor<pegtl::one<'+'>, pegtl::one<'-'>>>,
+                                pegtl::range<'1', '9'>,
+                                pegtl::star<pegtl::digit>>,
+                            pegtl::one<'0'>>>
+  {
+  };
   struct parse_name : pegtl::seq<
                           pegtl::plus<
                               pegtl::sor<
@@ -67,22 +76,16 @@ namespace L1
                               pegtl::eol>>
   {
   };
-  struct parse_instruction
+    struct parse_return : pegtl::seq<pegtl::string<'r','e','t','u','r','n'>, pegtl::not_at<pegtl::alnum>>
+  {};
+
+  struct parse_instruction : pegtl::seq<parse_seps, 
+  pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return>>, parse_spaces>, parse_seps> 
   {
   };
 
-  struct parse_instructions
-  {
-  };
-
-  struct parse_number : pegtl::seq<pegtl::sor<
-                            pegtl::seq<
-                                pegtl::opt<pegtl::sor<pegtl::one<'+'>, pegtl::one<'-'>>>,
-                                pegtl::range<'1', '9'>,
-                                pegtl::star<pegtl::digit>>,
-                            pegtl::one<'0'>>>
-  {
-  };
+  struct parse_instructions : pegtl::seq<pegtl::plus<parse_instruction>>
+  {};
   struct parse_argument_number:
   parse_number {};
 
@@ -97,7 +100,9 @@ namespace L1
                                           pegtl::seq<parse_spaces, parse_argument_number>,
                                           parse_seps,
                                           pegtl::seq<parse_spaces, parse_local_number>,
-                                          // parse_instructions,
+                                          parse_seps,
+                                          pegtl::seq<parse_spaces, parse_instructions>,
+                                          parse_seps,
                                           parse_seps,
                                           pegtl::seq<parse_spaces, pegtl::one<')'>>,
                                           parse_seps>
@@ -163,6 +168,15 @@ namespace L1
     {
       auto &currentF = program.functions.back();
       currentF.num_locals = std::stoll(in.string());
+    }
+  };
+  template<> struct action <parse_return> {
+    template<typename Input> 
+    static void apply( const Input &in, p &program) 
+    {
+      i newI = Return{};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI);
     }
   };
 
