@@ -9,6 +9,7 @@ call tuple-error 3
 call tensor-error 1
 call tensor-error 3
 call tensor-error 4
+rax <- rdi
 return
 )
 (@myFunction2 

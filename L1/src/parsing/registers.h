@@ -9,6 +9,7 @@
 #include "primitives.h"
 
 
+
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
@@ -17,8 +18,8 @@ namespace L1 {
 struct parse_rdi : pegtl::string<'r', 'd', 'i'> {};
 struct parse_rax : pegtl::string<'r', 'a', 'x'> {};
 
-struct parse_register_rdi : parse_rdi {};
-struct parse_register_rax : parse_rax {};
+struct parse_register_rdi : pegtl::seq<parse_rdi, parse_nochar> {};
+struct parse_register_rax : pegtl::seq<parse_rax, parse_nochar> {};
 struct parse_register : pegtl::sor<parse_register_rdi, parse_register_rax> {};
 
 /*

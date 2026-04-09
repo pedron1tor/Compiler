@@ -14,6 +14,7 @@
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
 #include <tao/pegtl/contrib/raw_string.hpp>
+#include <tao/pegtl/contrib/trace.hpp>
 
 #include <L1.h>
 #include <parser.h>
@@ -67,6 +68,7 @@ struct grammar : pegtl::must<
                      parse_entry_point_rule> {
 };
 
+
 /*
  * templates
  */
@@ -114,6 +116,7 @@ p parse_file(char *filename) {
    */
   file_input<> fileInput(filename);
   p program_ast;
+  // pegtl::standard_trace<grammar>(fileInput); run to debug program... 
   parse<grammar, action>(fileInput, program_ast);
   std::cerr << "=== AST ===\n";
   std::cerr << "Entry point: " << program_ast.entry_point.name << "\n";

@@ -41,7 +41,7 @@ struct parse_label : pegtl::seq<pegtl::one<':'>,parse_name> {};
  */
 struct parse_spaces : pegtl::star<pegtl::sor<pegtl::one<' '>,pegtl::one<'\t'>>> {};
 struct parse_seps : pegtl::star<pegtl::seq<parse_spaces,pegtl::eol>> {};
-
+struct parse_nochar : pegtl::not_at<pegtl::alnum> {};
 
 /*
 * Templates

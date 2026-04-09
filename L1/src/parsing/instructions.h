@@ -13,7 +13,6 @@ namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
 namespace L1 {
-struct parse_nochar : pegtl::not_at<pegtl::alnum> {};
 struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
 struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar> {};
 struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar> {};
@@ -35,7 +34,7 @@ struct parse_assignment : pegtl::seq<
                               parse_register> {};
 struct parse_instructions : pegtl::seq<parse_seps,
                                        pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, 
-                                       parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst>, parse_spaces, parse_seps>>> {};
+                                       parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assignment>, parse_spaces, parse_seps>>> {};
 
 /*
 templates
