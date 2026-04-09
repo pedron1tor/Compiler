@@ -5,7 +5,6 @@
 #include <cstdint>
 
 namespace L1 {
-
   // w, a, sx, x :: =
   enum class r {
     rax, rbx, rbp, r10, r11, r12, r13, r14, r15,  // w
