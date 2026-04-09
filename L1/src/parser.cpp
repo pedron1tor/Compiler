@@ -26,8 +26,8 @@ namespace L1
   /*
    * Grammar rules definitions from now on.
    */
-  
-   struct parse_number : pegtl::seq<pegtl::sor<
+
+  struct parse_number : pegtl::seq<pegtl::sor<
                             pegtl::seq<
                                 pegtl::opt<pegtl::sor<pegtl::one<'+'>, pegtl::one<'-'>>>,
                                 pegtl::range<'1', '9'>,
@@ -76,21 +76,55 @@ namespace L1
                               pegtl::eol>>
   {
   };
-    struct parse_return : pegtl::seq<pegtl::string<'r','e','t','u','r','n'>, pegtl::not_at<pegtl::alnum>>
-  {};
-
-  struct parse_instruction : pegtl::seq<parse_seps, 
-  pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return>>, parse_spaces>, parse_seps> 
+  struct parse_nochar : pegtl::not_at<pegtl::alnum>
+  {
+  };
+  struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar>
+  {
+  };
+  struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar>
+  {
+  };
+  struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar>
+  {
+  };
+  struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_nochar>
+  {
+  };
+  struct parse_allocate : pegtl::seq < pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', 't', 'e'>, parse_nochar>
   {
   };
 
-  struct parse_instructions : pegtl::seq<pegtl::plus<parse_instruction>>
-  {};
-  struct parse_argument_number:
-  parse_number {};
+  struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar>
+  {
+  };
 
-  struct parse_local_number:
-  parse_number {};
+  struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar>
+  {};
+
+  struct parse_call_print : pegtl::seq<parse_call, parse_spaces, parse_print, parse_spaces, parse_number> {};
+
+  struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, parse_spaces, parse_number> {};
+
+  struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
+
+  struct parse_call_tuple_error : pegtl::seq<parse_call, parse_spaces, parse_tuple_error, parse_spaces, parse_number> {};
+
+  struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_number> {}; 
+  
+  struct parse_label_inst : parse_label {};
+  struct parse_instructions : pegtl::seq<parse_seps,
+                                        pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst>, parse_spaces, parse_seps>>>
+  {
+  };
+
+  struct parse_argument_number : parse_number
+  {
+  };
+
+  struct parse_local_number : parse_number
+  {
+  };
 
   struct parse_function_rule : pegtl::seq<parse_seps,
                                           pegtl::seq<parse_spaces, pegtl::one<'('>>,
@@ -155,30 +189,118 @@ namespace L1
       }
     }
   };
-  template<> struct action <parse_argument_number> {
-    template<typename Input>
-    static void apply(const Input &in, p &program) {
+  template <>
+  struct action<parse_argument_number>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
       auto &currentF = program.functions.back();
       currentF.num_args = std::stoll(in.string());
     }
   };
-  template<> struct action <parse_local_number> {
-    template<typename Input>
-    static void apply( const Input &in, p &program)
+  template <>
+  struct action<parse_local_number>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
     {
       auto &currentF = program.functions.back();
       currentF.num_locals = std::stoll(in.string());
     }
   };
-  template<> struct action <parse_return> {
-    template<typename Input> 
-    static void apply( const Input &in, p &program) 
+  template <>
+  struct action<parse_return>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
     {
       i newI = Return{};
       auto &currentF = program.functions.back();
       currentF.instructions.push_back(newI);
     }
   };
+  template <>
+  struct action<parse_call_print>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
+      i newI = CallPrint {};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI); 
+    
+    }
+
+  };
+template <>
+  struct action<parse_call_input>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
+      i newI = CallInput {};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI); 
+    
+    }
+
+  };
+  template <>
+  struct action<parse_call_allocate>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
+      i newI = CallAllocate {};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI); 
+    
+    }
+
+  };
+
+  template <>
+  struct action<parse_call_tuple_error>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
+      i newI = CallTupleError {};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI); 
+    
+    }
+
+  };
+template <>
+  struct action<parse_call_tensor_error>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
+      i newI = CallTensorError {};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI); 
+    
+    }
+
+  };
+template <>
+  struct action<parse_label_inst>
+  {
+    template <typename Input>
+    static void apply(const Input &in, p &program)
+    {
+      i newI = LabelInst{in.string()};
+      auto &currentF = program.functions.back();
+      currentF.instructions.push_back(newI); 
+    
+    }
+
+  };
+
+
 
   p parse_file(char *filename)
   {
