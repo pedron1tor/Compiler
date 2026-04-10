@@ -25,16 +25,32 @@ struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, pars
 struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
 struct parse_call_tuple_error : pegtl::seq<parse_call, parse_spaces, parse_tuple_error, parse_spaces, parse_number> {};
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_number> {};
-struct parse_label_inst : parse_label {};
+// w <- s
 struct parse_assignment : pegtl::seq<
                               parse_register,
                               parse_spaces,
                               parse_arrow,
                               parse_spaces,
                               parse_register> {};
+struct parse_num_t : parse_number {};
+struct parse_x_t : parse_register {};
+// w <- mem x M
+// mem x M <- s
+// w aop t
+struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, pegtl::sor<parse_register, parse_num_t>> {};
+// w sop sx
+// w sop N
+// mem x M += t
+// mem x M -= t
+// w += mem x M
+// w -= mem x M
+// w <- t cmp t
+// cjump t cmp t label
+struct parse_label_inst : parse_label {};
+// goto label
+
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, 
-                                       parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assignment>, parse_spaces, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_aop_expression, parse_assignment>, parse_spaces, parse_seps>>> {};
 
 /*
 templates
@@ -60,20 +76,71 @@ struct action<parse_call_tuple_error> : action_push<parse_call_tuple_error, Call
 template <>
 struct action<parse_call_tensor_error> : action_push<parse_call_tensor_error, CallTensorError> {};
 
-template <> struct action<parse_label_inst> {
-    template <typename Input>
-    static void apply(const Input &in, p &program) {
-        program.functions.back().instructions.push_back(i{LabelInst{label{in.string()}}});
-    }
+template <>
+struct action<parse_label_inst> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    program.functions.back().instructions.push_back(i{LabelInst{label{in.string()}}});
+  }
 };
-template <> struct action<parse_assignment> {
-    template <typename Input>
-    static void apply(const Input &in, p &program) {
-        auto src = parsed_items.back(); parsed_items.pop_back();
-        auto dst = parsed_items.back(); parsed_items.pop_back();
-        auto newI = Assign{ std::get<r>(dst), src };
-        program.functions.back().instructions.push_back(i{newI});
-    }
+template <>
+struct action<parse_num_t> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items_t.push_back(t{N{std::stoll(in.string())}});
+  }
 };
-
-                                      } 
+template <>
+struct action<parse_x_t> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto reg = parsed_items.back();
+    parsed_items.pop_back();
+    parsed_items_t.push_back(t{std::get<r>(reg)});
+  }
+};
+template <>
+struct action<parse_aop> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    if (in.string() == "+=") {
+      parsed_ops.push_back(aop::add);
+    } else if (in.string() == "-=") {
+      parsed_ops.push_back(aop::sub);
+    } else if (in.string() == "*=") {
+      parsed_ops.push_back(aop::mul);
+    } else if (in.string() == "&=") {
+      parsed_ops.push_back(aop::and_);
+    }
+  }
+};
+template <>
+struct action<parse_assignment> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto src = parsed_items.back();
+    parsed_items.pop_back();
+    auto dst = parsed_items.back();
+    parsed_items.pop_back();
+    auto newI = Assign{std::get<r>(dst), src};
+    program.functions.back().instructions.push_back(i{newI});
+  }
+};
+template <>
+struct action<parse_aop_expression> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto src_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    t src = std::holds_alternative<r>(src_item)
+                ? t{std::get<r>(src_item)}
+                : t{std::get<N>(src_item)};
+    auto aop = parsed_ops.back();
+    parsed_ops.pop_back();
+    auto dst = parsed_items.back();
+    parsed_items.pop_back();
+    auto newI = AopInst{std::get<r>(dst), aop, src};
+    program.functions.back().instructions.push_back(i{newI});
+  }
+};
+} // namespace L1

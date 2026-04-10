@@ -116,7 +116,8 @@ p parse_file(char *filename) {
    */
   file_input<> fileInput(filename);
   p program_ast;
-  // pegtl::standard_trace<grammar>(fileInput); run to debug program... 
+  // run to debug program... 
+  pegtl::standard_trace<grammar>(fileInput); 
   parse<grammar, action>(fileInput, program_ast);
   std::cerr << "=== AST ===\n";
   std::cerr << "Entry point: " << program_ast.entry_point.name << "\n";

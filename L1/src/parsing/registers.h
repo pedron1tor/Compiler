@@ -31,7 +31,8 @@ struct parse_r12 : pegtl::string<'r', '1', '2'> {};
 struct parse_r13 : pegtl::string<'r', '1', '3'> {};
 struct parse_r14 : pegtl::string<'r', '1', '4'> {};
 struct parse_r15 : pegtl::string<'r', '1', '5'> {};
-
+// x 
+struct parse_rsp : pegtl::string<'r', 's', 'p'> {};
 // a
 struct parse_register_rdi : pegtl::seq<parse_rdi, parse_nochar> {};
 struct parse_register_rsi : pegtl::seq<parse_rsi, parse_nochar> {};
@@ -49,12 +50,13 @@ struct parse_register_r12 : pegtl::seq<parse_r12, parse_nochar> {};
 struct parse_register_r13 : pegtl::seq<parse_r13, parse_nochar> {};
 struct parse_register_r14 : pegtl::seq<parse_r14, parse_nochar> {};
 struct parse_register_r15 : pegtl::seq<parse_r15, parse_nochar> {};
-
+// a
+struct parse_register_rsp : pegtl::seq<parse_rsp, parse_nochar> {};
 // parse all registers
 struct parse_register : pegtl::sor<parse_register_rdi, parse_register_rsi, parse_register_rdx, 
 parse_register_sx, parse_register_r8, parse_register_r9, parse_register_rax, parse_register_rbx, 
 parse_register_rbp, parse_register_r10, parse_register_r11, parse_register_r12, parse_register_r13, parse_register_r14,
-parse_register_r15> {};
+parse_register_r15, parse_register_rsp> {};
 /*
 templates
 */
@@ -146,13 +148,6 @@ struct action<parse_register_r13> {
   }
 };
 template <>
-struct action<parse_register_r13> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r13});
-  }
-};
-template <>
 struct action<parse_register_r14> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
@@ -164,6 +159,14 @@ struct action<parse_register_r15> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
     parsed_items.push_back(s{r::r15});
+  }
+};
+
+template <>
+struct action<parse_register_rsp> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items.push_back(s{r::rsp});
   }
 };
 
