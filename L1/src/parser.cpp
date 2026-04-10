@@ -119,15 +119,6 @@ p parse_file(char *filename) {
   // run to debug program... 
   // pegtl::standard_trace<grammar>(fileInput); 
   parse<grammar, action>(fileInput, program_ast);
-  std::cerr << "=== AST ===\n";
-  std::cerr << "Entry point: " << program_ast.entry_point.name << "\n";
-  std::cerr << "Functions: " << program_ast.functions.size() << "\n";
-  for (auto &fn : program_ast.functions) {
-    std::cerr << "  Function: " << fn.name.name << "\n";
-    std::cerr << "    args: " << fn.num_args << "\n";
-    std::cerr << "    locals: " << fn.num_locals << "\n";
-    std::cerr << "    instructions: " << fn.instructions.size() << "\n";
-  }
   return program_ast;
 }
 } // namespace L1
