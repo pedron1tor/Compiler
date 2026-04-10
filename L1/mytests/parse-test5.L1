@@ -11,6 +11,9 @@ call tensor-error 3
 call tensor-error 4
 // comments
 rax <- rdi
+rax <- 5
+rax <- :label
+rax <- @myFunction2
 return
 )
 (@myFunction2 

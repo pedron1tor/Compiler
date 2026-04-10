@@ -24,14 +24,20 @@ struct parse_call_print : pegtl::seq<parse_call, parse_spaces, parse_print, pars
 struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, parse_spaces, parse_number> {};
 struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
 struct parse_call_tuple_error : pegtl::seq<parse_call, parse_spaces, parse_tuple_error, parse_spaces, parse_number> {};
-struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_number> {};
+struct parse_tensor_error_F : parse_number {};
+struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
+// s value variants
+struct parse_s_num_val   : parse_number {};
+struct parse_s_label_val : parse_label {};
+struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name> {};
+struct parse_s_val : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val> {};
 // w <- s
 struct parse_assignment : pegtl::seq<
                               parse_register,
                               parse_spaces,
                               parse_arrow,
                               parse_spaces,
-                              parse_register> {};
+                              parse_s_val> {};
 struct parse_num_t : parse_number {};
 struct parse_x_t : parse_register {};
 // w <- mem x M
@@ -74,7 +80,21 @@ struct action<parse_call_allocate> : action_push<parse_call_allocate, CallAlloca
 template <>
 struct action<parse_call_tuple_error> : action_push<parse_call_tuple_error, CallTupleError> {};
 template <>
-struct action<parse_call_tensor_error> : action_push<parse_call_tensor_error, CallTensorError> {};
+struct action<parse_tensor_error_F> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items_t.push_back(t{N{std::stoll(in.string())}});
+  }
+};
+template <>
+struct action<parse_call_tensor_error> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto F = std::get<N>(parsed_items_t.back()).value;
+    parsed_items_t.pop_back();
+    program.functions.back().instructions.push_back(i{CallTensorError{F}});
+  }
+};
 
 template <>
 struct action<parse_label_inst> {
@@ -112,6 +132,27 @@ struct action<parse_aop> {
     } else if (in.string() == "&=") {
       parsed_ops.push_back(aop::and_);
     }
+  }
+};
+template <>
+struct action<parse_s_num_val> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items.push_back(s{N{std::stoll(in.string())}});
+  }
+};
+template <>
+struct action<parse_s_label_val> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items.push_back(s{label{in.string()}});
+  }
+};
+template <>
+struct action<parse_s_fname_val> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items.push_back(s{l{in.string()}});
   }
 };
 template <>
