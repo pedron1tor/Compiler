@@ -56,7 +56,7 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       retq(outputfile);
     } else if constexpr (std::is_same_v<T, Assign>) {
 
-      outputfile << "\t" << rename_register(r_to_str(inst.dest)) << " <- " << s_set_to_assembly(inst.src) << "\n";
+      outputfile << "\tmovq "<< s_set_to_assembly(inst.src)  << ", "  << rename_register(r_to_str(inst.dest))<< "\n";
     }
     // else if constexpr (std::is_same_v<T, MemRead>) {
     //     // handle MemRead
