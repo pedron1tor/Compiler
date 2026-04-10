@@ -106,6 +106,13 @@ struct action<parse_register_r9> {
 
 // w
 template <>
+struct action<parse_register_rax> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items.push_back(s{r::rax});
+  }
+};
+template <>
 struct action<parse_register_rbx> {
   template <typename Input>
   static void apply(const Input &in, p &program) {

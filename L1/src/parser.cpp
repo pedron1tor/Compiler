@@ -64,8 +64,8 @@ struct parse_entry_point_rule : pegtl::seq<
                                     pegtl::seq<parse_spaces, pegtl::one<')'>>,
                                     parse_seps> {};
 
-struct grammar : pegtl::must<
-                     parse_entry_point_rule> {
+struct grammar : pegtl::seq<
+                     parse_entry_point_rule, pegtl::eof> {
 };
 
 
@@ -117,7 +117,7 @@ p parse_file(char *filename) {
   file_input<> fileInput(filename);
   p program_ast;
   // run to debug program... 
-  pegtl::standard_trace<grammar>(fileInput); 
+  // pegtl::standard_trace<grammar>(fileInput); 
   parse<grammar, action>(fileInput, program_ast);
   std::cerr << "=== AST ===\n";
   std::cerr << "Entry point: " << program_ast.entry_point.name << "\n";

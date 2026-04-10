@@ -37,7 +37,7 @@ struct parse_x_t : parse_register {};
 // w <- mem x M
 // mem x M <- s
 // w aop t
-struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, pegtl::sor<parse_register, parse_num_t>> {};
+struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // w sop sx
 // w sop N
 // mem x M += t
@@ -130,7 +130,8 @@ template <>
 struct action<parse_aop_expression> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-    auto src_item = parsed_items_t.back();
+    try {
+   auto src_item = parsed_items_t.back();
     parsed_items_t.pop_back();
     t src = std::holds_alternative<r>(src_item)
                 ? t{std::get<r>(src_item)}
@@ -141,6 +142,11 @@ struct action<parse_aop_expression> {
     parsed_items.pop_back();
     auto newI = AopInst{std::get<r>(dst), aop, src};
     program.functions.back().instructions.push_back(i{newI});
+} catch (std::exception& e) {
+    std::cerr << "action crashed: " << e.what() << "\n";
+    throw;
+}
+    
   }
 };
 } // namespace L1
