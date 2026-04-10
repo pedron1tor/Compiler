@@ -27,9 +27,30 @@ namespace L1 {
       at_label[0] = '_';
       return at_label;
     }
+    void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
+        std::visit([&](auto &inst) {
+        using T = std::decay_t<decltype(inst)>;
+        if constexpr (std::is_same_v<T, Return>) {
+            retq(outputfile);
+        } 
+        // if constexpr (std::is_same_v<T, Assign>) {
+        //     // handle Assign
+        // } else if constexpr (std::is_same_v<T, MemRead>) {
+        //     // handle MemRead
+        // } else if constexpr (std::is_same_v<T, MemWrite>) {
+        //     // handle MemWrite
+        // } else if constexpr (std::is_same_v<T, AopInst>) {
+        //     // handle AopInst
+        // } else if constexpr (std::is_same_v<T, Return>) {
+            
+        // } 
+    }, instruction);
+    }
     void function_to_assembly(std::ofstream &outputfile, f &function) {
       outputfile <<rename_f(function.name.name) << ":\n";
-
+      for (auto &instruction : function.instructions) { 
+        instruction_to_assembly(outputfile, instruction);
+      };
     };
     
     
