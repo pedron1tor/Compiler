@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+#include <fstream>
 #include "parser.h"
 #include "codegen.h"
 
@@ -25,7 +26,6 @@ void print_help(char *progName) {
 int main(int argc, char **argv) {
   auto enable_code_generator = true;
   int32_t optLevel = 3;
-
   /*
    * Check the compiler arguments.
    */
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
    * Print the source program.
    */
   if (Utils::verbose) {
-    // TODO
+    L1::print_source_program(p);
   }
   /*
   Code optimizations (Not optional... )
