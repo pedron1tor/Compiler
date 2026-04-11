@@ -279,7 +279,7 @@ struct action<parse_memwrite_expression> {
     parsed_items.pop_back();
     auto offset = parsed_offset.back();
     parsed_offset.pop_back();
-    auto newI = MemWrite{std::get<r>(base), offset.value, std::get<r>(src)};
+    auto newI = MemWrite{std::get<r>(base), offset.value, src};
     program.functions.back().instructions.push_back(i{newI});
   }
 };

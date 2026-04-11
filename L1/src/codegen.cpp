@@ -73,13 +73,13 @@ std::string u_set_to_assembly(L1::u val) {
 void arithmetic_operation(std::ofstream &outputfile, AopInst arithmetic_instruction) {
   std::string operation = aop_to_str(arithmetic_instruction.op);
   if (operation == "+=") {
-    outputfile << "\taddq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest) << "\n";
+    outputfile << "\taddq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << rename_register(r_to_str(arithmetic_instruction.dest)) << "\n";
   } else if (operation == "-=") {
-    outputfile << "\tsubq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest) << "\n";
+    outputfile << "\tsubq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << rename_register(r_to_str(arithmetic_instruction.dest)) << "\n";
   } else if (operation == "*=") {
-    outputfile << "\tmultq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest) << "\n";
+    outputfile << "\tmultq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << rename_register(r_to_str(arithmetic_instruction.dest)) << "\n";
   } else if (operation == "&=") {
-    outputfile << "\tandq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest) << "\n";
+    outputfile << "\tandq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << rename_register(r_to_str(arithmetic_instruction.dest)) << "\n";
   }
 };
 std::string mem_format_offset(std::string reg, int64_t offset) {
