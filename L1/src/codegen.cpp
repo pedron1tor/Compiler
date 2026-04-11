@@ -268,6 +268,25 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
       int subq_val = extra_args * 8 + 8;
       outputfile << "\tsubq " << rename_constant(subq_val) << ", " << rename_register("rsp") << "\n";
       outputfile << "\tjmp " << u_set_to_assembly(inst.callee) << "\n";
+    } else if constexpr (std::is_same_v<T, CallPrint>) {
+      outputfile << "\tcall print" << "\n";
+    } else if constexpr (std::is_same_v<T, CallAllocate>) {
+      outputfile << "\tcall allocate" << "\n";
+    } else if constexpr (std::is_same_v<T, CallInput>) {
+      outputfile << "\tcall input" << "\n";
+    } else if constexpr (std::is_same_v<T, CallTensorError>) {
+      int F = inst.F;
+      std::string identifier;
+      if (F == 1) {
+          identifier = "array_tensor_error_null";
+      }
+      else if (F == 3 ) {
+        identifier = "array_error";
+      }
+      else if (F == 4) {
+        identifier = "tensor_error";
+      }
+      outputfile << "\tcall " << identifier << "\n";
     }
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
