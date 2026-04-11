@@ -166,6 +166,18 @@ void comparisons_to_assembly(std::ofstream &outputfile, Compare instruction) {
     outputfile << "\tmovzbq " << rename_register(small_register) << ", " << dest_reg << "\n";
   }
 }
+template <typename SopT>
+void shift_ops_to_assembly(std::ofstream &outputfile, SopT &instruction) {
+  std::string left = rename_register(r_to_str(instruction.dest));
+  std::string assembly_op = (instruction.op == sop::lshift) ? "\tsalq " : "\tsarq ";
+  std::string right;
+  if constexpr (std::is_same_v<SopT, SopReg>) {
+    right = "%" + register_to_8bit_variant(r_to_str(instruction.shift));
+  } else {
+    right = "$" + std::to_string(instruction.shift.value);
+  }
+  outputfile << assembly_op << right << ", " << left << "\n";
+}
 void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
   std::visit([&](auto &inst) {
     using T = std::decay_t<decltype(inst)>;
@@ -189,8 +201,9 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       mem_arithmetic_operation_write(outputfile, inst);
     } else if constexpr (std::is_same_v<T, Compare>) {
       comparisons_to_assembly(outputfile, inst);
-    } else if constexpr (std::is_same_v<T, SopReg>) {
-    }
+    } else if constexpr (std::is_same_v<T, SopReg> || std::is_same_v<T, SopNum>) {
+      shift_ops_to_assembly(outputfile, inst);  
+    } 
 
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
