@@ -264,7 +264,8 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
     } else if constexpr (std::is_same_v<T, LoadAddr>) {
       outputfile << "\tlea (" << rename_register(r_to_str(inst.base)) << ", " << rename_register(r_to_str(inst.index)) << ", " << inst.scale << "), " << rename_register(r_to_str(inst.dest)) << "\n";
     } else if constexpr (std::is_same_v<T, Call>) {
-      int subq_val = (inst.num_args.value - 6) * 8 + 8;
+      int64_t extra_args = std::max(inst.num_args.value - 6, (int64_t)0); ensure that the differnce won't be negative ... that would be bad... 
+      int subq_val = extra_args * 8 + 8;
       outputfile << "\tsubq " << rename_constant(subq_val) << ", " << rename_register("rsp") << "\n";
       outputfile << "\tjmp " << u_set_to_assembly(inst.callee) << "\n";
     }
