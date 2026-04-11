@@ -259,9 +259,9 @@ template <>
 struct action<parse_memread_expression> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-    auto dst = parsed_items.back();
+    auto base = parsed_items.back();  
     parsed_items.pop_back();
-    auto base = parsed_items.back();
+    auto dst = parsed_items.back();    
     parsed_items.pop_back();
     auto offset = parsed_offset.back();
     parsed_offset.pop_back();
