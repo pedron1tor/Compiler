@@ -128,13 +128,13 @@ std::string register_to_8bit_variant(std::string reg) {
 }
 int cmp_result(std::string cmp_op, int64_t lv, int64_t rv) {
   int result;
-    if (cmp_op == "<")
-      result = (lv < rv) ? 1 : 0;
-    else if (cmp_op == "<=")
-      result = (lv <= rv) ? 1 : 0;
-    else
-      result = (lv == rv) ? 1 : 0;
-      return result;
+  if (cmp_op == "<")
+    result = (lv < rv) ? 1 : 0;
+  else if (cmp_op == "<=")
+    result = (lv <= rv) ? 1 : 0;
+  else
+    result = (lv == rv) ? 1 : 0;
+  return result;
 };
 void comparisons_to_assembly(std::ofstream &outputfile, Compare instruction) {
   std::string cmp_op = cmp_to_str(instruction.op);
@@ -147,7 +147,7 @@ void comparisons_to_assembly(std::ofstream &outputfile, Compare instruction) {
     // compute the comparison in compile time
     int64_t lv = std::get<N>(instruction.left).value;
     int64_t rv = std::get<N>(instruction.right).value;
-    int result = cmp_result(cmp_op, lv, rv); 
+    int result = cmp_result(cmp_op, lv, rv);
     outputfile << "\tmovq $" << result << ", " << dest_reg << "\n";
   } else if (left_is_num) {
     outputfile << "\tcmpq " << t_set_to_assembly(instruction.left) << ", " << t_set_to_assembly(instruction.right) << "\n";
@@ -182,36 +182,32 @@ void shift_ops_to_assembly(std::ofstream &outputfile, SopT &instruction) {
   }
   outputfile << assembly_op << right << ", " << left << "\n";
 }
-void conditional_jumps_to_assembly(std::ofstream  &outputfile, Cjump &instruction) {
+void conditional_jumps_to_assembly(std::ofstream &outputfile, Cjump &instruction) {
   bool left_is_num = std::holds_alternative<N>(instruction.left);
   bool right_is_num = std::holds_alternative<N>(instruction.right);
   std::string cmp_op = cmp_to_str(instruction.op);
   std::string assembly_target = rename_f(instruction.target.name);
-  if (left_is_num && right_is_num ){ 
-     int64_t lv = std::get<N>(instruction.left).value;
+  if (left_is_num && right_is_num) {
+    int64_t lv = std::get<N>(instruction.left).value;
     int64_t rv = std::get<N>(instruction.right).value;
-    int result = cmp_result(cmp_op, lv, rv); 
-    if (!result) {return;}
-    else {
-      outputfile << "\tjump " << assembly_target << "\n"; 
+    int result = cmp_result(cmp_op, lv, rv);
+    if (!result) {
+      return;
+    } else {
+      outputfile << "\tjump " << assembly_target << "\n";
     }
-  }
-  else {
-    outputfile << "\tcmpq " << t_set_to_assembly(instruction.right)<< ", "<< t_set_to_assembly(instruction.left) << "\n"; 
-    std::string assembly_cmp; 
-    if (cmp_op == "<=")
-    {
+  } else {
+    outputfile << "\tcmpq " << t_set_to_assembly(instruction.right) << ", " << t_set_to_assembly(instruction.left) << "\n";
+    std::string assembly_cmp;
+    if (cmp_op == "<=") {
       assembly_cmp = "\tjle ";
-    }
-    else if (cmp_op == "<") {
+    } else if (cmp_op == "<") {
       assembly_cmp = "\tjg ";
-    }
-    else if (cmp_op == "=") {
+    } else if (cmp_op == "=") {
       assembly_cmp = "\tje ";
     }
-    outputfile << assembly_cmp << assembly_target << "\n"; 
+    outputfile << assembly_cmp << assembly_target << "\n";
   }
-  
 }
 void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
   std::visit([&](auto &inst) {
@@ -237,13 +233,13 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
     } else if constexpr (std::is_same_v<T, Compare>) {
       comparisons_to_assembly(outputfile, inst);
     } else if constexpr (std::is_same_v<T, SopReg> || std::is_same_v<T, SopNum>) {
-      shift_ops_to_assembly(outputfile, inst);  
+      shift_ops_to_assembly(outputfile, inst);
     } else if constexpr (std::is_same_v<T, LabelInst>) {
-      outputfile << "\t" <<rename_f(inst.lbl.name) <<":"<< "\n";
+      outputfile << "\t" << rename_f(inst.lbl.name) << ":" << "\n";
     } else if constexpr (std::is_same_v<T, Goto>) {
-      outputfile << "\t"<< "jmp "<<rename_f(inst.target.name)<< "\n";
-    } else if constexpr (std::is_same_v<T, Cjump>){ 
-        conditional_jumps_to_assembly(outputfile, inst);
+      outputfile << "\t" << "jmp " << rename_f(inst.target.name) << "\n";
+    } else if constexpr (std::is_same_v<T, Cjump>) {
+      conditional_jumps_to_assembly(outputfile, inst);
     }
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
