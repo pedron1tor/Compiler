@@ -273,9 +273,9 @@ template <>
 struct action<parse_memwrite_expression> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-    auto base = parsed_items.back();
-    parsed_items.pop_back();
     auto src = parsed_items.back();
+    parsed_items.pop_back();
+    auto base = parsed_items.back();
     parsed_items.pop_back();
     auto offset = parsed_offset.back();
     parsed_offset.pop_back();

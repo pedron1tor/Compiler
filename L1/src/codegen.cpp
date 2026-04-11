@@ -238,7 +238,7 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
     } else if constexpr (std::is_same_v<T, Assign>) {
       outputfile << "\tmovq " << s_set_to_assembly(inst.src) << ", " << rename_register(r_to_str(inst.dest)) << "\n";
     } else if constexpr (std::is_same_v<T, MemRead>) {
-      outputfile << "\tmovq " << mem_format_offset(r_to_str(inst.base), inst.offset) << ", " << rename_register(r_to_str(inst.dest)) << "\n";
+      outputfile << "\tmovq " << mem_format_offset(rename_register(r_to_str(inst.base)), inst.offset) << ", " << rename_register(r_to_str(inst.dest)) << "\n";
     } else if constexpr (std::is_same_v<T, MemWrite>) {
       outputfile << "\tmovq " << s_set_to_assembly(inst.src) << ", " << mem_format_offset(rename_register(r_to_str(inst.base)), inst.offset) << "\n";
     } else if constexpr (std::is_same_v<T, AopInst>) {
