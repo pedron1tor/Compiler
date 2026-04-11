@@ -39,6 +39,9 @@ rdi >>= 3
 rdi <- rax <= rbx
 rdi <- rax < rbx
 rdi <- rax = rbx
+cjump rax <= rdi :yes
+cjump rax < rdi :yes
+cjump rax = rdi :yes
 return
 )
 )

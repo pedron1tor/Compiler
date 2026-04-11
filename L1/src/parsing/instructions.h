@@ -15,6 +15,7 @@ using namespace pegtl;
 namespace L1 {
 struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
 struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar> {};
+struct parse_cjump : pegtl::seq<pegtl::string<'c', 'j', 'u', 'm', 'p'>, parse_nochar> {};
 struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar> {};
 struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar> {};
 struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_nochar> {};
@@ -66,6 +67,10 @@ struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, 
 struct parse_assign_cmp : pegtl::seq<parse_register, parse_spaces, parse_arrow, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces,
 parse_cmp, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // cjump t cmp t label
+struct parse_label_inst_useful : parse_label {};
+struct parse_cond_jump : pegtl::seq<parse_cjump, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_cmp, parse_spaces, 
+pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_label_inst_useful> {};
+// label
 struct parse_label_inst : parse_label {};
 // goto label
 
@@ -73,7 +78,7 @@ struct parse_label_inst : parse_label {};
 // w @ w w E
 
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
 
 /*
 templates
@@ -118,6 +123,13 @@ struct action<parse_label_inst> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
     program.functions.back().instructions.push_back(i{LabelInst{label{in.string()}}});
+  }
+};
+template <>
+struct action<parse_label_inst_useful> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_labels.push_back(label{in.string()});
   }
 };
 template <>
@@ -318,6 +330,22 @@ struct action<parse_assign_cmp> {
     auto dst = parsed_items.back();
     parsed_items.pop_back();
       i newI = Compare{std::get<r>(dst), left_item, cmp_op, right_item};
+    program.functions.back().instructions.push_back(newI);
+  };
+};
+template <>
+struct action<parse_cond_jump> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto right_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    auto cmp_op = parsed_cmps.back();
+    parsed_cmps.pop_back();
+    auto left_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    auto label = parsed_labels.back();
+    parsed_labels.pop_back();
+      i newI = Cjump{left_item, cmp_op, right_item, label};
     program.functions.back().instructions.push_back(newI);
   };
 };

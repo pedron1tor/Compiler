@@ -20,6 +20,7 @@ std::vector<aop> parsed_ops;
 std::vector<sop> parsed_sops;
 std::vector<cmp> parsed_cmps;
 std::vector<N> parsed_offset;
+std::vector<label> parsed_labels;
 
 
   struct parse_number : pegtl::seq<pegtl::sor<
