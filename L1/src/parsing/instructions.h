@@ -14,6 +14,7 @@ using namespace pegtl;
 
 namespace L1 {
 struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
+struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar> {};
 struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar> {};
 struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar> {};
 struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_nochar> {};
@@ -41,7 +42,11 @@ struct parse_assignment : pegtl::seq<
 struct parse_num_t : parse_number {};
 struct parse_x_t : parse_register {};
 // w <- mem x M
+struct parse_M : parse_number {};
+struct parse_memread_expression : pegtl::seq<parse_register,
+parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_register, parse_spaces, parse_M> {};
 // mem x M <- s
+struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s_val> {};
 // w aop t
 struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // w sop sx
@@ -56,7 +61,7 @@ struct parse_label_inst : parse_label {};
 // goto label
 
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_aop_expression, parse_assignment>, parse_spaces, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_memread_expression, parse_assignment>, parse_spaces, parse_seps>>> {};
 
 /*
 templates
@@ -111,6 +116,13 @@ struct action<parse_num_t> {
   }
 };
 template <>
+struct action<parse_M> {
+  template <typename Input> 
+  static void apply(const Input &in, p &program) {
+    parsed_offset.push_back(N{std::stoll(in.string())});
+  }
+};
+template <>
 struct action<parse_x_t> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
@@ -153,6 +165,34 @@ struct action<parse_s_fname_val> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
     parsed_items.push_back(s{l{in.string()}});
+  }
+};
+template <>
+struct action<parse_memread_expression> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto dst = parsed_items.back();
+    parsed_items.pop_back();
+    auto base = parsed_items.back();
+    parsed_items.pop_back();
+    auto offset = parsed_offset.back();
+    parsed_offset.pop_back();
+    auto newI = MemRead{std::get<r>(dst), std::get<r>(base), offset.value};
+    program.functions.back().instructions.push_back(i{newI});
+  }
+};
+template <>
+struct action<parse_memwrite_expression> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto base = parsed_items.back();
+    parsed_items.pop_back();
+    auto src = parsed_items.back();
+    parsed_items.pop_back();
+    auto offset = parsed_offset.back();
+    parsed_offset.pop_back();
+    auto newI = MemWrite{std::get<r>(base), offset.value, std::get<r>(src)};
+    program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>

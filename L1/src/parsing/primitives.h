@@ -17,6 +17,7 @@ tokens parsed
 std::vector<s> parsed_items;
 std::vector<t> parsed_items_t;
 std::vector<aop> parsed_ops;
+std::vector<N> parsed_offset;
 
   struct parse_number : pegtl::seq<pegtl::sor<
                           pegtl::seq<
