@@ -257,6 +257,10 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
 }
 void function_to_assembly(std::ofstream &outputfile, f &function) {
   outputfile << rename_f(function.name.name) << ":\n";
+  int subq_num = function.num_locals*8; 
+  if (function.num_locals > 0){
+  outputfile << "\tsubq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
+  };
   for (auto &instruction : function.instructions) {
     instruction_to_assembly(outputfile, instruction);
   };
