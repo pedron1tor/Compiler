@@ -63,7 +63,7 @@ std::string u_set_to_assembly(L1::u val) {
   return std::visit([&](auto &v) -> std::string {
     using U = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<U, L1::r>)
-      return rename_register(r_to_str(v));
+      return "*" + rename_register(r_to_str(v));
     else
       return rename_f(v.name);
   },

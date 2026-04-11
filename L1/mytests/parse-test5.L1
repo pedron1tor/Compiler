@@ -48,6 +48,7 @@ cjump rax < rdi :yes
 cjump rax = rdi :yes
 goto :helloworld
 call @myFunction2 12
+call rdi 0
 rax @ rdi rax 4
 return
 )
