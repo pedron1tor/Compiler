@@ -21,6 +21,7 @@ std::vector<sop> parsed_sops;
 std::vector<cmp> parsed_cmps;
 std::vector<N> parsed_offset;
 std::vector<label> parsed_labels;
+std::vector<u> parsed_items_u;
 
 
   struct parse_number : pegtl::seq<pegtl::sor<

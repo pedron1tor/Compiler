@@ -66,21 +66,23 @@ struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, 
                                        parse_spaces, parse_register, parse_spaces, parse_M> {};
 // w <- t cmp t
 struct parse_assign_cmp : pegtl::seq<parse_register, parse_spaces, parse_arrow, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces,
-parse_cmp, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
+                                     parse_cmp, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // cjump t cmp t label
 struct parse_label_inst_useful : parse_label {};
-struct parse_cond_jump : pegtl::seq<parse_cjump, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_cmp, parse_spaces, 
-pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_label_inst_useful> {};
+struct parse_cond_jump : pegtl::seq<parse_cjump, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_cmp, parse_spaces,
+                                    pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_label_inst_useful> {};
 // label
 struct parse_label_inst : parse_label {};
 // goto label
-struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_useful> {};  
-
+struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_useful> {};
 // call u N
+struct parse_w_u : parse_register {};
+struct parse_l_u : parse_s_fname_val {};
+struct parse_call_inst : pegtl::seq<parse_call, parse_spaces, pegtl::sor<parse_w_u, parse_l_u>, parse_spaces, parse_M> {};
 // w @ w w E
 
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label>, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label>, parse_seps>>> {};
 
 /*
 templates
@@ -149,6 +151,22 @@ struct action<parse_M> {
   }
 };
 template <>
+struct action<parse_l_u> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    parsed_items_u.push_back(u{l{in.string()}});
+  }
+};
+template <>
+struct action<parse_w_u> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto reg = parsed_items.back();
+    parsed_items.pop_back();
+    parsed_items_u.push_back(u{std::get<r>(reg)});
+  }
+};
+template <>
 struct action<parse_x_t> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
@@ -211,7 +229,7 @@ struct action<parse_cmp> {
       parsed_cmps.push_back(cmp::lt);
     } else if (in.string() == "<=") {
       parsed_cmps.push_back(cmp::le);
-    } else if (in.string() == "="){
+    } else if (in.string() == "=") {
       parsed_cmps.push_back(cmp::eq);
     }
   }
@@ -331,7 +349,7 @@ struct action<parse_assign_cmp> {
     parsed_items_t.pop_back();
     auto dst = parsed_items.back();
     parsed_items.pop_back();
-      i newI = Compare{std::get<r>(dst), left_item, cmp_op, right_item};
+    i newI = Compare{std::get<r>(dst), left_item, cmp_op, right_item};
     program.functions.back().instructions.push_back(newI);
   };
 };
@@ -341,7 +359,19 @@ struct action<parse_goto_label> {
   static void apply(const Input &in, p &program) {
     auto label = parsed_labels.back();
     parsed_labels.pop_back();
-      i newI = Goto{label};
+    i newI = Goto{label};
+    program.functions.back().instructions.push_back(newI);
+  };
+};
+template <>
+struct action<parse_call_inst> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto num_args = parsed_offset.back();
+    parsed_offset.pop_back();
+    auto callee = parsed_items_u.back();
+    parsed_items_u.pop_back();
+    i newI = Call{callee, num_args};
     program.functions.back().instructions.push_back(newI);
   };
 };
@@ -357,7 +387,7 @@ struct action<parse_cond_jump> {
     parsed_items_t.pop_back();
     auto label = parsed_labels.back();
     parsed_labels.pop_back();
-      i newI = Cjump{left_item, cmp_op, right_item, label};
+    i newI = Cjump{left_item, cmp_op, right_item, label};
     program.functions.back().instructions.push_back(newI);
   };
 };
