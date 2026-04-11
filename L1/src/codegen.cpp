@@ -93,7 +93,43 @@ void mem_arithmetic_operation_write(std::ofstream &outputfile, MemAopWrite instr
     outputfile << "\taddq " << t_set_to_assembly(instruction.src) << ", " << mem_format_offset(rename_register(r_to_str(instruction.base)), instruction.offset) << "\n";
   }
 }
-
+std::string register_to_8bit_variant(std::string reg) {
+  if (reg == "r10") return "r10b";
+  if (reg == "r11") return "r11b";
+  if (reg == "r12") return "r12b";
+  if (reg == "r13") return "r13b";
+  if (reg == "r14") return "r14b";
+  if (reg == "r15") return "r15b";
+  if (reg == "r8")  return "r8b";
+  if (reg == "r9")  return "r9b";
+  if (reg == "rax") return "al";
+  if (reg == "rbp") return "bpl";
+  if (reg == "rbx") return "bl";
+  if (reg == "rcx") return "cl";
+  if (reg == "rdi") return "dil";
+  if (reg == "rdx") return "dl";
+  if (reg == "rsi") return "sil";
+  return reg;
+}
+void comparisons_to_assembly(std::ofstream &outputfile, Compare instruction) {
+outputfile << "\tcmpq" << rename_register(t_to_str(instruction.right)) <<", " << rename_register(t_to_str(instruction.left)) << "\n";
+std::string cmp_op = cmp_to_str(instruction.op);
+std::string small_register;
+if (cmp_op == "<") {
+  // setg or setl depending on less than or greater than.
+  small_register = register_to_8bit_variant(r_to_str(instruction.dest));
+  outputfile << "\tsegl " << rename_register(small_register) << "\n"; 
+}
+else if (cmp_op == "<=") {
+  small_register = register_to_8bit_variant(r_to_str(instruction.dest));
+  outputfile << "\tsetle " << rename_register(small_register) << "\n"; 
+}
+else if (cmp_op == "=") {
+  small_register = register_to_8bit_variant(r_to_str(instruction.dest));
+  outputfile << "\tsete "<< rename_register(small_register) << "\n";
+}
+outputfile << "\tmovzbq "<< small_register << ", " << rename_register(r_to_str(instruction.dest)) << "\n"; 
+};
 void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
   std::visit([&](auto &inst) {
     using T = std::decay_t<decltype(inst)>;
@@ -115,7 +151,9 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       mem_arithmetic_operation_read(outputfile, inst);
     } else if constexpr (std::is_same_v<T, MemAopWrite>) {
       mem_arithmetic_operation_write(outputfile, inst);
-    }
+    } else if constexpr (std::is_same_v<T, Compare>){
+      comparisons_to_assembly(outputfile, inst);
+    } 
 
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
