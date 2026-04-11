@@ -18,6 +18,7 @@ std::vector<s> parsed_items;
 std::vector<t> parsed_items_t;
 std::vector<aop> parsed_ops;
 std::vector<sop> parsed_sops;
+std::vector<cmp> parsed_cmps;
 std::vector<N> parsed_offset;
 
 
@@ -64,7 +65,7 @@ struct parse_eq : pegtl::string<'='> {};
 struct parse_aop : pegtl::sor<parse_plus_assign, parse_minus_assign, parse_mult_assign, 
 parse_and_assign> {};
 struct parse_sop : pegtl::sor<parse_left_shift_assign, parse_right_shift_assign> {};
-struct parse_cmp : pegtl::sor<parse_lt, parse_lte, parse_eq> {}; 
+struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq> {}; 
 /*
 * Templates
 */

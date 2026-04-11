@@ -36,6 +36,9 @@ mem rsp 8 -= rdi
 mem rsp 8 += rdi
 rdi <<= rcx
 rdi >>= 3
+rdi <- rax <= rbx
+rdi <- rax < rbx
+rdi <- rax = rbx
 return
 )
 )

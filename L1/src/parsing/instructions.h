@@ -63,12 +63,17 @@ struct parse_mem_aop_write : pegtl::seq<parse_mem, parse_spaces, parse_register,
 struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_mem,
                                        parse_spaces, parse_register, parse_spaces, parse_M> {};
 // w <- t cmp t
+struct parse_assign_cmp : pegtl::seq<parse_register, parse_spaces, parse_arrow, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces,
+parse_cmp, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // cjump t cmp t label
 struct parse_label_inst : parse_label {};
 // goto label
 
+// call u N
+// w @ w w E
+
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
 
 /*
 templates
@@ -185,6 +190,19 @@ struct action<parse_sop> {
   }
 };
 template <>
+struct action<parse_cmp> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    if (in.string() == "<") {
+      parsed_cmps.push_back(cmp::lt);
+    } else if (in.string() == "<=") {
+      parsed_cmps.push_back(cmp::le);
+    } else if (in.string() == "="){
+      parsed_cmps.push_back(cmp::eq);
+    }
+  }
+};
+template <>
 struct action<parse_s_num_val> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
@@ -284,6 +302,22 @@ struct action<parse_sop_expression> {
     } else {
       newI = SopNum{std::get<r>(dst), sop_op, std::get<N>(src)};
     }
+    program.functions.back().instructions.push_back(newI);
+  };
+};
+template <>
+struct action<parse_assign_cmp> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto right_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    auto cmp_op = parsed_cmps.back();
+    parsed_cmps.pop_back();
+    auto left_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    auto dst = parsed_items.back();
+    parsed_items.pop_back();
+      i newI = Compare{std::get<r>(dst), left_item, cmp_op, right_item};
     program.functions.back().instructions.push_back(newI);
   };
 };
