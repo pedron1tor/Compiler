@@ -213,11 +213,14 @@ void conditional_jumps_to_assembly(std::ofstream &outputfile, Cjump &instruction
       outputfile << "\tje " << assembly_target << "\n";
   }
 }
-void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_locals) {
+void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_locals, int num_args) {
   std::visit([&](auto &inst) {
     using T = std::decay_t<decltype(inst)>;
     if constexpr (std::is_same_v<T, Return>) {
       int subq_num = num_locals*8; 
+      if (num_args > 6) {
+        subq_num += 8*(num_args - 6);
+      }
       if (num_locals > 0){
       outputfile << "\taddq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
       };
@@ -266,7 +269,7 @@ void function_to_assembly(std::ofstream &outputfile, f &function) {
   outputfile << "\tsubq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
   };
   for (auto &instruction : function.instructions) {
-    instruction_to_assembly(outputfile, instruction, function.num_locals);
+    instruction_to_assembly(outputfile, instruction, function.num_locals, function.num_args);
   };
 };
 
