@@ -15,12 +15,12 @@ void retq(std::ofstream &outputfile) {
   outputfile << "\tretq\n";
 };
 void pop_callee_saved_registers(std::ofstream &outputfile) {
-  outputfile << "\tpushq %r15\n";
-  outputfile << "\tpushq %r14\n";
-  outputfile << "\tpushq %r13\n";
-  outputfile << "\tpushq %r12\n";
-  outputfile << "\tpushq %rbp\n";
-  outputfile << "\tpushq %rbx\n";
+  outputfile << "\tpopq %r15\n";
+  outputfile << "\tpopq %r14\n";
+  outputfile << "\tpopq %r13\n";
+  outputfile << "\tpopq %r12\n";
+  outputfile << "\tpopq %rbp\n";
+  outputfile << "\tpopq %rbx\n";
   retq(outputfile);
 }
 std::string rename_f(std::string at_label) {
@@ -82,7 +82,7 @@ void mem_arithmetic_operation_read(std::ofstream &outputfile, MemAopRead instruc
   if (operation == "-=") {
     outputfile << "\tsubq " << mem_format_offset(rename_register(r_to_str(instruction.base)), instruction.offset) << ", " << rename_register(r_to_str(instruction.dest)) << "\n";
   } else if (operation == "+=") {
-    outputfile << "\tsubq " << mem_format_offset(rename_register(r_to_str(instruction.base)), instruction.offset) << ", " << rename_register(r_to_str(instruction.dest)) << "\n";
+    outputfile << "\taddq " << mem_format_offset(rename_register(r_to_str(instruction.base)), instruction.offset) << ", " << rename_register(r_to_str(instruction.dest)) << "\n";
   }
 };
 void mem_arithmetic_operation_write(std::ofstream &outputfile, MemAopWrite instruction) {
