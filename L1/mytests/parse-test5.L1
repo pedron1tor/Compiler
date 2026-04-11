@@ -42,6 +42,7 @@ rdi <- rax = rbx
 cjump rax <= rdi :yes
 cjump rax < rdi :yes
 cjump rax = rdi :yes
+goto :helloworld
 return
 )
 )
