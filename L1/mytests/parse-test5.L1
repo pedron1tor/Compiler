@@ -30,6 +30,10 @@ return
 )
 (@myFunction3
 +2 +2
+rdi -= mem rsp 8
+rdi += mem rsp 8
+mem rsp 8 -= rdi
+mem rsp 8 += rdi
 return
 )
 )

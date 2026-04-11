@@ -240,6 +240,10 @@ void print_source_program(p program) {
           std::cout << r_to_str(ins.dest) << " <- mem " << r_to_str(ins.base) << " " << ins.offset;
         else if constexpr (std::is_same_v<T, L1::MemWrite>)
           std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
+        else if constexpr (std::is_same_v<T, L1::MemAopRead>)
+          std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << r_to_str(ins.base) << " " << ins.offset;
+        else if constexpr (std::is_same_v<T, L1::MemAopWrite>)
+          std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
         else if constexpr (std::is_same_v<T, L1::Call>)
           std::cout << "call " << std::visit([&](auto &v) -> std::string {
             using U = std::decay_t<decltype(v)>;

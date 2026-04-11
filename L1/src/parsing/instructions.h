@@ -55,15 +55,19 @@ struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop
 // w sop N
 // mem x M += t
 // mem x M -= t
+struct parse_mem_aop_write : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_aop, parse_spaces,
+pegtl::sor<parse_x_t, parse_num_t>> {};
 // w += mem x M
 // w -= mem x M
+struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_mem,
+parse_spaces, parse_register, parse_spaces, parse_M> {};
 // w <- t cmp t
 // cjump t cmp t label
 struct parse_label_inst : parse_label {};
 // goto label
 
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_memread_expression, parse_assignment, parse_increment, parse_decrement>, parse_spaces, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_memread_expression, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
 
 /*
 templates
@@ -233,7 +237,6 @@ template <>
 struct action<parse_aop_expression> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-    try {
    auto src_item = parsed_items_t.back();
     parsed_items_t.pop_back();
     t src = std::holds_alternative<r>(src_item)
@@ -245,10 +248,43 @@ struct action<parse_aop_expression> {
     parsed_items.pop_back();
     auto newI = AopInst{std::get<r>(dst), aop, src};
     program.functions.back().instructions.push_back(i{newI});
-} catch (std::exception& e) {
-    std::cerr << "action crashed: " << e.what() << "\n";
-    throw;
-}
+    
+  }
+};
+template <>
+struct action<parse_mem_aop_read> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto base = parsed_items.back();
+    parsed_items.pop_back();
+   auto dest = parsed_items.back();
+    parsed_items.pop_back();
+    auto aop = parsed_ops.back();
+    parsed_ops.pop_back();
+    auto offset = parsed_offset.back();
+    parsed_offset.pop_back();
+    auto newI = MemAopRead{std::get<r>(dest), aop, std::get<r>(base), offset.value};
+    program.functions.back().instructions.push_back(i{newI});
+    
+  }
+};
+template <>
+struct action<parse_mem_aop_write> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+   auto src_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    t src = std::holds_alternative<r>(src_item)
+                ? t{std::get<r>(src_item)}
+                : t{std::get<N>(src_item)};
+    auto aop = parsed_ops.back();
+    parsed_ops.pop_back();
+    auto offset = parsed_offset.back();
+    parsed_offset.pop_back();
+    auto base = parsed_items.back();
+    parsed_items.pop_back();
+    auto newI = MemAopWrite{std::get<r>(base), offset.value, aop, src};
+    program.functions.back().instructions.push_back(i{newI});
     
   }
 };

@@ -35,8 +35,8 @@ namespace L1 {
   struct AopInst       { r dest; aop op; t src; };      // w aop t
   struct SopReg        { r dest; sop op; r shift; };  // w sop sx
   struct SopNum        { r dest; sop op; N shift; };    // w sop N
-  struct MemAopWrite   { r base; int64_t offset; bool add; t src; }; // mem x M += t
-  struct MemAopRead    { r dest; bool add; r base; int64_t offset; }; // w += mem x M
+  struct MemAopWrite   { r base; int64_t offset; aop operation; t src; }; // mem x M += t
+  struct MemAopRead    { r dest; aop operation; r base; int64_t offset; }; // w += mem x M
   struct Compare       { r dest; t left; cmp op; t right; }; // w <- t cmp t
   struct Cjump         { t left; cmp op; t right; label target; };  // cjump t cmp t label
   struct Goto          { label target; };
