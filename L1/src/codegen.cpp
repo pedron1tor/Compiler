@@ -205,8 +205,9 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       shift_ops_to_assembly(outputfile, inst);  
     } else if constexpr (std::is_same_v<T, LabelInst>) {
       outputfile << "\t" <<rename_f(inst.lbl.name) <<":"<< "\n";
-    }
-
+    } else if constexpr (std::is_same_v<T, Goto>) {
+      outputfile << "\t"<< "jmp "<<rename_f(inst.target.name)<< "\n";
+    } 
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
     // } else if constexpr (std::is_same_v<T, Return>) {
