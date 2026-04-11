@@ -191,22 +191,26 @@ void conditional_jumps_to_assembly(std::ofstream &outputfile, Cjump &instruction
     int64_t lv = std::get<N>(instruction.left).value;
     int64_t rv = std::get<N>(instruction.right).value;
     int result = cmp_result(cmp_op, lv, rv);
-    if (!result) {
-      return;
-    } else {
-      outputfile << "\tjump " << assembly_target << "\n";
+    if (result) {
+      outputfile << "\tjmp " << assembly_target << "\n";
     }
+  } else if (left_is_num) {
+    // swap operands and invert jump due to assembly cmp requirements
+    outputfile << "\tcmpq " << t_set_to_assembly(instruction.left) << ", " << t_set_to_assembly(instruction.right) << "\n";
+    if (cmp_op == "<=")
+      outputfile << "\tjge " << assembly_target << "\n";
+    else if (cmp_op == "<")
+      outputfile << "\tjg " << assembly_target << "\n";
+    else
+      outputfile << "\tje " << assembly_target << "\n";
   } else {
     outputfile << "\tcmpq " << t_set_to_assembly(instruction.right) << ", " << t_set_to_assembly(instruction.left) << "\n";
-    std::string assembly_cmp;
-    if (cmp_op == "<=") {
-      assembly_cmp = "\tjle ";
-    } else if (cmp_op == "<") {
-      assembly_cmp = "\tjg ";
-    } else if (cmp_op == "=") {
-      assembly_cmp = "\tje ";
-    }
-    outputfile << assembly_cmp << assembly_target << "\n";
+    if (cmp_op == "<=")
+      outputfile << "\tjle " << assembly_target << "\n";
+    else if (cmp_op == "<")
+      outputfile << "\tjl " << assembly_target << "\n";
+    else
+      outputfile << "\tje " << assembly_target << "\n";
   }
 }
 void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
