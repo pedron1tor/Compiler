@@ -28,8 +28,8 @@ struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, pars
 struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
 struct parse_call_tuple_error : pegtl::seq<parse_call, parse_spaces, parse_tuple_error, parse_spaces, parse_number> {};
 struct parse_tensor_error_F : parse_number {};
-struct parse_increment : pegtl::seq<parse_register, pegtl::string<'+', '+'>> {};
-struct parse_decrement : pegtl::seq<parse_register, pegtl::string<'-', '-'>> {};
+struct parse_increment : pegtl::seq<parse_register, parse_spaces, pegtl::string<'+', '+'>> {};
+struct parse_decrement : pegtl::seq<parse_register, parse_spaces, pegtl::string<'-', '-'>> {};
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
 // s value variants
 struct parse_s_num_val : parse_number {};
