@@ -59,6 +59,16 @@ std::string t_set_to_assembly(L1::t val) {
   },
                     val);
 }
+std::string u_set_to_assembly(L1::u val) {
+  return std::visit([&](auto &v) -> std::string {
+    using U = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<U, L1::r>)
+      return rename_register(r_to_str(v));
+    else
+      return rename_f(v.name);
+  },
+             val);
+}
 
 void arithmetic_operation(std::ofstream &outputfile, AopInst arithmetic_instruction) {
   std::string operation = aop_to_str(arithmetic_instruction.op);
@@ -253,6 +263,10 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
       conditional_jumps_to_assembly(outputfile, inst);
     } else if constexpr (std::is_same_v<T, LoadAddr>) {
       outputfile << "\tlea (" << rename_register(r_to_str(inst.base)) << ", " << rename_register(r_to_str(inst.index)) << ", " << inst.scale << "), " << rename_register(r_to_str(inst.dest)) << "\n";
+    } else if constexpr (std::is_same_v<T, Call>) {
+      int subq_val = (inst.num_args.value - 6) * 8 + 8;
+      outputfile << "\tsubq " << rename_constant(subq_val) << ", " << rename_register("rsp") << "\n";
+      outputfile << "\tjmp " << u_set_to_assembly(inst.callee) << "\n";
     }
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
