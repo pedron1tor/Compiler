@@ -274,6 +274,8 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
       outputfile << "\tcall allocate" << "\n";
     } else if constexpr (std::is_same_v<T, CallInput>) {
       outputfile << "\tcall input" << "\n";
+    } else if constexpr (std::is_same_v<T, CallTupleError>) {
+      outputfile << "\tcall tuple_error\n";
     } else if constexpr (std::is_same_v<T, CallTensorError>) {
       int F = inst.F;
       std::string identifier;
