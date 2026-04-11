@@ -49,6 +49,34 @@ std::string s_set_to_assembly(L1::s val) {
   },
                     val);
 }
+std::string t_set_to_assembly(L1::t val) {
+  return std::visit([](auto &v) -> std::string {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, L1::r>)
+      return "%" + r_to_str(v);
+    else if constexpr (std::is_same_v<T, L1::N>)
+      return "$" + std::to_string(v.value);
+  },
+                    val);
+}
+
+void arithmetic_operation(std::ofstream &outputfile,AopInst arithmetic_instruction)
+{
+  std::string operation = aop_to_str(arithmetic_instruction.op);
+  if (operation == "+=") {
+      outputfile << "\taddq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest)<<"\n";
+  }
+  else if (operation == "-=") {
+      outputfile << "\tsubq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest)<<"\n";
+  }
+  else if (operation == "*=") {
+      outputfile << "\tmultq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest)<<"\n";
+  }
+  else if (operation == "&=") {
+    outputfile << "\tandq " << t_set_to_assembly(arithmetic_instruction.src) << ", " << r_to_str(arithmetic_instruction.dest)<<"\n";
+  }
+  
+};
 std::string mem_format_offset(std::string reg, int64_t offset) {
 reg = "(" + reg + ")";
 reg = std::to_string(offset) + reg;
@@ -62,15 +90,12 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
     } else if constexpr (std::is_same_v<T, Assign>) {
       outputfile << "\tmovq " << s_set_to_assembly(inst.src) << ", " << rename_register(r_to_str(inst.dest)) << "\n";
     } else if constexpr (std::is_same_v<T, MemRead>) {
-
       outputfile << "\tmovq " << mem_format_offset(r_to_str(inst.base), inst.offset) << ", " << rename_register(r_to_str(inst.dest)) << "\n";
     } else if constexpr (std::is_same_v<T, MemWrite>) {
       outputfile << "\tmovq " << s_set_to_assembly(inst.src) << ", " <<  mem_format_offset(rename_register(r_to_str(inst.base)), inst.offset) << "\n";
-    } 
-    // else if constexpr (std::is_same_v<T, MemRead>) {
-    //     // handle MemRead
-    // } else if constexpr (std::is_same_v<T, MemWrite>) {
-    //     // handle MemWrite
+    } else if constexpr (std::is_same_v<T, AopInst>) {
+      arithmetic_operation(outputfile, inst);
+    }
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
     // } else if constexpr (std::is_same_v<T, Return>) {
