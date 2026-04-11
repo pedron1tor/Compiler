@@ -36,6 +36,10 @@ mem rsp 8 -= rdi
 mem rsp 8 += rdi
 rdi <<= rcx
 rdi >>= 3
+rdi <- rax <= 10
+rdi <- 10 <= rax
+rdi <- 10 <= 11
+rdi <- 12 <= 11
 rdi <- rax <= rbx
 rdi <- rax < rbx
 rdi <- rax = rbx

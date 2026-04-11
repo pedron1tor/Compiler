@@ -127,21 +127,45 @@ std::string register_to_8bit_variant(std::string reg) {
   return reg;
 }
 void comparisons_to_assembly(std::ofstream &outputfile, Compare instruction) {
-  outputfile << "\tcmpq " << rename_register(t_to_str(instruction.right)) << ", " << rename_register(t_to_str(instruction.left)) << "\n";
   std::string cmp_op = cmp_to_str(instruction.op);
-  std::string small_register;
-  if (cmp_op == "<") {
-    small_register = register_to_8bit_variant(r_to_str(instruction.dest));
-    outputfile << "\tsetl " << rename_register(small_register) << "\n";
-  } else if (cmp_op == "<=") {
-    small_register = register_to_8bit_variant(r_to_str(instruction.dest));
-    outputfile << "\tsetle " << rename_register(small_register) << "\n";
-  } else if (cmp_op == "=") {
-    small_register = register_to_8bit_variant(r_to_str(instruction.dest));
-    outputfile << "\tsete " << rename_register(small_register) << "\n";
+  bool left_is_num = std::holds_alternative<N>(instruction.left);
+  bool right_is_num = std::holds_alternative<N>(instruction.right);
+  std::string small_register = register_to_8bit_variant(r_to_str(instruction.dest));
+  std::string dest_reg = rename_register(r_to_str(instruction.dest));
+
+  if (left_is_num && right_is_num) {
+    // compute the comparison in compile time
+    int64_t lv = std::get<N>(instruction.left).value;
+    int64_t rv = std::get<N>(instruction.right).value;
+    int result;
+    if (cmp_op == "<")
+      result = (lv < rv) ? 1 : 0;
+    else if (cmp_op == "<=")
+      result = (lv <= rv) ? 1 : 0;
+    else
+      result = (lv == rv) ? 1 : 0;
+    outputfile << "\tmovq $" << result << ", " << dest_reg << "\n";
+  } else if (left_is_num) {
+    outputfile << "\tcmpq " << t_set_to_assembly(instruction.left) << ", " << t_set_to_assembly(instruction.right) << "\n";
+    if (cmp_op == "<")
+      outputfile << "\tsetg " << rename_register(small_register) << "\n";
+    else if (cmp_op == "<=")
+      outputfile << "\tsetge " << rename_register(small_register) << "\n";
+    else
+      outputfile << "\tsete " << rename_register(small_register) << "\n";
+    outputfile << "\tmovzbq " << rename_register(small_register) << ", " << dest_reg << "\n";
+  } else {
+    // left is reg, right may be reg or num
+    outputfile << "\tcmpq " << t_set_to_assembly(instruction.right) << ", " << t_set_to_assembly(instruction.left) << "\n";
+    if (cmp_op == "<")
+      outputfile << "\tsetl " << rename_register(small_register) << "\n";
+    else if (cmp_op == "<=")
+      outputfile << "\tsetle " << rename_register(small_register) << "\n";
+    else
+      outputfile << "\tsete " << rename_register(small_register) << "\n";
+    outputfile << "\tmovzbq " << rename_register(small_register) << ", " << dest_reg << "\n";
   }
-  outputfile << "\tmovzbq " << small_register << ", " << rename_register(r_to_str(instruction.dest)) << "\n";
-};
+}
 void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
   std::visit([&](auto &inst) {
     using T = std::decay_t<decltype(inst)>;
@@ -165,6 +189,7 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       mem_arithmetic_operation_write(outputfile, inst);
     } else if constexpr (std::is_same_v<T, Compare>) {
       comparisons_to_assembly(outputfile, inst);
+    } else if constexpr (std::is_same_v<T, SopReg>) {
     }
 
     // } else if constexpr (std::is_same_v<T, AopInst>) {
