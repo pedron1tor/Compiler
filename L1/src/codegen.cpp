@@ -172,9 +172,9 @@ void shift_ops_to_assembly(std::ofstream &outputfile, SopT &instruction) {
   std::string assembly_op = (instruction.op == sop::lshift) ? "\tsalq " : "\tsarq ";
   std::string right;
   if constexpr (std::is_same_v<SopT, SopReg>) {
-    right = "%" + register_to_8bit_variant(r_to_str(instruction.shift));
+    right = rename_register(register_to_8bit_variant(r_to_str(instruction.shift)));
   } else {
-    right = "$" + std::to_string(instruction.shift.value);
+    right = rename_constant(instruction.shift.value);
   }
   outputfile << assembly_op << right << ", " << left << "\n";
 }
@@ -203,7 +203,9 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       comparisons_to_assembly(outputfile, inst);
     } else if constexpr (std::is_same_v<T, SopReg> || std::is_same_v<T, SopNum>) {
       shift_ops_to_assembly(outputfile, inst);  
-    } 
+    } else if constexpr (std::is_same_v<T, LabelInst>) {
+      outputfile << "\t" <<rename_f(inst.lbl.name) <<":"<< "\n";
+    }
 
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
