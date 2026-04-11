@@ -217,13 +217,13 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
   std::visit([&](auto &inst) {
     using T = std::decay_t<decltype(inst)>;
     if constexpr (std::is_same_v<T, Return>) {
-      int subq_num = num_locals*8; 
+      int subq_num = num_locals * 8;
       if (num_args > 6) {
-        subq_num += 8*(num_args - 6);
+        subq_num += 8 * (num_args - 6);
       }
-      if (num_locals > 0){
-      outputfile << "\taddq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
-      };
+      if (subq_num > 0) {
+        outputfile << "\taddq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
+      }
       retq(outputfile);
     } else if constexpr (std::is_same_v<T, Assign>) {
       outputfile << "\tmovq " << s_set_to_assembly(inst.src) << ", " << rename_register(r_to_str(inst.dest)) << "\n";
@@ -252,7 +252,7 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
     } else if constexpr (std::is_same_v<T, Cjump>) {
       conditional_jumps_to_assembly(outputfile, inst);
     } else if constexpr (std::is_same_v<T, LoadAddr>) {
-        outputfile << "\tlea (" << rename_register(r_to_str(inst.base)) << ", " << rename_register(r_to_str(inst.index)) << ", " << inst.scale << "), " << rename_register(r_to_str(inst.dest)) << "\n";
+      outputfile << "\tlea (" << rename_register(r_to_str(inst.base)) << ", " << rename_register(r_to_str(inst.index)) << ", " << inst.scale << "), " << rename_register(r_to_str(inst.dest)) << "\n";
     }
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
@@ -264,9 +264,9 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
 }
 void function_to_assembly(std::ofstream &outputfile, f &function) {
   outputfile << rename_f(function.name.name) << ":\n";
-  int subq_num = function.num_locals*8; 
-  if (function.num_locals > 0){
-  outputfile << "\tsubq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
+  int subq_num = function.num_locals * 8;
+  if (function.num_locals > 0) {
+    outputfile << "\tsubq " << rename_constant(subq_num) << ", " << rename_register("rsp") << "\n";
   };
   for (auto &instruction : function.instructions) {
     instruction_to_assembly(outputfile, instruction, function.num_locals, function.num_args);
