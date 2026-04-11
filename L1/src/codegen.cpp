@@ -245,7 +245,7 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
     } else if constexpr (std::is_same_v<T, Cjump>) {
       conditional_jumps_to_assembly(outputfile, inst);
     } else if constexpr (std::is_same_v<T, LoadAddr>) {
-        outputfile << "\tlea"<< "("<< r_to_str(inst.base)<< ", "<<r_to_str(inst.index)<< ", "<< std::to_string(inst.scale)<<")"<< ", "<<rename_register(r_to_str(inst.dest)) << "\n";
+        outputfile << "\tlea (" << rename_register(r_to_str(inst.base)) << ", " << rename_register(r_to_str(inst.index)) << ", " << inst.scale << "), " << rename_register(r_to_str(inst.dest)) << "\n";
     }
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
