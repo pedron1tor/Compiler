@@ -16,6 +16,8 @@ rax <- :label
 rax <- @myFunction2
 mem rsp 0 <- rdi
 rdi <- mem rsp 8
+rdi++
+rdi--
 return
 )
 (@myFunction2 

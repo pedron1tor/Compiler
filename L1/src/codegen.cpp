@@ -95,7 +95,13 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction) {
       outputfile << "\tmovq " << s_set_to_assembly(inst.src) << ", " <<  mem_format_offset(rename_register(r_to_str(inst.base)), inst.offset) << "\n";
     } else if constexpr (std::is_same_v<T, AopInst>) {
       arithmetic_operation(outputfile, inst);
+    } else if constexpr (std::is_same_v<T, Increment>) {
+    outputfile << "\tinc " << rename_register(r_to_str(inst.reg)) << "\n"; 
+    }else if constexpr (std::is_same_v<T, Decrement>) {
+    outputfile << "\tdec " << rename_register(r_to_str(inst.reg)) << "\n";
     }
+
+     
     // } else if constexpr (std::is_same_v<T, AopInst>) {
     //     // handle AopInst
     // } else if constexpr (std::is_same_v<T, Return>) {

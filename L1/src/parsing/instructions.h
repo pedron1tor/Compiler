@@ -26,6 +26,8 @@ struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, pars
 struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
 struct parse_call_tuple_error : pegtl::seq<parse_call, parse_spaces, parse_tuple_error, parse_spaces, parse_number> {};
 struct parse_tensor_error_F : parse_number {};
+struct parse_increment : pegtl::seq<parse_register, pegtl::string<'+', '+'>> {};
+struct parse_decrement : pegtl::seq<parse_register, pegtl::string<'-', '-'>> {};
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
 // s value variants
 struct parse_s_num_val   : parse_number {};
@@ -61,7 +63,7 @@ struct parse_label_inst : parse_label {};
 // goto label
 
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_memread_expression, parse_assignment>, parse_spaces, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_memread_expression, parse_assignment, parse_increment, parse_decrement>, parse_spaces, parse_seps>>> {};
 
 /*
 templates
@@ -129,6 +131,26 @@ struct action<parse_x_t> {
     auto reg = parsed_items.back();
     parsed_items.pop_back();
     parsed_items_t.push_back(t{std::get<r>(reg)});
+  }
+};
+template <>
+struct action<parse_increment> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto target_reg  = parsed_items.back();
+    parsed_items.pop_back();
+    auto newI = Increment{std::get<r>(target_reg)};
+    program.functions.back().instructions.push_back(i{newI});
+  }
+};
+template <>
+struct action<parse_decrement> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto target_reg  = parsed_items.back();
+    parsed_items.pop_back();
+    auto newI = Decrement{std::get<r>(target_reg)};
+    program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>

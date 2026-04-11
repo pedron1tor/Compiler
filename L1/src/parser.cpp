@@ -224,6 +224,10 @@ void print_source_program(p program) {
           std::cout << "call allocate 2";
         else if constexpr (std::is_same_v<T, L1::CallTupleError>)
           std::cout << "call tuple-error 3";
+        else if constexpr (std::is_same_v<T, L1::Increment>)
+          std::cout << r_to_str(ins.reg) << "++";
+        else if constexpr (std::is_same_v<T, L1::Decrement>)
+          std::cout << r_to_str(ins.reg) << "--";
         else if constexpr (std::is_same_v<T, L1::CallTensorError>)
           std::cout << "call tensor-error " << ins.F;
         else if constexpr (std::is_same_v<T, L1::Compare>)
