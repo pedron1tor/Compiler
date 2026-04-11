@@ -80,9 +80,9 @@ struct parse_w_u : parse_register {};
 struct parse_l_u : parse_s_fname_val {};
 struct parse_call_inst : pegtl::seq<parse_call, parse_spaces, pegtl::sor<parse_w_u, parse_l_u>, parse_spaces, parse_M> {};
 // w @ w w E
-
+struct parse_load_effective_addr : pegtl::seq<parse_register, parse_spaces, pegtl::string<'@'>, parse_spaces, parse_register, parse_spaces, parse_register, parse_spaces, parse_M> {};
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label>, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label, parse_load_effective_addr>, parse_seps>>> {};
 
 /*
 templates
@@ -425,5 +425,21 @@ struct action<parse_mem_aop_write> {
     auto newI = MemAopWrite{std::get<r>(base), offset.value, aop, src};
     program.functions.back().instructions.push_back(i{newI});
   }
+};
+template <>
+struct action<parse_load_effective_addr> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto scale = parsed_offset.back();
+    parsed_offset.pop_back();
+    auto index = parsed_items.back();
+    parsed_items.pop_back();
+    auto base = parsed_items.back();
+    parsed_items.pop_back();
+    auto dest = parsed_items.back();
+    parsed_items.pop_back();
+    i newI = LoadAddr{std::get<r>(dest), std::get<r>(base), std::get<r>(index), scale.value};
+    program.functions.back().instructions.push_back(newI);
+  };
 };
 } // namespace L1

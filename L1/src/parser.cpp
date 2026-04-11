@@ -266,6 +266,8 @@ void print_source_program(p program) {
           },
                                              ins.callee)
                     << " " << ins.num_args.value;
+        else if constexpr (std::is_same_v<T, L1::LoadAddr>)
+          std::cout << r_to_str(ins.dest) << " @ " << r_to_str(ins.base) << " " << r_to_str(ins.index) << " " << ins.scale;
       },
                  instr);
       std::cout << "\n";
