@@ -30,7 +30,7 @@ struct parse_increment : pegtl::seq<parse_register, pegtl::string<'+', '+'>> {};
 struct parse_decrement : pegtl::seq<parse_register, pegtl::string<'-', '-'>> {};
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
 // s value variants
-struct parse_s_num_val   : parse_number {};
+struct parse_s_num_val : parse_number {};
 struct parse_s_label_val : parse_label {};
 struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name> {};
 struct parse_s_val : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val> {};
@@ -46,28 +46,29 @@ struct parse_x_t : parse_register {};
 // w <- mem x M
 struct parse_M : parse_number {};
 struct parse_memread_expression : pegtl::seq<parse_register,
-parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_register, parse_spaces, parse_M> {};
+                                             parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_register, parse_spaces, parse_M> {};
 // mem x M <- s
 struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s_val> {};
 // w aop t
 struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // w sop sx
 // w sop N
+struct parse_sop_expression : pegtl::seq<parse_register, parse_spaces, parse_sop, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
 // mem x M += t
 // mem x M -= t
 struct parse_mem_aop_write : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_aop, parse_spaces,
-pegtl::sor<parse_x_t, parse_num_t>> {};
+                                        pegtl::sor<parse_x_t, parse_num_t>> {};
 // w += mem x M
 // w -= mem x M
 struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_mem,
-parse_spaces, parse_register, parse_spaces, parse_M> {};
+                                       parse_spaces, parse_register, parse_spaces, parse_M> {};
 // w <- t cmp t
 // cjump t cmp t label
 struct parse_label_inst : parse_label {};
 // goto label
 
 struct parse_instructions : pegtl::seq<parse_seps,
-                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_memread_expression, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
+                                       pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write>, parse_seps>>> {};
 
 /*
 templates
@@ -123,7 +124,7 @@ struct action<parse_num_t> {
 };
 template <>
 struct action<parse_M> {
-  template <typename Input> 
+  template <typename Input>
   static void apply(const Input &in, p &program) {
     parsed_offset.push_back(N{std::stoll(in.string())});
   }
@@ -141,7 +142,7 @@ template <>
 struct action<parse_increment> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-    auto target_reg  = parsed_items.back();
+    auto target_reg = parsed_items.back();
     parsed_items.pop_back();
     auto newI = Increment{std::get<r>(target_reg)};
     program.functions.back().instructions.push_back(i{newI});
@@ -151,7 +152,7 @@ template <>
 struct action<parse_decrement> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-    auto target_reg  = parsed_items.back();
+    auto target_reg = parsed_items.back();
     parsed_items.pop_back();
     auto newI = Decrement{std::get<r>(target_reg)};
     program.functions.back().instructions.push_back(i{newI});
@@ -169,6 +170,17 @@ struct action<parse_aop> {
       parsed_ops.push_back(aop::mul);
     } else if (in.string() == "&=") {
       parsed_ops.push_back(aop::and_);
+    }
+  }
+};
+template <>
+struct action<parse_sop> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    if (in.string() == "<<=") {
+      parsed_sops.push_back(sop::lshift);
+    } else if (in.string() == ">>=") {
+      parsed_sops.push_back(sop::rshift);
     }
   }
 };
@@ -237,7 +249,7 @@ template <>
 struct action<parse_aop_expression> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-   auto src_item = parsed_items_t.back();
+    auto src_item = parsed_items_t.back();
     parsed_items_t.pop_back();
     t src = std::holds_alternative<r>(src_item)
                 ? t{std::get<r>(src_item)}
@@ -248,8 +260,32 @@ struct action<parse_aop_expression> {
     parsed_items.pop_back();
     auto newI = AopInst{std::get<r>(dst), aop, src};
     program.functions.back().instructions.push_back(i{newI});
-    
   }
+};
+template <>
+struct action<parse_sop_expression> {
+  template <typename Input>
+  static void apply(const Input &in, p &program) {
+    auto src_item = parsed_items_t.back();
+    parsed_items_t.pop_back();
+    bool reg = std::holds_alternative<r>(src_item);
+
+    t src = reg
+                ? t{std::get<r>(src_item)}
+                : t{std::get<N>(src_item)};
+
+    auto sop_op = parsed_sops.back();
+    parsed_sops.pop_back();
+    auto dst = parsed_items.back();
+    parsed_items.pop_back();
+    i newI;
+    if (reg) {
+      newI = SopReg{std::get<r>(dst), sop_op, std::get<r>(src)};
+    } else {
+      newI = SopNum{std::get<r>(dst), sop_op, std::get<N>(src)};
+    }
+    program.functions.back().instructions.push_back(newI);
+  };
 };
 template <>
 struct action<parse_mem_aop_read> {
@@ -257,7 +293,7 @@ struct action<parse_mem_aop_read> {
   static void apply(const Input &in, p &program) {
     auto base = parsed_items.back();
     parsed_items.pop_back();
-   auto dest = parsed_items.back();
+    auto dest = parsed_items.back();
     parsed_items.pop_back();
     auto aop = parsed_ops.back();
     parsed_ops.pop_back();
@@ -265,14 +301,13 @@ struct action<parse_mem_aop_read> {
     parsed_offset.pop_back();
     auto newI = MemAopRead{std::get<r>(dest), aop, std::get<r>(base), offset.value};
     program.functions.back().instructions.push_back(i{newI});
-    
   }
 };
 template <>
 struct action<parse_mem_aop_write> {
   template <typename Input>
   static void apply(const Input &in, p &program) {
-   auto src_item = parsed_items_t.back();
+    auto src_item = parsed_items_t.back();
     parsed_items_t.pop_back();
     t src = std::holds_alternative<r>(src_item)
                 ? t{std::get<r>(src_item)}
@@ -285,7 +320,6 @@ struct action<parse_mem_aop_write> {
     parsed_items.pop_back();
     auto newI = MemAopWrite{std::get<r>(base), offset.value, aop, src};
     program.functions.back().instructions.push_back(i{newI});
-    
   }
 };
 } // namespace L1

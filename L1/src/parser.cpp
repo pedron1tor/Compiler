@@ -189,6 +189,14 @@ std::string aop_to_str(L1::aop op) {
     return "&=";
   }
 }
+std::string sop_to_str(L1::sop op) {
+  switch (op) {
+  case L1::sop::lshift:
+    return "<<=";
+  case L1::sop::rshift:
+    return ">>=";
+  }
+}
 std::string cmp_to_str(L1::cmp op) {
   switch (op) {
   case L1::cmp::lt:
@@ -214,6 +222,10 @@ void print_source_program(p program) {
           std::cout << r_to_str(ins.dest) << " <- " << s_to_str(ins.src);
         else if constexpr (std::is_same_v<T, L1::AopInst>)
           std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
+        else if constexpr (std::is_same_v<T, L1::SopReg>)
+          std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << r_to_str(ins.shift);
+        else if constexpr (std::is_same_v<T, L1::SopNum>)
+          std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
         else if constexpr (std::is_same_v<T, L1::LabelInst>)
           std::cout << ins.lbl.name;
         else if constexpr (std::is_same_v<T, L1::CallPrint>)
