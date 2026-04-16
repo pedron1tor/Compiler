@@ -16,7 +16,7 @@
 #include <tao/pegtl/contrib/raw_string.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
 
-#include <L1.h>
+#include <L2.h>
 #include <parser.h>
 
 #include "parsing/instructions.h"
@@ -26,7 +26,7 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L1 {
+namespace L2 {
 
 /*
  * Grammar rules definitions from now on.
@@ -119,91 +119,91 @@ p parse_file(char *filename) {
   parse<grammar, action>(fileInput, program_ast);
   return program_ast;
 }
-std::string r_to_str(L1::r reg) {
+std::string r_to_str(r reg) {
   switch (reg) {
-  case L1::r::rax:
+  case r::rax:
     return "rax";
-  case L1::r::rbx:
+  case r::rbx:
     return "rbx";
-  case L1::r::rbp:
+  case r::rbp:
     return "rbp";
-  case L1::r::r10:
+  case r::r10:
     return "r10";
-  case L1::r::r11:
+  case r::r11:
     return "r11";
-  case L1::r::r12:
+  case r::r12:
     return "r12";
-  case L1::r::r13:
+  case r::r13:
     return "r13";
-  case L1::r::r14:
+  case r::r14:
     return "r14";
-  case L1::r::r15:
+  case r::r15:
     return "r15";
-  case L1::r::rdi:
+  case r::rdi:
     return "rdi";
-  case L1::r::rsi:
+  case r::rsi:
     return "rsi";
-  case L1::r::rdx:
+  case r::rdx:
     return "rdx";
-  case L1::r::r8:
+  case r::r8:
     return "r8";
-  case L1::r::r9:
+  case r::r9:
     return "r9";
-  case L1::r::rcx:
+  case r::rcx:
     return "rcx";
-  case L1::r::rsp:
+  case r::rsp:
     return "rsp";
   }
 };
-std::string t_to_str(L1::t val) {
+std::string t_to_str(t val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, L1::r>)
+    if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
     else
       return std::to_string(v.value);
   },
                     val);
 }
-std::string s_to_str(L1::s val) {
+std::string s_to_str(s val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, L1::r>)
+    if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
-    else if constexpr (std::is_same_v<T, L1::N>)
+    else if constexpr (std::is_same_v<T, N>)
       return std::to_string(v.value);
     else
       return v.name;
   },
                     val);
 }
-std::string aop_to_str(L1::aop op) {
+std::string aop_to_str(aop op) {
   switch (op) {
-  case L1::aop::add:
+  case aop::add:
     return "+=";
-  case L1::aop::sub:
+  case aop::sub:
     return "-=";
-  case L1::aop::mul:
+  case aop::mul:
     return "*=";
-  case L1::aop::and_:
+  case aop::and_:
     return "&=";
   }
 }
-std::string sop_to_str(L1::sop op) {
+std::string sop_to_str(sop op) {
   switch (op) {
-  case L1::sop::lshift:
+  case sop::lshift:
     return "<<=";
-  case L1::sop::rshift:
+  case sop::rshift:
     return ">>=";
   }
 }
-std::string cmp_to_str(L1::cmp op) {
+std::string cmp_to_str(cmp op) {
   switch (op) {
-  case L1::cmp::lt:
+  case cmp::lt:
     return "<";
-  case L1::cmp::le:
+  case cmp::le:
     return "<=";
-  case L1::cmp::eq:
+  case cmp::eq:
     return "=";
   }
 }
@@ -216,57 +216,57 @@ void print_source_program(p program) {
       std::cout << "    ";
       std::visit([&](auto &ins) {
         using T = std::decay_t<decltype(ins)>;
-        if constexpr (std::is_same_v<T, L1::Return>)
+        if constexpr (std::is_same_v<T, Return>)
           std::cout << "return";
-        else if constexpr (std::is_same_v<T, L1::Assign>)
+        else if constexpr (std::is_same_v<T, Assign>)
           std::cout << r_to_str(ins.dest) << " <- " << s_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, L1::AopInst>)
+        else if constexpr (std::is_same_v<T, AopInst>)
           std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, L1::SopReg>)
+        else if constexpr (std::is_same_v<T, SopReg>)
           std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << r_to_str(ins.shift);
-        else if constexpr (std::is_same_v<T, L1::SopNum>)
+        else if constexpr (std::is_same_v<T, SopNum>)
           std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
-        else if constexpr (std::is_same_v<T, L1::LabelInst>)
+        else if constexpr (std::is_same_v<T, LabelInst>)
           std::cout << ins.lbl.name;
-        else if constexpr (std::is_same_v<T, L1::CallPrint>)
+        else if constexpr (std::is_same_v<T, CallPrint>)
           std::cout << "call print 1";
-        else if constexpr (std::is_same_v<T, L1::CallInput>)
+        else if constexpr (std::is_same_v<T, CallInput>)
           std::cout << "call input 0";
-        else if constexpr (std::is_same_v<T, L1::CallAllocate>)
+        else if constexpr (std::is_same_v<T, CallAllocate>)
           std::cout << "call allocate 2";
-        else if constexpr (std::is_same_v<T, L1::CallTupleError>)
+        else if constexpr (std::is_same_v<T, CallTupleError>)
           std::cout << "call tuple-error 3";
-        else if constexpr (std::is_same_v<T, L1::Increment>)
+        else if constexpr (std::is_same_v<T, Increment>)
           std::cout << r_to_str(ins.reg) << "++";
-        else if constexpr (std::is_same_v<T, L1::Decrement>)
+        else if constexpr (std::is_same_v<T, Decrement>)
           std::cout << r_to_str(ins.reg) << "--";
-        else if constexpr (std::is_same_v<T, L1::CallTensorError>)
+        else if constexpr (std::is_same_v<T, CallTensorError>)
           std::cout << "call tensor-error " << ins.F;
-        else if constexpr (std::is_same_v<T, L1::Compare>)
+        else if constexpr (std::is_same_v<T, Compare>)
           std::cout << r_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
-        else if constexpr (std::is_same_v<T, L1::Cjump>)
+        else if constexpr (std::is_same_v<T, Cjump>)
           std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
-        else if constexpr (std::is_same_v<T, L1::Goto>)
+        else if constexpr (std::is_same_v<T, Goto>)
           std::cout << "goto " << ins.target.name;
-        else if constexpr (std::is_same_v<T, L1::MemRead>)
+        else if constexpr (std::is_same_v<T, MemRead>)
           std::cout << r_to_str(ins.dest) << " <- mem " << r_to_str(ins.base) << " " << ins.offset;
-        else if constexpr (std::is_same_v<T, L1::MemWrite>)
+        else if constexpr (std::is_same_v<T, MemWrite>)
           std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, L1::MemAopRead>)
+        else if constexpr (std::is_same_v<T, MemAopRead>)
           std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << r_to_str(ins.base) << " " << ins.offset;
-        else if constexpr (std::is_same_v<T, L1::MemAopWrite>)
+        else if constexpr (std::is_same_v<T, MemAopWrite>)
           std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, L1::Call>)
+        else if constexpr (std::is_same_v<T, Call>)
           std::cout << "call " << std::visit([&](auto &v) -> std::string {
             using U = std::decay_t<decltype(v)>;
-            if constexpr (std::is_same_v<U, L1::r>)
+            if constexpr (std::is_same_v<U, r>)
               return r_to_str(v);
             else
               return v.name;
           },
                                              ins.callee)
                     << " " << ins.num_args.value;
-        else if constexpr (std::is_same_v<T, L1::LoadAddr>)
+        else if constexpr (std::is_same_v<T, LoadAddr>)
           std::cout << r_to_str(ins.dest) << " @ " << r_to_str(ins.base) << " " << r_to_str(ins.index) << " " << ins.scale;
       },
                  instr);

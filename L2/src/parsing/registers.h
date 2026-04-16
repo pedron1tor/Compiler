@@ -1,6 +1,6 @@
 #pragma once
 
-#include <L1.h>
+#include <L2.h>
 #include <parser.h>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
@@ -11,7 +11,7 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L1 {
+namespace L2 {
 struct parse_arrow : pegtl::string<'<', '-'> {};
 
 // a

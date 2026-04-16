@@ -1,6 +1,6 @@
 #pragma once
 
-#include <L1.h>
+#include <L2.h>
 #include <parser.h>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
@@ -12,7 +12,7 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L1 {
+namespace L2 {
 struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
 struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar> {};
 struct parse_goto : pegtl::seq<pegtl::string<'g', 'o', 't', 'o'>, parse_nochar> {};

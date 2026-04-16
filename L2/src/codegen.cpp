@@ -1,8 +1,8 @@
-#include "L1.h"
+#include "L2.h"
 #include "parser.h"
 #include <fstream>
 
-namespace L1 {
+namespace L2 {
 void push_callee_saved_registers(std::ofstream &outputfile) {
   outputfile << "\tpushq %rbx\n";
   outputfile << "\tpushq %rbp\n";
@@ -35,34 +35,34 @@ std::string rename_constant(int64_t number) {
   std::string num_string = "$" + std::to_string(number);
   return num_string;
 };
-std::string s_set_to_assembly(L1::s val) {
+std::string s_set_to_assembly(s val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, L1::r>)
+    if constexpr (std::is_same_v<T, r>)
       return "%" + r_to_str(v);
-    else if constexpr (std::is_same_v<T, L1::N>)
+    else if constexpr (std::is_same_v<T, N>)
       return "$" + std::to_string(v.value);
-    else if constexpr (std::is_same_v<T, L1::label>)
+    else if constexpr (std::is_same_v<T, label>)
       return "$_" + v.name.substr(1); // remove ':' from the labels
     else
       return "$_" + v.name.substr(1); // remove '@' from the function names
   },
                     val);
 }
-std::string t_set_to_assembly(L1::t val) {
+std::string t_set_to_assembly(t val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, L1::r>)
+    if constexpr (std::is_same_v<T, r>)
       return "%" + r_to_str(v);
-    else if constexpr (std::is_same_v<T, L1::N>)
+    else if constexpr (std::is_same_v<T, N>)
       return "$" + std::to_string(v.value);
   },
                     val);
 }
-std::string u_set_to_assembly(L1::u val) {
+std::string u_set_to_assembly(u val) {
   return std::visit([&](auto &v) -> std::string {
     using U = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<U, L1::r>)
+    if constexpr (std::is_same_v<U, r>)
       return "*" + rename_register(r_to_str(v));
     else
       return rename_f(v.name);

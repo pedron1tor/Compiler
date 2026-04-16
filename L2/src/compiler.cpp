@@ -11,6 +11,9 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+#include <fstream>
+#include "parser.h"
+#include "codegen.h"
 
 #include <utils.h>
 
@@ -77,6 +80,9 @@ int main(int argc, char **argv) {
   /*
    * Parse the input file.
    */
+  /*
+   * Print the source program.
+   */
   if (spill_only) {
 
     /*
@@ -97,15 +103,12 @@ int main(int argc, char **argv) {
      * Parse an L2 function.
      */
     // TODO
-
-  } else {
-
-    /*
-     * Parse the L2 program.
-     */
-    // TODO
+    }
+  else {
+     
   }
-
+    auto p = L2::parse_file(argv[optind]);
+    L2::print_source_program(p);
   /*
    * Special cases.
    */
@@ -145,12 +148,12 @@ int main(int argc, char **argv) {
 
     return 0;
   }
-
+  
   /*
-   * Generate the target code normally.
+   * Generate x86_64 assembly.
    */
   if (enable_code_generator) {
-    // TODO
+    L2::generate_code(p);
   }
 
   return 0;
