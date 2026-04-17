@@ -52,13 +52,14 @@ struct label {
 // t ::= x | N
 using t = std::variant<r, N, var>;
 // s ::= t | label | l
+// begin migrating to this type...
 using s = std::variant<r, N, label, l, var>;
 // u ::= w | l
 using u = std::variant<r, l, var>;
 
 //  i ::=
 struct Assign {
-  r dest;
+  s dest;
   s src;
 }; // w <- s
 struct MemRead {

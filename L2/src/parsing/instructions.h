@@ -21,18 +21,13 @@ struct parse_tensor_error_F : parse_number {};
 struct parse_increment : pegtl::seq<parse_register, parse_spaces, pegtl::string<'+', '+'>> {};
 struct parse_decrement : pegtl::seq<parse_register, parse_spaces, pegtl::string<'-', '-'>> {};
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
-// s value variants
-struct parse_s_num_val : parse_number {};
-struct parse_s_label_val : parse_label {};
-struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name> {};
-struct parse_s_val : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val> {};
 // w <- s
 struct parse_assignment : pegtl::seq<
                               parse_register,
                               parse_spaces,
                               parse_arrow,
                               parse_spaces,
-                              parse_s_val> {};
+                              parse_s> {};
 // w <- mem x M
 struct parse_M : parse_number {};
 struct parse_memread_expression : pegtl::seq<parse_register,
@@ -64,9 +59,7 @@ struct parse_label_inst : parse_label {};
 // goto label
 struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_useful> {};
 // call u N
-struct parse_w_u : parse_register {};
-struct parse_l_u : parse_s_fname_val {};
-struct parse_call_inst : pegtl::seq<parse_call, parse_spaces, pegtl::sor<parse_w_u, parse_l_u>, parse_spaces, parse_M> {};
+struct parse_call_inst : pegtl::seq<parse_call, parse_spaces, parse_u, parse_spaces, parse_M> {};
 // w @ w w E
 struct parse_load_effective_addr : pegtl::seq<parse_register, parse_spaces, pegtl::string<'@'>, parse_spaces, parse_register, parse_spaces, parse_register, parse_spaces, parse_M> {};
 struct parse_instructions : pegtl::seq<parse_seps,
@@ -132,20 +125,6 @@ struct action<parse_M> {
     acc.parsed_offset.push_back(N{std::stoll(in.string())});
   }
 };
-template <>
-struct action<parse_l_u> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_u.push_back(u{l{in.string()}});
-  }
-};
-template <>
-struct action<parse_w_u> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_u.push_back(u{str_to_r(in.string())});
-  }
-};
 
 template <>
 struct action<parse_increment> {
@@ -204,27 +183,6 @@ struct action<parse_cmp> {
     } else if (in.string() == "=") {
       acc.parsed_cmps.push_back(cmp::eq);
     }
-  }
-};
-template <>
-struct action<parse_s_num_val> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items.push_back(s{N{std::stoll(in.string())}});
-  }
-};
-template <>
-struct action<parse_s_label_val> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items.push_back(s{label{in.string()}});
-  }
-};
-template <>
-struct action<parse_s_fname_val> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items.push_back(s{l{in.string()}});
   }
 };
 template <>
