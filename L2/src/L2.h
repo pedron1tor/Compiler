@@ -69,7 +69,7 @@ struct MemRead {
   int64_t offset;
 }; // w <- mem x M
 struct MemWrite {
-  r base;
+  w base;
   int64_t offset;
   s src;
 }; // mem x M <- s
@@ -79,29 +79,29 @@ struct AopInst {
   t src;
 }; // w aop t
 struct SopReg {
-  r dest;
+  w dest;
   sop op;
   t shift;
 }; // w sop sx
 struct SopNum {
-  r dest;
+  w dest;
   sop op;
   N shift;
 }; // w sop N
 struct MemAopWrite {
-  r base;
+  w base;
   int64_t offset;
   aop operation;
   t src;
 }; // mem x M += t
 struct MemAopRead {
-  r dest;
+  w dest;
   aop operation;
-  r base;
+  w base;
   int64_t offset;
 }; // w += mem x M
 struct Compare {
-  r dest;
+  w dest;
   t left;
   cmp op;
   t right;
@@ -137,9 +137,9 @@ struct Decrement {
   w reg;
 }; // w--
 struct LoadAddr {
-  r dest;
-  r base;
-  r index;
+  w dest;
+  w base;
+  w index;
   int64_t scale;
 }; // w @ w w E
 
