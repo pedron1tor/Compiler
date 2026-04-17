@@ -70,14 +70,15 @@ struct parse_s_label_val : parse_label {};
 struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name> {};
 struct parse_s_var : parse_variable {};
 struct parse_s : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val, parse_s_var> {};
-// parse u
-struct parse_w_u : parse_register {};
-struct parse_l_u : parse_s_fname_val {};
-struct parse_u : pegtl::sor<parse_w_u, parse_l_u> {};
 // parse w
 struct parse_r_w : parse_register {};
 struct parse_var_w : parse_variable {};
 struct parse_w : pegtl::sor<parse_r_w, parse_var_w> {};
+// parse u
+struct parse_w_u : parse_w {};
+struct parse_l_u : parse_s_fname_val {};
+struct parse_u : pegtl::sor<parse_w_u, parse_l_u> {};
+
 /*
 templates
 */
@@ -163,7 +164,9 @@ template <>
 struct action<parse_w_u> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_u.push_back(u{str_to_r(in.string())});
+    auto val = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    std::visit([&](auto &v) { acc.parsed_items_u.push_back(u{v}); }, val);
   }
 };
 template <>

@@ -284,6 +284,8 @@ void print_function(f &fn) {
           using U = std::decay_t<decltype(v)>;
           if constexpr (std::is_same_v<U, r>)
             return r_to_str(v);
+          else if (std::is_same_v<U, var>)
+            return add_perc(v.name);
           else
             return v.name;
         },
