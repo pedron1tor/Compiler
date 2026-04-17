@@ -168,6 +168,8 @@ std::string t_to_str(t val) {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
+    else if constexpr (std::is_same_v<T, var>)
+      return "%" + v.name;
     else
       return std::to_string(v.value);
   },
@@ -180,6 +182,18 @@ std::string s_to_str(s val) {
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, N>)
       return std::to_string(v.value);
+    else
+      return v.name;
+  },
+                    val);
+}
+std::string w_to_str(w val) {
+  return std::visit([](auto &v) -> std::string {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, r>)
+      return r_to_str(v);
+    else if constexpr (std::is_same_v<T, var>)
+      return "%" + v.name;
     else
       return v.name;
   },
@@ -226,11 +240,11 @@ void print_function(f &fn) {
       if constexpr (std::is_same_v<T, Return>)
         std::cout << "return";
       else if constexpr (std::is_same_v<T, Assign>)
-        std::cout << r_to_str(ins.dest) << " <- " << s_to_str(ins.src);
+        std::cout << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, AopInst>)
         std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, SopReg>)
-        std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << r_to_str(ins.shift);
+        std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
       else if constexpr (std::is_same_v<T, SopNum>)
         std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
       else if constexpr (std::is_same_v<T, LabelInst>)

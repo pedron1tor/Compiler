@@ -23,7 +23,7 @@ struct parse_decrement : pegtl::seq<parse_register, parse_spaces, pegtl::string<
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
 // w <- s
 struct parse_assignment : pegtl::seq<
-                              parse_register,
+                              parse_w,
                               parse_spaces,
                               parse_arrow,
                               parse_spaces,
@@ -33,7 +33,7 @@ struct parse_M : parse_number {};
 struct parse_memread_expression : pegtl::seq<parse_register,
                                              parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_register, parse_spaces, parse_M> {};
 // mem x M <- s
-struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s_val> {};
+struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s> {};
 // w aop t
 struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_t> {};
 // w sop sx
@@ -219,9 +219,9 @@ struct action<parse_assignment> {
   static void apply(const Input &in, GlobalAccumulator &acc) {
     auto src = acc.parsed_items.back();
     acc.parsed_items.pop_back();
-    auto dst = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto newI = Assign{std::get<r>(dst), src};
+    auto dst = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto newI = Assign{dst, src};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };

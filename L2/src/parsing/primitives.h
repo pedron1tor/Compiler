@@ -23,6 +23,7 @@ struct GlobalAccumulator {
   std::vector<N> parsed_offset;
   std::vector<label> parsed_labels;
   std::vector<u> parsed_items_u;
+  std::vector<w> parsed_items_w;
 };
 
 struct parse_number : pegtl::seq<pegtl::sor<
@@ -93,84 +94,18 @@ struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_no
 struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', 't', 'e'>, parse_nochar> {};
 struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
 struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
-// parse t
-struct parse_num_t : parse_number {};
-struct parse_x_t : parse_register {};
-struct parse_variable_t : parse_variable {};
-struct parse_t : pegtl::sor<parse_x_t, parse_num_t, parse_variable_t> {};
-// parse s
-// s value variants
-struct parse_s_num_val : parse_number {};
-struct parse_s_label_val : parse_label {};
-struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name> {};
-struct parse_s : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val> {};
-// parse u
-struct parse_w_u : parse_register {};
-struct parse_l_u : parse_s_fname_val {};
-struct parse_u : pegtl::sor<parse_w_u, parse_l_u> {};
+
+std::string remove_at(std::string str) {
+  return str.substr(1);
+}
+std::string add_at(std::string str) {
+  return '@' + str;
+}
 /*
  * Templates
  */
 template <typename Rule>
 struct action : pegtl::nothing<Rule> {
 };
-// parse t actions
-template <>
-struct action<parse_num_t> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(t{N{std::stoll(in.string())}});
-  }
-};
-template <>
-struct action<parse_x_t> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(t{str_to_r(in.string())});
-  }
-};
-template <>
-struct action<parse_variable_t> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(t{in.string()[1:]});
-  }
-};
-// parse_s actions
-template <>
-struct action<parse_s_num_val> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items.push_back(s{N{std::stoll(in.string())}});
-  }
-};
-template <>
-struct action<parse_s_label_val> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items.push_back(s{label{in.string()}});
-  }
-};
-template <>
-struct action<parse_s_fname_val> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items.push_back(s{l{in.string()}});
-  }
-};
-// parse u actions
-template <>
-struct action<parse_l_u> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_u.push_back(u{l{in.string()}});
-  }
-};
-template <>
-struct action<parse_w_u> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_u.push_back(u{str_to_r(in.string())});
-  }
-};
+
 } // namespace L2
