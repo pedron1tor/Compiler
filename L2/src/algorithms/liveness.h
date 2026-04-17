@@ -26,7 +26,15 @@ std::vector<w> compute_IN(std::vector<w> &GEN, std::vector<w> &KILL, std::vector
   s_IN.insert(s_OUT.begin(), s_OUT.end());
   return std::vector<w>(s_IN.begin(), s_IN.end());
 };
-void IN_to_cout(std::vector<std::vector<w>> &IN) {
+std::vector<w> compute_OUT(std::vector<std::vector<w>> &OUT, std::vector<std::vector<w>> &IN, std::vector<std::vector<int>> &successors, int inst_counter) {
+  OUT[inst_counter].clear();
+  std::set<w> out_set;
+  for (int s : successors[inst_counter]) {
+    out_set.insert(IN[s].begin(), IN[s].end());
+  }
+  return std::vector<w>(out_set.begin(), out_set.end());
+};
+void INOUT_to_cout(std::vector<std::vector<w>> &IN) {
   for (const auto &inst : IN) {
     std::cout << "(";
     bool first = true;
@@ -39,23 +47,36 @@ void IN_to_cout(std::vector<std::vector<w>> &IN) {
     };
     std::cout << ")\n";
   };
-}
+};
+template <typename all_inst>
+void push_to_gen(std::vector<w> &gen_inst, all_inst &ins) {
+  std::visit([&](auto &v) {
+    using V = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<V, r> || std::is_same_v<V, var>) {
+      gen_inst.push_back(w{v});
+    }
+  },
+             ins.src);
+};
 liveness compute_liveness(f &function) {
   auto n = function.instructions.size();
   std::vector<std::vector<w>> GEN(n);
   std::vector<std::vector<w>> KILL(n);
+  std::vector<std::vector<int>> successors(n);
   int inst_counter = 0;
   for (auto &instr : function.instructions) {
     std::visit([&](auto &ins) {
       using T = std::decay_t<decltype(ins)>;
-      if constexpr (std::is_same_v<T, Return>)
+      if constexpr (std::is_same_v<T, Return>) {
         GEN[inst_counter].push_back(r::rax);
-      for (auto &r_callee : callee_saved_registers) {
-        GEN[inst_counter].push_back(r_callee);
-      };
-      //   else if constexpr (std::is_same_v<T, Assign>)
-      //           std::cout
-      //       << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
+        for (auto &r_callee : callee_saved_registers) {
+          GEN[inst_counter].push_back(r_callee);
+        };
+      } else if constexpr (std::is_same_v<T, Assign>) {
+        push_to_gen(GEN[inst_counter], ins);
+        KILL[inst_counter].push_back(ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
+      }
       // else if constexpr (std::is_same_v<T, AopInst>)
       //   std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
       // else if constexpr (std::is_same_v<T, SopReg>)
@@ -112,24 +133,32 @@ liveness compute_liveness(f &function) {
                instr);
     inst_counter++;
   };
-  inst_counter = 0;
+
   std::vector<std::vector<w>> IN(n);
   std::vector<std::vector<w>> OUT(n);
-  for (auto &instr : function.instructions) {
-    IN[inst_counter] = compute_IN(GEN[inst_counter], KILL[inst_counter], OUT[inst_counter]);
-
-    inst_counter++;
-  };
+  bool changes = true;
+  while (changes) {
+    changes = false;
+    for (int i = n - 1; i >= 0; i--) {
+      auto prev_in = IN[i];
+      auto prev_out = OUT[i];
+      OUT[i] = compute_OUT(OUT, IN, successors, i);
+      IN[i] = compute_IN(GEN[i], KILL[i], OUT[i]);
+      if (IN[i] != prev_in || OUT[i] != prev_out) {
+        changes = true;
+      }
+    }
+  }
   return liveness{IN, OUT};
 };
 void print_liveness(liveness result) {
   std::cout << "(\n";
   std::cout << "(in\n";
-  IN_to_cout(result.in);
+  INOUT_to_cout(result.in);
   std::cout << ")\n\n";
-  std::cout << "(out\n"
-            << "\n"
-            << ")\n\n";
+  std::cout << "(out\n";
+  INOUT_to_cout(result.out);
+  std::cout << ")\n\n";
   std::cout << ")";
 };
 

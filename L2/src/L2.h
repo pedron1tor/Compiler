@@ -27,6 +27,7 @@ enum class r {
 struct var {
   std::string name;
   bool operator<(const var &o) const { return name < o.name; }
+  bool operator==(const var &o) const { return name == o.name; }
 }; // %name
 enum class aop { add,
                  sub,
