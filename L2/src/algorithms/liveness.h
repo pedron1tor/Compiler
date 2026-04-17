@@ -10,13 +10,6 @@ namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
 namespace L2 {
-std::vector<w> callee_saved_registers = {
-    r::r12,
-    r::r13,
-    r::r14,
-    r::r15,
-    r::rbp,
-    r::rbx};
 std::vector<w> compute_IN(std::vector<w> &GEN, std::vector<w> &KILL, std::vector<w> &OUT) {
   std::set<w> s_OUT(OUT.begin(), OUT.end());
   for (const auto &k : KILL) {
@@ -58,12 +51,34 @@ void push_to_gen(std::vector<w> &gen_inst, all_inst &ins) {
   },
              ins);
 };
+template <typename all_inst>
+void push_to_kill(std::vector<w> &gen_inst, all_inst &ins) {
+  std::visit([&](auto &v) {
+    using V = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<V, r> || std::is_same_v<V, var>) {
+      gen_inst.push_back(w{v});
+    }
+  },
+             ins);
+};
+
+void push_args_to_gen(std::vector<w> &gen_inst, int64_t num_args) {
+  for (int a = 0; a < num_args && a < (int)arg_registers.size(); a++) {
+    gen_inst.push_back(arg_registers[a]);
+  }
+};
+void push_caller_saved_r(std::vector<std::vector<w>> &KILL, int &inst_counter) {
+  for (auto &r_caller : caller_saved_registers) {
+    KILL[inst_counter].push_back(r_caller);
+  };
+};
 liveness compute_liveness(f &function) {
   auto n = function.instructions.size();
   std::vector<std::vector<w>> GEN(n);
   std::vector<std::vector<w>> KILL(n);
   std::vector<std::vector<int>> successors(n);
   int inst_counter = 0;
+
   for (auto &instr : function.instructions) {
     std::visit([&](auto &ins) {
       using T = std::decay_t<decltype(ins)>;
@@ -74,30 +89,52 @@ liveness compute_liveness(f &function) {
         };
       } else if constexpr (std::is_same_v<T, Assign>) {
         push_to_gen(GEN[inst_counter], ins.src);
-        KILL[inst_counter].push_back(ins.dest);
+        push_to_kill(KILL[inst_counter], ins.dest);
         successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, AopInst>) {
+        push_to_gen(GEN[inst_counter], ins.src);
+        push_to_gen(GEN[inst_counter], ins.dest);
+        push_to_kill(KILL[inst_counter], ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, SopReg>) {
+        push_to_gen(GEN[inst_counter], ins.shift);
+        push_to_gen(GEN[inst_counter], ins.dest);
+        push_to_kill(KILL[inst_counter], ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, SopNum>) {
+        push_to_gen(GEN[inst_counter], ins.dest);
+        push_to_kill(KILL[inst_counter], ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, LabelInst>) {
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, CallPrint>) {
+        push_args_to_gen(GEN[inst_counter], 1);
+        push_caller_saved_r(KILL, inst_counter);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, CallInput>) {
+        push_caller_saved_r(KILL, inst_counter);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, CallAllocate>) {
+        push_args_to_gen(GEN[inst_counter], 2);
+        push_caller_saved_r(KILL, inst_counter);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, CallTupleError>) {
+        push_args_to_gen(GEN[inst_counter], 3);
+        push_caller_saved_r(KILL, inst_counter);
       }
-      // else if constexpr (std::is_same_v<T, AopInst>)
-      //   std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
-      // else if constexpr (std::is_same_v<T, SopReg>)
-      //   std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
-      // else if constexpr (std::is_same_v<T, SopNum>)
-      //   std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
-      // else if constexpr (std::is_same_v<T, LabelInst>)
-      //   std::cout << ins.lbl.name;
-      // else if constexpr (std::is_same_v<T, CallPrint>)
-      //   std::cout << "call print 1";
-      // else if constexpr (std::is_same_v<T, CallInput>)
-      //   std::cout << "call input 0";
-      // else if constexpr (std::is_same_v<T, CallAllocate>)
-      //   std::cout << "call allocate 2";
-      // else if constexpr (std::is_same_v<T, CallTupleError>)
-      //   std::cout << "call tuple-error 3";
-      // else if constexpr (std::is_same_v<T, Increment>)
-      //   std::cout << w_to_str(ins.reg) << "++";
-      // else if constexpr (std::is_same_v<T, Decrement>)
-      //   std::cout << w_to_str(ins.reg) << "--";
-      // else if constexpr (std::is_same_v<T, CallTensorError>)
+
+      else if constexpr (std::is_same_v<T, Increment>) {
+        push_to_gen(GEN[inst_counter], ins.reg);
+        push_to_kill(KILL[inst_counter], ins.reg);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, Decrement>) {
+        push_to_gen(GEN[inst_counter], ins.reg);
+        push_to_kill(KILL[inst_counter], ins.reg);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, CallTensorError>) {
+        push_args_to_gen(GEN[inst_counter], ins.F);
+        push_caller_saved_r(KILL, inst_counter);
+      }
       //   std::cout << "call tensor-error " << ins.F;
       // else if constexpr (std::is_same_v<T, Compare>)
       //   std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);

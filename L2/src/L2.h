@@ -5,6 +5,24 @@
 #include <vector>
 
 namespace L2 {
+std::vector<w> callee_saved_registers = {
+    r::r12,
+    r::r13,
+    r::r14,
+    r::r15,
+    r::rbp,
+    r::rbx};
+std::vector<w> caller_saved_registers = {
+    r::r10,
+    r::r11,
+    r::r8,
+    r::r9,
+    r::rax,
+    r::rcx,
+    r::rdi,
+    r::rdx,
+    r::rsi};
+std::vector<w> arg_registers = {r::rdi, r::rsi, r::rdx, r::rcx, r::r8, r::r9};
 // w, a, sx, x :: =
 enum class r {
   rax,
