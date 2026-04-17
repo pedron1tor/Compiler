@@ -44,8 +44,6 @@ struct parse_function_rule : pegtl::seq<parse_seps,
                                         parse_seps,
                                         pegtl::seq<parse_spaces, parse_argument_number>,
                                         parse_seps,
-                                        pegtl::seq<parse_spaces, parse_local_number>,
-                                        parse_seps,
                                         pegtl::seq<parse_spaces, parse_instructions>,
                                         parse_seps,
                                         parse_seps,
@@ -91,14 +89,6 @@ struct action<parse_argument_number> {
     currentF.num_args = std::stoll(in.string());
   }
 };
-template <>
-struct action<parse_local_number> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto &currentF = acc.program.functions.back();
-    currentF.num_locals = std::stoll(in.string());
-  }
-};
 
 p parse_file(char *filename) {
   /*
@@ -119,7 +109,26 @@ p parse_file(char *filename) {
   parse<grammar, action>(fileInput, state);
   return state.program;
 }
-std::string r_to_str(r reg) {
+
+f parse_function(char *filename) {
+  if (pegtl::analyze<parse_function_rule>() != 0) {
+    std::cerr << "There are problems with the function grammar" << std::endl;
+    exit(1);
+  }
+  /*
+   * Parse.
+   */
+  file_input<> fileInput(filename);
+  // run to debug program...
+  // pegtl::standard_trace<parse_function_rule>(fileInput);
+  GlobalAccumulator state;
+  state.program.entry_point.name = '_';
+  parse<parse_function_rule, action>(fileInput, state);
+  return state.program.functions[0];
+}
+
+std::string
+r_to_str(r reg) {
   switch (reg) {
   case r::rax:
     return "rax";
@@ -207,73 +216,77 @@ std::string cmp_to_str(cmp op) {
     return "=";
   }
 }
+
+void print_function(f &fn) {
+  std::cout << "  (" << fn.name.name << "\n";
+  std::cout << "    " << fn.num_args << " " << fn.num_locals << "\n";
+  for (auto &instr : fn.instructions) {
+    std::cout << "    ";
+    std::visit([&](auto &ins) {
+      using T = std::decay_t<decltype(ins)>;
+      if constexpr (std::is_same_v<T, Return>)
+        std::cout << "return";
+      else if constexpr (std::is_same_v<T, Assign>)
+        std::cout << r_to_str(ins.dest) << " <- " << s_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, AopInst>)
+        std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, SopReg>)
+        std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << r_to_str(ins.shift);
+      else if constexpr (std::is_same_v<T, SopNum>)
+        std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
+      else if constexpr (std::is_same_v<T, LabelInst>)
+        std::cout << ins.lbl.name;
+      else if constexpr (std::is_same_v<T, CallPrint>)
+        std::cout << "call print 1";
+      else if constexpr (std::is_same_v<T, CallInput>)
+        std::cout << "call input 0";
+      else if constexpr (std::is_same_v<T, CallAllocate>)
+        std::cout << "call allocate 2";
+      else if constexpr (std::is_same_v<T, CallTupleError>)
+        std::cout << "call tuple-error 3";
+      else if constexpr (std::is_same_v<T, Increment>)
+        std::cout << r_to_str(ins.reg) << "++";
+      else if constexpr (std::is_same_v<T, Decrement>)
+        std::cout << r_to_str(ins.reg) << "--";
+      else if constexpr (std::is_same_v<T, CallTensorError>)
+        std::cout << "call tensor-error " << ins.F;
+      else if constexpr (std::is_same_v<T, Compare>)
+        std::cout << r_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
+      else if constexpr (std::is_same_v<T, Cjump>)
+        std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
+      else if constexpr (std::is_same_v<T, Goto>)
+        std::cout << "goto " << ins.target.name;
+      else if constexpr (std::is_same_v<T, MemRead>)
+        std::cout << r_to_str(ins.dest) << " <- mem " << r_to_str(ins.base) << " " << ins.offset;
+      else if constexpr (std::is_same_v<T, MemWrite>)
+        std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, MemAopRead>)
+        std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << r_to_str(ins.base) << " " << ins.offset;
+      else if constexpr (std::is_same_v<T, MemAopWrite>)
+        std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, Call>)
+        std::cout << "call " << std::visit([&](auto &v) -> std::string {
+          using U = std::decay_t<decltype(v)>;
+          if constexpr (std::is_same_v<U, r>)
+            return r_to_str(v);
+          else
+            return v.name;
+        },
+                                           ins.callee)
+                  << " " << ins.num_args.value;
+      else if constexpr (std::is_same_v<T, LoadAddr>)
+        std::cout << r_to_str(ins.dest) << " @ " << r_to_str(ins.base) << " " << r_to_str(ins.index) << " " << ins.scale;
+    },
+               instr);
+    std::cout << "\n";
+  }
+  std::cout << "  )\n";
+};
 void print_source_program(p program) {
   std::cout << "(" << program.entry_point.name << "\n";
   for (auto &fn : program.functions) {
-    std::cout << "  (" << fn.name.name << "\n";
-    std::cout << "    " << fn.num_args << " " << fn.num_locals << "\n";
-    for (auto &instr : fn.instructions) {
-      std::cout << "    ";
-      std::visit([&](auto &ins) {
-        using T = std::decay_t<decltype(ins)>;
-        if constexpr (std::is_same_v<T, Return>)
-          std::cout << "return";
-        else if constexpr (std::is_same_v<T, Assign>)
-          std::cout << r_to_str(ins.dest) << " <- " << s_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, AopInst>)
-          std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, SopReg>)
-          std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << r_to_str(ins.shift);
-        else if constexpr (std::is_same_v<T, SopNum>)
-          std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
-        else if constexpr (std::is_same_v<T, LabelInst>)
-          std::cout << ins.lbl.name;
-        else if constexpr (std::is_same_v<T, CallPrint>)
-          std::cout << "call print 1";
-        else if constexpr (std::is_same_v<T, CallInput>)
-          std::cout << "call input 0";
-        else if constexpr (std::is_same_v<T, CallAllocate>)
-          std::cout << "call allocate 2";
-        else if constexpr (std::is_same_v<T, CallTupleError>)
-          std::cout << "call tuple-error 3";
-        else if constexpr (std::is_same_v<T, Increment>)
-          std::cout << r_to_str(ins.reg) << "++";
-        else if constexpr (std::is_same_v<T, Decrement>)
-          std::cout << r_to_str(ins.reg) << "--";
-        else if constexpr (std::is_same_v<T, CallTensorError>)
-          std::cout << "call tensor-error " << ins.F;
-        else if constexpr (std::is_same_v<T, Compare>)
-          std::cout << r_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
-        else if constexpr (std::is_same_v<T, Cjump>)
-          std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
-        else if constexpr (std::is_same_v<T, Goto>)
-          std::cout << "goto " << ins.target.name;
-        else if constexpr (std::is_same_v<T, MemRead>)
-          std::cout << r_to_str(ins.dest) << " <- mem " << r_to_str(ins.base) << " " << ins.offset;
-        else if constexpr (std::is_same_v<T, MemWrite>)
-          std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, MemAopRead>)
-          std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << r_to_str(ins.base) << " " << ins.offset;
-        else if constexpr (std::is_same_v<T, MemAopWrite>)
-          std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
-        else if constexpr (std::is_same_v<T, Call>)
-          std::cout << "call " << std::visit([&](auto &v) -> std::string {
-            using U = std::decay_t<decltype(v)>;
-            if constexpr (std::is_same_v<U, r>)
-              return r_to_str(v);
-            else
-              return v.name;
-          },
-                                             ins.callee)
-                    << " " << ins.num_args.value;
-        else if constexpr (std::is_same_v<T, LoadAddr>)
-          std::cout << r_to_str(ins.dest) << " @ " << r_to_str(ins.base) << " " << r_to_str(ins.index) << " " << ins.scale;
-      },
-                 instr);
-      std::cout << "\n";
-    }
-    std::cout << "  )\n";
-  }
+    print_function(fn);
+  };
   std::cout << ")\n";
 };
 } // namespace L2

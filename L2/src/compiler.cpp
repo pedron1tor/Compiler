@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
    * Parse the input file.
    */
   L2::p p;
+  L2::f function;
   /*
    * Print the source program.
    */
@@ -94,19 +95,27 @@ int main(int argc, char **argv) {
   } else if (liveness_only) {
 
     /*
-     * Parse an */
-
+     * Parse an L2 function  */
+    function = L2::parse_function(argv[optind]);
+    functionNumber = 1;
   } else if (interference_only) {
 
     /*
      * Parse an L2 function.
      */
-    // TODO
+
   } else {
     p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
   }
 
+  /*
+   * Print a single L2 function case.
+   */
+  if (functionNumber != -1) {
+    L2::print_function(function);
+    return 0;
+  }
   /*
    * Special cases.
    */
@@ -133,15 +142,6 @@ int main(int argc, char **argv) {
    * Interference graph test.
    */
   if (interference_only) {
-    // TODO
-
-    return 0;
-  }
-
-  /*
-   * Print a single L2 function case.
-   */
-  if (functionNumber != -1) {
     // TODO
 
     return 0;
