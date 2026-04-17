@@ -161,18 +161,14 @@ template <>
 struct action<parse_w_u> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto reg = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    acc.parsed_items_u.push_back(u{std::get<r>(reg)});
+    acc.parsed_items_u.push_back(u{str_to_r(in.string())});
   }
 };
 template <>
 struct action<parse_x_t> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto reg = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    acc.parsed_items_t.push_back(t{std::get<r>(reg)});
+    acc.parsed_items_t.push_back(t{str_to_r(in.string())});
   }
 };
 template <>

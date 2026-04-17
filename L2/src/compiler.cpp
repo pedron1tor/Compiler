@@ -1,8 +1,11 @@
+#include "codegen.h"
+#include "parser.h"
 #include <algorithm>
 #include <assert.h>
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <set>
@@ -11,9 +14,6 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-#include <fstream>
-#include "parser.h"
-#include "codegen.h"
 
 #include <utils.h>
 
@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
   /*
    * Parse the input file.
    */
+  L2::p p;
   /*
    * Print the source program.
    */
@@ -93,9 +94,7 @@ int main(int argc, char **argv) {
   } else if (liveness_only) {
 
     /*
-     * Parse an L2 function.
-     */
-    // TODO
+     * Parse an */
 
   } else if (interference_only) {
 
@@ -103,12 +102,11 @@ int main(int argc, char **argv) {
      * Parse an L2 function.
      */
     // TODO
-    }
-  else {
-     
-  }
-    auto p = L2::parse_file(argv[optind]);
+  } else {
+    p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
+  }
+
   /*
    * Special cases.
    */
@@ -148,7 +146,7 @@ int main(int argc, char **argv) {
 
     return 0;
   }
-  
+
   /*
    * Generate x86_64 assembly.
    */
