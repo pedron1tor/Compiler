@@ -73,29 +73,29 @@ struct grammar : pegtl::seq<
 template <>
 struct action<parse_function_name> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    if (program.entry_point.name.empty()) {
-      program.entry_point.name = in.string();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    if (acc.program.entry_point.name.empty()) {
+      acc.program.entry_point.name = in.string();
     } else {
       f newF;
       newF.name.name = in.string();
-      program.functions.push_back(newF);
+      acc.program.functions.push_back(newF);
     }
   }
 };
 template <>
 struct action<parse_argument_number> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto &currentF = program.functions.back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto &currentF = acc.program.functions.back();
     currentF.num_args = std::stoll(in.string());
   }
 };
 template <>
 struct action<parse_local_number> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto &currentF = program.functions.back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto &currentF = acc.program.functions.back();
     currentF.num_locals = std::stoll(in.string());
   }
 };
@@ -113,11 +113,11 @@ p parse_file(char *filename) {
    * Parse.
    */
   file_input<> fileInput(filename);
-  p program_ast;
   // run to debug program...
   // pegtl::standard_trace<grammar>(fileInput);
-  parse<grammar, action>(fileInput, program_ast);
-  return program_ast;
+  GlobalAccumulator state;
+  parse<grammar, action>(fileInput, state);
+  return state.program;
 }
 std::string r_to_str(r reg) {
   switch (reg) {
@@ -276,4 +276,4 @@ void print_source_program(p program) {
   }
   std::cout << ")\n";
 };
-} // namespace L1
+} // namespace L2

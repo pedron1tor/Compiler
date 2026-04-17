@@ -90,8 +90,8 @@ templates
 template <typename Rule, typename Inst>
 struct action_push {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto &currentF = program.functions.back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto &currentF = acc.program.functions.back();
     currentF.instructions.push_back(i{Inst{}});
   }
 };
@@ -108,338 +108,338 @@ struct action<parse_call_tuple_error> : action_push<parse_call_tuple_error, Call
 template <>
 struct action<parse_tensor_error_F> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items_t.push_back(t{N{std::stoll(in.string())}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items_t.push_back(t{N{std::stoll(in.string())}});
   }
 };
 template <>
 struct action<parse_call_tensor_error> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto F = std::get<N>(parsed_items_t.back()).value;
-    parsed_items_t.pop_back();
-    program.functions.back().instructions.push_back(i{CallTensorError{F}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto F = std::get<N>(acc.parsed_items_t.back()).value;
+    acc.parsed_items_t.pop_back();
+    acc.program.functions.back().instructions.push_back(i{CallTensorError{F}});
   }
 };
 
 template <>
 struct action<parse_label_inst> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    program.functions.back().instructions.push_back(i{LabelInst{label{in.string()}}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.program.functions.back().instructions.push_back(i{LabelInst{label{in.string()}}});
   }
 };
 template <>
 struct action<parse_label_inst_useful> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_labels.push_back(label{in.string()});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_labels.push_back(label{in.string()});
   }
 };
 template <>
 struct action<parse_num_t> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items_t.push_back(t{N{std::stoll(in.string())}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items_t.push_back(t{N{std::stoll(in.string())}});
   }
 };
 template <>
 struct action<parse_M> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_offset.push_back(N{std::stoll(in.string())});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_offset.push_back(N{std::stoll(in.string())});
   }
 };
 template <>
 struct action<parse_l_u> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items_u.push_back(u{l{in.string()}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items_u.push_back(u{l{in.string()}});
   }
 };
 template <>
 struct action<parse_w_u> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto reg = parsed_items.back();
-    parsed_items.pop_back();
-    parsed_items_u.push_back(u{std::get<r>(reg)});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto reg = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    acc.parsed_items_u.push_back(u{std::get<r>(reg)});
   }
 };
 template <>
 struct action<parse_x_t> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto reg = parsed_items.back();
-    parsed_items.pop_back();
-    parsed_items_t.push_back(t{std::get<r>(reg)});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto reg = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    acc.parsed_items_t.push_back(t{std::get<r>(reg)});
   }
 };
 template <>
 struct action<parse_increment> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto target_reg = parsed_items.back();
-    parsed_items.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto target_reg = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     auto newI = Increment{std::get<r>(target_reg)};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_decrement> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto target_reg = parsed_items.back();
-    parsed_items.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto target_reg = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     auto newI = Decrement{std::get<r>(target_reg)};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_aop> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
+  static void apply(const Input &in, GlobalAccumulator &acc) {
     if (in.string() == "+=") {
-      parsed_ops.push_back(aop::add);
+      acc.parsed_ops.push_back(aop::add);
     } else if (in.string() == "-=") {
-      parsed_ops.push_back(aop::sub);
+      acc.parsed_ops.push_back(aop::sub);
     } else if (in.string() == "*=") {
-      parsed_ops.push_back(aop::mul);
+      acc.parsed_ops.push_back(aop::mul);
     } else if (in.string() == "&=") {
-      parsed_ops.push_back(aop::and_);
+      acc.parsed_ops.push_back(aop::and_);
     }
   }
 };
 template <>
 struct action<parse_sop> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
+  static void apply(const Input &in, GlobalAccumulator &acc) {
     if (in.string() == "<<=") {
-      parsed_sops.push_back(sop::lshift);
+      acc.parsed_sops.push_back(sop::lshift);
     } else if (in.string() == ">>=") {
-      parsed_sops.push_back(sop::rshift);
+      acc.parsed_sops.push_back(sop::rshift);
     }
   }
 };
 template <>
 struct action<parse_cmp> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
+  static void apply(const Input &in, GlobalAccumulator &acc) {
     if (in.string() == "<") {
-      parsed_cmps.push_back(cmp::lt);
+      acc.parsed_cmps.push_back(cmp::lt);
     } else if (in.string() == "<=") {
-      parsed_cmps.push_back(cmp::le);
+      acc.parsed_cmps.push_back(cmp::le);
     } else if (in.string() == "=") {
-      parsed_cmps.push_back(cmp::eq);
+      acc.parsed_cmps.push_back(cmp::eq);
     }
   }
 };
 template <>
 struct action<parse_s_num_val> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{N{std::stoll(in.string())}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items.push_back(s{N{std::stoll(in.string())}});
   }
 };
 template <>
 struct action<parse_s_label_val> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{label{in.string()}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items.push_back(s{label{in.string()}});
   }
 };
 template <>
 struct action<parse_s_fname_val> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{l{in.string()}});
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items.push_back(s{l{in.string()}});
   }
 };
 template <>
 struct action<parse_memread_expression> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto base = parsed_items.back();  
-    parsed_items.pop_back();
-    auto dst = parsed_items.back();    
-    parsed_items.pop_back();
-    auto offset = parsed_offset.back();
-    parsed_offset.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto base = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto dst = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto offset = acc.parsed_offset.back();
+    acc.parsed_offset.pop_back();
     auto newI = MemRead{std::get<r>(dst), std::get<r>(base), offset.value};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_memwrite_expression> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto src = parsed_items.back();
-    parsed_items.pop_back();
-    auto base = parsed_items.back();
-    parsed_items.pop_back();
-    auto offset = parsed_offset.back();
-    parsed_offset.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto src = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto base = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto offset = acc.parsed_offset.back();
+    acc.parsed_offset.pop_back();
     auto newI = MemWrite{std::get<r>(base), offset.value, src};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_assignment> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto src = parsed_items.back();
-    parsed_items.pop_back();
-    auto dst = parsed_items.back();
-    parsed_items.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto src = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto dst = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     auto newI = Assign{std::get<r>(dst), src};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_aop_expression> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto src_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto src_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
     t src = std::holds_alternative<r>(src_item)
                 ? t{std::get<r>(src_item)}
                 : t{std::get<N>(src_item)};
-    auto aop = parsed_ops.back();
-    parsed_ops.pop_back();
-    auto dst = parsed_items.back();
-    parsed_items.pop_back();
+    auto aop = acc.parsed_ops.back();
+    acc.parsed_ops.pop_back();
+    auto dst = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     auto newI = AopInst{std::get<r>(dst), aop, src};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_sop_expression> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto src_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto src_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
     bool reg = std::holds_alternative<r>(src_item);
 
     t src = reg
                 ? t{std::get<r>(src_item)}
                 : t{std::get<N>(src_item)};
 
-    auto sop_op = parsed_sops.back();
-    parsed_sops.pop_back();
-    auto dst = parsed_items.back();
-    parsed_items.pop_back();
+    auto sop_op = acc.parsed_sops.back();
+    acc.parsed_sops.pop_back();
+    auto dst = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     i newI;
     if (reg) {
       newI = SopReg{std::get<r>(dst), sop_op, std::get<r>(src)};
     } else {
       newI = SopNum{std::get<r>(dst), sop_op, std::get<N>(src)};
     }
-    program.functions.back().instructions.push_back(newI);
+    acc.program.functions.back().instructions.push_back(newI);
   };
 };
 template <>
 struct action<parse_assign_cmp> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto right_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
-    auto cmp_op = parsed_cmps.back();
-    parsed_cmps.pop_back();
-    auto left_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
-    auto dst = parsed_items.back();
-    parsed_items.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto right_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    auto cmp_op = acc.parsed_cmps.back();
+    acc.parsed_cmps.pop_back();
+    auto left_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    auto dst = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     i newI = Compare{std::get<r>(dst), left_item, cmp_op, right_item};
-    program.functions.back().instructions.push_back(newI);
+    acc.program.functions.back().instructions.push_back(newI);
   };
 };
 template <>
 struct action<parse_goto_label> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto label = parsed_labels.back();
-    parsed_labels.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto label = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
     i newI = Goto{label};
-    program.functions.back().instructions.push_back(newI);
+    acc.program.functions.back().instructions.push_back(newI);
   };
 };
 template <>
 struct action<parse_call_inst> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto num_args = parsed_offset.back();
-    parsed_offset.pop_back();
-    auto callee = parsed_items_u.back();
-    parsed_items_u.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto num_args = acc.parsed_offset.back();
+    acc.parsed_offset.pop_back();
+    auto callee = acc.parsed_items_u.back();
+    acc.parsed_items_u.pop_back();
     i newI = Call{callee, num_args};
-    program.functions.back().instructions.push_back(newI);
+    acc.program.functions.back().instructions.push_back(newI);
   };
 };
 template <>
 struct action<parse_cond_jump> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto right_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
-    auto cmp_op = parsed_cmps.back();
-    parsed_cmps.pop_back();
-    auto left_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
-    auto label = parsed_labels.back();
-    parsed_labels.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto right_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    auto cmp_op = acc.parsed_cmps.back();
+    acc.parsed_cmps.pop_back();
+    auto left_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    auto label = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
     i newI = Cjump{left_item, cmp_op, right_item, label};
-    program.functions.back().instructions.push_back(newI);
+    acc.program.functions.back().instructions.push_back(newI);
   };
 };
 template <>
 struct action<parse_mem_aop_read> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto base = parsed_items.back();
-    parsed_items.pop_back();
-    auto dest = parsed_items.back();
-    parsed_items.pop_back();
-    auto aop = parsed_ops.back();
-    parsed_ops.pop_back();
-    auto offset = parsed_offset.back();
-    parsed_offset.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto base = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto dest = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto aop = acc.parsed_ops.back();
+    acc.parsed_ops.pop_back();
+    auto offset = acc.parsed_offset.back();
+    acc.parsed_offset.pop_back();
     auto newI = MemAopRead{std::get<r>(dest), aop, std::get<r>(base), offset.value};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_mem_aop_write> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto src_item = parsed_items_t.back();
-    parsed_items_t.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto src_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
     t src = std::holds_alternative<r>(src_item)
                 ? t{std::get<r>(src_item)}
                 : t{std::get<N>(src_item)};
-    auto aop = parsed_ops.back();
-    parsed_ops.pop_back();
-    auto offset = parsed_offset.back();
-    parsed_offset.pop_back();
-    auto base = parsed_items.back();
-    parsed_items.pop_back();
+    auto aop = acc.parsed_ops.back();
+    acc.parsed_ops.pop_back();
+    auto offset = acc.parsed_offset.back();
+    acc.parsed_offset.pop_back();
+    auto base = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     auto newI = MemAopWrite{std::get<r>(base), offset.value, aop, src};
-    program.functions.back().instructions.push_back(i{newI});
+    acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
 template <>
 struct action<parse_load_effective_addr> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    auto scale = parsed_offset.back();
-    parsed_offset.pop_back();
-    auto index = parsed_items.back();
-    parsed_items.pop_back();
-    auto base = parsed_items.back();
-    parsed_items.pop_back();
-    auto dest = parsed_items.back();
-    parsed_items.pop_back();
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto scale = acc.parsed_offset.back();
+    acc.parsed_offset.pop_back();
+    auto index = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto base = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
+    auto dest = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     i newI = LoadAddr{std::get<r>(dest), std::get<r>(base), std::get<r>(index), scale.value};
-    program.functions.back().instructions.push_back(newI);
+    acc.program.functions.back().instructions.push_back(newI);
   };
 };
-} // namespace L1
+} // namespace L2

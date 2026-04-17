@@ -31,7 +31,7 @@ struct parse_r12 : pegtl::string<'r', '1', '2'> {};
 struct parse_r13 : pegtl::string<'r', '1', '3'> {};
 struct parse_r14 : pegtl::string<'r', '1', '4'> {};
 struct parse_r15 : pegtl::string<'r', '1', '5'> {};
-// x 
+// x
 struct parse_rsp : pegtl::string<'r', 's', 'p'> {};
 // a
 struct parse_register_rdi : pegtl::seq<parse_rdi, parse_nochar> {};
@@ -53,128 +53,28 @@ struct parse_register_r15 : pegtl::seq<parse_r15, parse_nochar> {};
 // a
 struct parse_register_rsp : pegtl::seq<parse_rsp, parse_nochar> {};
 // parse all registers
-struct parse_register : pegtl::sor<parse_register_rdi, parse_register_rsi, parse_register_rdx, 
-parse_register_sx, parse_register_r8, parse_register_r9, parse_register_rax, parse_register_rbx, 
-parse_register_rbp, parse_register_r10, parse_register_r11, parse_register_r12, parse_register_r13, parse_register_r14,
-parse_register_r15, parse_register_rsp> {};
+struct parse_register : pegtl::sor<parse_register_rdi, parse_register_rsi, parse_register_rdx,
+                                   parse_register_sx, parse_register_r8, parse_register_r9, parse_register_rax, parse_register_rbx,
+                                   parse_register_rbp, parse_register_r10, parse_register_r11, parse_register_r12, parse_register_r13, parse_register_r14,
+                                   parse_register_r15, parse_register_rsp> {};
 /*
 templates
 */
-// a 
-template <>
-struct action<parse_register_rdi> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rdi});
-  }
-};
-template <>
-struct action<parse_register_rsi> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rsi});
-  }
-};
-template <>
-struct action<parse_register_rdx> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rdx});
-  }
-};
-template <>
-struct action<parse_register_sx> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rcx});
-  }
-};
-template <>
-struct action<parse_register_r8> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r8});
-  }
-};
-template <>
-struct action<parse_register_r9> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r9});
-  }
-};
+r str_to_r(const std::string &s) {
+  static const std::unordered_map<std::string, r> reg_map = {
+      {"rax", r::rax}, {"rbx", r::rbx}, {"rbp", r::rbp}, {"r10", r::r10}, {"r11", r::r11}, {"r12", r::r12}, {"r13", r::r13}, {"r14", r::r14}, {"r15", r::r15}, {"rdi", r::rdi}, {"rsi", r::rsi}, {"rdx", r::rdx}, {"r8", r::r8}, {"r9", r::r9}, {"rcx", r::rcx}, {"rsp", r::rsp}};
 
-// w
-template <>
-struct action<parse_register_rax> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rax});
+  auto it = reg_map.find(s);
+  if (it != reg_map.end()) {
+    return it->second;
   }
-};
+}
+// parse registers using the map helper
 template <>
-struct action<parse_register_rbx> {
+struct action<parse_register> {
   template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rbx});
-  }
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items.push_back(s{str_to_r(in.string())});
+  };
 };
-template <>
-struct action<parse_register_rbp> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rbp});
-  }
-};
-template <>
-struct action<parse_register_r10> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r10});
-  }
-};
-template <>
-struct action<parse_register_r11> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r11});
-  }
-};
-template <>
-struct action<parse_register_r12> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r12});
-  }
-};
-template <>
-struct action<parse_register_r13> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r13});
-  }
-};
-template <>
-struct action<parse_register_r14> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r14});
-  }
-};
-template <>
-struct action<parse_register_r15> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::r15});
-  }
-};
-
-template <>
-struct action<parse_register_rsp> {
-  template <typename Input>
-  static void apply(const Input &in, p &program) {
-    parsed_items.push_back(s{r::rsp});
-  }
-};
-
-} // namespace L1
+} // namespace L2
