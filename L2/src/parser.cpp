@@ -231,10 +231,10 @@ std::string cmp_to_str(cmp op) {
 }
 
 void print_function(f &fn) {
-  std::cout << "  (" << fn.name.name << "\n";
-  std::cout << "    " << fn.num_args << " " << "\n";
+  std::cout << "(" << fn.name.name << "\n";
+  std::cout << "\t" << fn.num_args << "\n";
   for (auto &instr : fn.instructions) {
-    std::cout << "    ";
+    std::cout << "\t";
     std::visit([&](auto &ins) {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
@@ -293,7 +293,7 @@ void print_function(f &fn) {
                instr);
     std::cout << "\n";
   }
-  std::cout << "  )\n";
+  std::cout << ")\n";
 };
 void print_source_program(p program) {
   std::cout << "(" << program.entry_point.name << "\n";
