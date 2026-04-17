@@ -1,4 +1,4 @@
-#include "codegen.h"
+// #include "codegen.h"
 #include "parser.h"
 #include <algorithm>
 #include <assert.h>
@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
    * Generate x86_64 assembly.
    */
   if (enable_code_generator) {
-    L2::generate_code(p);
+    // L2::generate_code(p);
   }
 
   return 0;

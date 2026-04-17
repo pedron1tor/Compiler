@@ -150,7 +150,6 @@ using i = std::variant<
 struct f {
   l name; // @name
   int64_t num_args;
-  int64_t num_locals;
   std::vector<i> instructions;
 };
 

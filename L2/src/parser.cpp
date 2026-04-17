@@ -35,7 +35,6 @@ namespace L2 {
 struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name> {};
 
 struct parse_argument_number : parse_number {};
-struct parse_local_number : parse_number {};
 
 struct parse_function_rule : pegtl::seq<parse_seps,
                                         pegtl::seq<parse_spaces, pegtl::one<'('>>,
@@ -219,7 +218,7 @@ std::string cmp_to_str(cmp op) {
 
 void print_function(f &fn) {
   std::cout << "  (" << fn.name.name << "\n";
-  std::cout << "    " << fn.num_args << " " << fn.num_locals << "\n";
+  std::cout << "    " << fn.num_args << " " << "\n";
   for (auto &instr : fn.instructions) {
     std::cout << "    ";
     std::visit([&](auto &ins) {
