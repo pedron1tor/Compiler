@@ -131,10 +131,10 @@ struct CallTensorError {
   int64_t F;
 }; // F ::= 1 | 3 | 4
 struct Increment {
-  r reg;
+  w reg;
 }; // w++
 struct Decrement {
-  r reg;
+  w reg;
 }; // w--
 struct LoadAddr {
   r dest;

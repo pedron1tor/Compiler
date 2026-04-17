@@ -18,8 +18,8 @@ struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, pars
 struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
 struct parse_call_tuple_error : pegtl::seq<parse_call, parse_spaces, parse_tuple_error, parse_spaces, parse_number> {};
 struct parse_tensor_error_F : parse_number {};
-struct parse_increment : pegtl::seq<parse_register, parse_spaces, pegtl::string<'+', '+'>> {};
-struct parse_decrement : pegtl::seq<parse_register, parse_spaces, pegtl::string<'-', '-'>> {};
+struct parse_increment : pegtl::seq<parse_w, parse_spaces, pegtl::string<'+', '+'>> {};
+struct parse_decrement : pegtl::seq<parse_w, parse_spaces, pegtl::string<'-', '-'>> {};
 struct parse_call_tensor_error : pegtl::seq<parse_call, parse_spaces, parse_tensor_error, parse_spaces, parse_tensor_error_F> {};
 // w <- s
 struct parse_assignment : pegtl::seq<
@@ -130,9 +130,9 @@ template <>
 struct action<parse_increment> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto target_reg = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto newI = Increment{std::get<r>(target_reg)};
+    auto target_reg = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto newI = Increment{target_reg};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
@@ -140,9 +140,9 @@ template <>
 struct action<parse_decrement> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto target_reg = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto newI = Decrement{std::get<r>(target_reg)};
+    auto target_reg = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto newI = Decrement{target_reg};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };

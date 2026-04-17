@@ -258,9 +258,9 @@ void print_function(f &fn) {
       else if constexpr (std::is_same_v<T, CallTupleError>)
         std::cout << "call tuple-error 3";
       else if constexpr (std::is_same_v<T, Increment>)
-        std::cout << r_to_str(ins.reg) << "++";
+        std::cout << w_to_str(ins.reg) << "++";
       else if constexpr (std::is_same_v<T, Decrement>)
-        std::cout << r_to_str(ins.reg) << "--";
+        std::cout << w_to_str(ins.reg) << "--";
       else if constexpr (std::is_same_v<T, CallTensorError>)
         std::cout << "call tensor-error " << ins.F;
       else if constexpr (std::is_same_v<T, Compare>)
