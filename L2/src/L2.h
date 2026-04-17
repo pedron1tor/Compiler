@@ -142,6 +142,10 @@ struct LoadAddr {
   w index;
   int64_t scale;
 }; // w @ w w E
+struct StackArg {
+  w dest;
+  N num;
+}; // w <- stack-arg M
 
 using i = std::variant<
     Assign, MemRead, MemWrite,
@@ -150,7 +154,7 @@ using i = std::variant<
     Compare, Cjump, Goto, LabelInst,
     Return, Call, CallPrint, CallInput,
     CallAllocate, CallTupleError, CallTensorError,
-    Increment, Decrement, LoadAddr>;
+    Increment, Decrement, LoadAddr, StackArg>;
 
 // f ::= (l N N i+)
 struct f {

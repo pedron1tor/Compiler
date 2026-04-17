@@ -279,6 +279,8 @@ void print_function(f &fn) {
         std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << w_to_str(ins.base) << " " << ins.offset;
       else if constexpr (std::is_same_v<T, MemAopWrite>)
         std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, StackArg>)
+        std::cout << w_to_str(ins.dest) << " <- " << "stack-arg " << std::to_string(ins.num.value);
       else if constexpr (std::is_same_v<T, Call>)
         std::cout << "call " << std::visit([&](auto &v) -> std::string {
           using U = std::decay_t<decltype(v)>;

@@ -94,6 +94,7 @@ struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_no
 struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', 't', 'e'>, parse_nochar> {};
 struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
 struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
+struct parse_stack_arg : pegtl::seq<pegtl::string<'s', 't', 'a', 'c', 'k', '-', 'a', 'r', 'g'>, parse_nochar> {};
 
 std::string remove_perc(std::string str) {
   return str.substr(1);
