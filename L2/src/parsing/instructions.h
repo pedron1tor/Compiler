@@ -33,22 +33,22 @@ struct parse_M : parse_number {};
 struct parse_memread_expression : pegtl::seq<parse_w,
                                              parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_w, parse_spaces, parse_M> {};
 // mem x M <- s
-struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s> {};
+struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_w, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s> {};
 // w aop t
 struct parse_aop_expression : pegtl::seq<parse_w, parse_spaces, parse_aop, parse_spaces, parse_t> {};
 // w sop sx
 // w sop N
-struct parse_sop_expression : pegtl::seq<parse_register, parse_spaces, parse_sop, parse_spaces, parse_t> {};
+struct parse_sop_expression : pegtl::seq<parse_w, parse_spaces, parse_sop, parse_spaces, parse_t> {};
 // mem x M += t
 // mem x M -= t
-struct parse_mem_aop_write : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_aop, parse_spaces,
+struct parse_mem_aop_write : pegtl::seq<parse_mem, parse_spaces, parse_w, parse_spaces, parse_M, parse_spaces, parse_aop, parse_spaces,
                                         parse_t> {};
 // w += mem x M
 // w -= mem x M
-struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_mem,
-                                       parse_spaces, parse_register, parse_spaces, parse_M> {};
+struct parse_mem_aop_read : pegtl::seq<parse_w, parse_spaces, parse_aop, parse_spaces, parse_mem,
+                                       parse_spaces, parse_w, parse_spaces, parse_M> {};
 // w <- t cmp t
-struct parse_assign_cmp : pegtl::seq<parse_register, parse_spaces, parse_arrow, parse_spaces, parse_t, parse_spaces,
+struct parse_assign_cmp : pegtl::seq<parse_w, parse_spaces, parse_arrow, parse_spaces, parse_t, parse_spaces,
                                      parse_cmp, parse_spaces, parse_t> {};
 // cjump t cmp t label
 struct parse_label_inst_useful : parse_label {};
@@ -61,7 +61,7 @@ struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_
 // call u N
 struct parse_call_inst : pegtl::seq<parse_call, parse_spaces, parse_u, parse_spaces, parse_M> {};
 // w @ w w E
-struct parse_load_effective_addr : pegtl::seq<parse_register, parse_spaces, pegtl::string<'@'>, parse_spaces, parse_register, parse_spaces, parse_register, parse_spaces, parse_M> {};
+struct parse_load_effective_addr : pegtl::seq<parse_w, parse_spaces, pegtl::string<'@'>, parse_spaces, parse_w, parse_spaces, parse_w, parse_spaces, parse_M> {};
 struct parse_instructions : pegtl::seq<parse_seps,
                                        pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label, parse_load_effective_addr>, parse_seps>>> {};
 
@@ -205,11 +205,11 @@ struct action<parse_memwrite_expression> {
   static void apply(const Input &in, GlobalAccumulator &acc) {
     auto src = acc.parsed_items.back();
     acc.parsed_items.pop_back();
-    auto base = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
+    auto base = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
     auto offset = acc.parsed_offset.back();
     acc.parsed_offset.pop_back();
-    auto newI = MemWrite{std::get<r>(base), offset.value, src};
+    auto newI = MemWrite{base, offset.value, src};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
@@ -253,13 +253,13 @@ struct action<parse_sop_expression> {
 
     auto sop_op = acc.parsed_sops.back();
     acc.parsed_sops.pop_back();
-    auto dst = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
+    auto dst = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
     i newI;
     if (reg) {
-      newI = SopReg{std::get<r>(dst), sop_op, std::get<r>(src)};
+      newI = SopReg{dst, sop_op, std::get<r>(src)};
     } else {
-      newI = SopNum{std::get<r>(dst), sop_op, std::get<N>(src)};
+      newI = SopNum{dst, sop_op, std::get<N>(src)};
     }
     acc.program.functions.back().instructions.push_back(newI);
   };
@@ -274,9 +274,9 @@ struct action<parse_assign_cmp> {
     acc.parsed_cmps.pop_back();
     auto left_item = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
-    auto dst = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    i newI = Compare{std::get<r>(dst), left_item, cmp_op, right_item};
+    auto dst = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    i newI = Compare{dst, left_item, cmp_op, right_item};
     acc.program.functions.back().instructions.push_back(newI);
   };
 };
@@ -322,15 +322,15 @@ template <>
 struct action<parse_mem_aop_read> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto base = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto dest = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
+    auto base = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto dest = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
     auto aop = acc.parsed_ops.back();
     acc.parsed_ops.pop_back();
     auto offset = acc.parsed_offset.back();
     acc.parsed_offset.pop_back();
-    auto newI = MemAopRead{std::get<r>(dest), aop, std::get<r>(base), offset.value};
+    auto newI = MemAopRead{dest, aop, base, offset.value};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
@@ -347,9 +347,9 @@ struct action<parse_mem_aop_write> {
     acc.parsed_ops.pop_back();
     auto offset = acc.parsed_offset.back();
     acc.parsed_offset.pop_back();
-    auto base = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto newI = MemAopWrite{std::get<r>(base), offset.value, aop, src};
+    auto base = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto newI = MemAopWrite{base, offset.value, aop, src};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };
@@ -359,13 +359,13 @@ struct action<parse_load_effective_addr> {
   static void apply(const Input &in, GlobalAccumulator &acc) {
     auto scale = acc.parsed_offset.back();
     acc.parsed_offset.pop_back();
-    auto index = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto base = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto dest = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    i newI = LoadAddr{std::get<r>(dest), std::get<r>(base), std::get<r>(index), scale.value};
+    auto index = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto base = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto dest = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    i newI = LoadAddr{dest, base, index, scale.value};
     acc.program.functions.back().instructions.push_back(newI);
   };
 };

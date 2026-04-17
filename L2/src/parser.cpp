@@ -244,9 +244,9 @@ void print_function(f &fn) {
       else if constexpr (std::is_same_v<T, AopInst>)
         std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, SopReg>)
-        std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
+        std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
       else if constexpr (std::is_same_v<T, SopNum>)
-        std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
+        std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
       else if constexpr (std::is_same_v<T, LabelInst>)
         std::cout << ins.lbl.name;
       else if constexpr (std::is_same_v<T, CallPrint>)
@@ -264,7 +264,7 @@ void print_function(f &fn) {
       else if constexpr (std::is_same_v<T, CallTensorError>)
         std::cout << "call tensor-error " << ins.F;
       else if constexpr (std::is_same_v<T, Compare>)
-        std::cout << r_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
+        std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
       else if constexpr (std::is_same_v<T, Cjump>)
         std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
       else if constexpr (std::is_same_v<T, Goto>)
@@ -272,11 +272,11 @@ void print_function(f &fn) {
       else if constexpr (std::is_same_v<T, MemRead>)
         std::cout << w_to_str(ins.dest) << " <- mem " << w_to_str(ins.base) << " " << ins.offset;
       else if constexpr (std::is_same_v<T, MemWrite>)
-        std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
+        std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, MemAopRead>)
-        std::cout << r_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << r_to_str(ins.base) << " " << ins.offset;
+        std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << w_to_str(ins.base) << " " << ins.offset;
       else if constexpr (std::is_same_v<T, MemAopWrite>)
-        std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
+        std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, Call>)
         std::cout << "call " << std::visit([&](auto &v) -> std::string {
           using U = std::decay_t<decltype(v)>;
@@ -288,7 +288,7 @@ void print_function(f &fn) {
                                            ins.callee)
                   << " " << ins.num_args.value;
       else if constexpr (std::is_same_v<T, LoadAddr>)
-        std::cout << r_to_str(ins.dest) << " @ " << r_to_str(ins.base) << " " << r_to_str(ins.index) << " " << ins.scale;
+        std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
     },
                instr);
     std::cout << "\n";

@@ -1,6 +1,5 @@
-(@myFunction
 (@myFunction 
-0 0
+0 
 :label
 call print 1
 call input 0
@@ -19,17 +18,6 @@ rdi <- mem rsp 8
 rdi++
 rdi--
 return
-)
-(@myFunction2 
--1 1
-rdi += rax
-rdi *= rax
-rdi -= rax
-rdi &= rax
-return 
-)
-(@myFunction3
-+2 +2
 rdi -= mem rsp 8
 rdi += mem rsp 8
 mem rsp 8 -= rdi
@@ -50,6 +38,10 @@ goto :helloworld
 call @myFunction2 12
 call rdi 0
 rax @ rdi rax 4
-return
+rdi += rax
+rdi *= rax
+rdi -= rax
+rdi &= rax
+return 
 )
 )
