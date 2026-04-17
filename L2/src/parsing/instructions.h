@@ -13,16 +13,6 @@ namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
 namespace L2 {
-struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
-struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar> {};
-struct parse_goto : pegtl::seq<pegtl::string<'g', 'o', 't', 'o'>, parse_nochar> {};
-struct parse_cjump : pegtl::seq<pegtl::string<'c', 'j', 'u', 'm', 'p'>, parse_nochar> {};
-struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar> {};
-struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar> {};
-struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_nochar> {};
-struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', 't', 'e'>, parse_nochar> {};
-struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
-struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
 struct parse_call_print : pegtl::seq<parse_call, parse_spaces, parse_print, parse_spaces, parse_number> {};
 struct parse_call_input : pegtl::seq<parse_call, parse_spaces, parse_input, parse_spaces, parse_number> {};
 struct parse_call_allocate : pegtl::seq<parse_call, parse_spaces, parse_allocate, parse_spaces, parse_number> {};
@@ -43,8 +33,6 @@ struct parse_assignment : pegtl::seq<
                               parse_arrow,
                               parse_spaces,
                               parse_s_val> {};
-struct parse_num_t : parse_number {};
-struct parse_x_t : parse_register {};
 // w <- mem x M
 struct parse_M : parse_number {};
 struct parse_memread_expression : pegtl::seq<parse_register,
@@ -52,25 +40,25 @@ struct parse_memread_expression : pegtl::seq<parse_register,
 // mem x M <- s
 struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s_val> {};
 // w aop t
-struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
+struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_t> {};
 // w sop sx
 // w sop N
-struct parse_sop_expression : pegtl::seq<parse_register, parse_spaces, parse_sop, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
+struct parse_sop_expression : pegtl::seq<parse_register, parse_spaces, parse_sop, parse_spaces, parse_t> {};
 // mem x M += t
 // mem x M -= t
 struct parse_mem_aop_write : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_aop, parse_spaces,
-                                        pegtl::sor<parse_x_t, parse_num_t>> {};
+                                        parse_t> {};
 // w += mem x M
 // w -= mem x M
 struct parse_mem_aop_read : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_mem,
                                        parse_spaces, parse_register, parse_spaces, parse_M> {};
 // w <- t cmp t
-struct parse_assign_cmp : pegtl::seq<parse_register, parse_spaces, parse_arrow, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces,
-                                     parse_cmp, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>> {};
+struct parse_assign_cmp : pegtl::seq<parse_register, parse_spaces, parse_arrow, parse_spaces, parse_t, parse_spaces,
+                                     parse_cmp, parse_spaces, parse_t> {};
 // cjump t cmp t label
 struct parse_label_inst_useful : parse_label {};
-struct parse_cond_jump : pegtl::seq<parse_cjump, parse_spaces, pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_cmp, parse_spaces,
-                                    pegtl::sor<parse_x_t, parse_num_t>, parse_spaces, parse_label_inst_useful> {};
+struct parse_cond_jump : pegtl::seq<parse_cjump, parse_spaces, parse_t, parse_spaces, parse_cmp, parse_spaces,
+                                    parse_t, parse_spaces, parse_label_inst_useful> {};
 // label
 struct parse_label_inst : parse_label {};
 // goto label
@@ -136,13 +124,7 @@ struct action<parse_label_inst_useful> {
     acc.parsed_labels.push_back(label{in.string()});
   }
 };
-template <>
-struct action<parse_num_t> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(t{N{std::stoll(in.string())}});
-  }
-};
+
 template <>
 struct action<parse_M> {
   template <typename Input>
@@ -164,13 +146,7 @@ struct action<parse_w_u> {
     acc.parsed_items_u.push_back(u{str_to_r(in.string())});
   }
 };
-template <>
-struct action<parse_x_t> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(t{str_to_r(in.string())});
-  }
-};
+
 template <>
 struct action<parse_increment> {
   template <typename Input>

@@ -43,6 +43,7 @@ struct parse_name : pegtl::seq<
                                 pegtl::one<'_'>,
                                 pegtl::digit>>> {
 };
+struct parse_variable : pegtl::seq<pegtl::one<'%'>, parse_name> {};
 struct parse_label : pegtl::seq<pegtl::one<':'>, parse_name> {};
 struct parse_comments : pegtl::seq<pegtl::string<'/', '/'>, pegtl::until<pegtl::eolf>> {};
 /*
@@ -70,9 +71,61 @@ struct parse_aop : pegtl::sor<parse_plus_assign, parse_minus_assign, parse_mult_
 struct parse_sop : pegtl::sor<parse_left_shift_assign, parse_right_shift_assign> {};
 struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq> {};
 /*
+keywords
+return
+mem
+goto
+cjump
+call
+print
+input
+allocate
+tuple-error
+tensor-error
+*/
+struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
+struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar> {};
+struct parse_goto : pegtl::seq<pegtl::string<'g', 'o', 't', 'o'>, parse_nochar> {};
+struct parse_cjump : pegtl::seq<pegtl::string<'c', 'j', 'u', 'm', 'p'>, parse_nochar> {};
+struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar> {};
+struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar> {};
+struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_nochar> {};
+struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', 't', 'e'>, parse_nochar> {};
+struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
+struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
+// parse t
+struct parse_num_t : parse_number {};
+struct parse_x_t : parse_register {};
+struct parse_variable_t : parse_variable {};
+struct parse_t : pegtl::sor<parse_x_t, parse_num_t, parse_variable_t> {};
+// parse s
+
+// parse u
+/*
  * Templates
  */
 template <typename Rule>
 struct action : pegtl::nothing<Rule> {
+};
+template <>
+struct action<parse_num_t> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items_t.push_back(t{N{std::stoll(in.string())}});
+  }
+};
+template <>
+struct action<parse_x_t> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items_t.push_back(t{str_to_r(in.string())});
+  }
+};
+template <>
+struct action<parse_variable_t> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items_t.push_back(t{in.string()[1:]});
+  }
 };
 } // namespace L2
