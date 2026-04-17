@@ -118,7 +118,7 @@ template <>
 struct action<parse_variable_t> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(t{var{remove_at(in.string())}});
+    acc.parsed_items_t.push_back(t{var{remove_perc(in.string())}});
   }
 };
 // parse_s actions
@@ -162,7 +162,7 @@ template <>
 struct action<parse_var_w> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_w.push_back(w{var{remove_at(in.string())}});
+    acc.parsed_items_w.push_back(w{var{remove_perc(in.string())}});
   }
 };
 template <>

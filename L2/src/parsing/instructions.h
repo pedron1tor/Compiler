@@ -35,7 +35,7 @@ struct parse_memread_expression : pegtl::seq<parse_register,
 // mem x M <- s
 struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s> {};
 // w aop t
-struct parse_aop_expression : pegtl::seq<parse_register, parse_spaces, parse_aop, parse_spaces, parse_t> {};
+struct parse_aop_expression : pegtl::seq<parse_w, parse_spaces, parse_aop, parse_spaces, parse_s> {};
 // w sop sx
 // w sop N
 struct parse_sop_expression : pegtl::seq<parse_register, parse_spaces, parse_sop, parse_spaces, parse_t> {};
@@ -229,16 +229,13 @@ template <>
 struct action<parse_aop_expression> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto src_item = acc.parsed_items_t.back();
-    acc.parsed_items_t.pop_back();
-    t src = std::holds_alternative<r>(src_item)
-                ? t{std::get<r>(src_item)}
-                : t{std::get<N>(src_item)};
+    auto src_item = acc.parsed_items.back();
+    acc.parsed_items.pop_back();
     auto aop = acc.parsed_ops.back();
     acc.parsed_ops.pop_back();
-    auto dst = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto newI = AopInst{std::get<r>(dst), aop, src};
+    auto dst = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto newI = AopInst{dst, aop, src_item};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };

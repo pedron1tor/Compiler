@@ -74,9 +74,9 @@ struct MemWrite {
   s src;
 }; // mem x M <- s
 struct AopInst {
-  r dest;
+  w dest;
   aop op;
-  t src;
+  s src;
 }; // w aop t
 struct SopReg {
   r dest;

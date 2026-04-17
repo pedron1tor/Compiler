@@ -95,11 +95,11 @@ struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', '
 struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
 struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
 
-std::string remove_at(std::string str) {
+std::string remove_perc(std::string str) {
   return str.substr(1);
 }
-std::string add_at(std::string str) {
-  return '@' + str;
+std::string add_perc(std::string str) {
+  return '%' + str;
 }
 /*
  * Templates
