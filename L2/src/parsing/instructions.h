@@ -30,8 +30,8 @@ struct parse_assignment : pegtl::seq<
                               parse_s> {};
 // w <- mem x M
 struct parse_M : parse_number {};
-struct parse_memread_expression : pegtl::seq<parse_register,
-                                             parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_register, parse_spaces, parse_M> {};
+struct parse_memread_expression : pegtl::seq<parse_w,
+                                             parse_spaces, parse_arrow, parse_spaces, parse_mem, parse_spaces, parse_w, parse_spaces, parse_M> {};
 // mem x M <- s
 struct parse_memwrite_expression : pegtl::seq<parse_mem, parse_spaces, parse_register, parse_spaces, parse_M, parse_spaces, parse_arrow, parse_spaces, parse_s> {};
 // w aop t
@@ -189,13 +189,13 @@ template <>
 struct action<parse_memread_expression> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto base = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
-    auto dst = acc.parsed_items.back();
-    acc.parsed_items.pop_back();
+    auto base = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
+    auto dst = acc.parsed_items_w.back();
+    acc.parsed_items_w.pop_back();
     auto offset = acc.parsed_offset.back();
     acc.parsed_offset.pop_back();
-    auto newI = MemRead{std::get<r>(dst), std::get<r>(base), offset.value};
+    auto newI = MemRead{dst, base, offset.value};
     acc.program.functions.back().instructions.push_back(i{newI});
   }
 };

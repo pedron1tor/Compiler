@@ -64,8 +64,8 @@ struct Assign {
   s src;
 }; // w <- s
 struct MemRead {
-  r dest;
-  r base;
+  w dest;
+  w base;
   int64_t offset;
 }; // w <- mem x M
 struct MemWrite {

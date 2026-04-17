@@ -68,7 +68,8 @@ struct parse_t : pegtl::sor<parse_x_t, parse_num_t, parse_variable_t> {};
 struct parse_s_num_val : parse_number {};
 struct parse_s_label_val : parse_label {};
 struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name> {};
-struct parse_s : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val> {};
+struct parse_s_var : parse_variable {};
+struct parse_s : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_register, parse_s_num_val, parse_s_var> {};
 // parse u
 struct parse_w_u : parse_register {};
 struct parse_l_u : parse_s_fname_val {};
@@ -141,6 +142,13 @@ struct action<parse_s_fname_val> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
     acc.parsed_items.push_back(s{l{in.string()}});
+  }
+};
+template <>
+struct action<parse_s_var> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_items.push_back(s{var{remove_perc(in.string())}});
   }
 };
 // parse u actions

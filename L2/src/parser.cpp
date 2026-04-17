@@ -270,7 +270,7 @@ void print_function(f &fn) {
       else if constexpr (std::is_same_v<T, Goto>)
         std::cout << "goto " << ins.target.name;
       else if constexpr (std::is_same_v<T, MemRead>)
-        std::cout << r_to_str(ins.dest) << " <- mem " << r_to_str(ins.base) << " " << ins.offset;
+        std::cout << w_to_str(ins.dest) << " <- mem " << w_to_str(ins.base) << " " << ins.offset;
       else if constexpr (std::is_same_v<T, MemWrite>)
         std::cout << "mem " << r_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, MemAopRead>)
