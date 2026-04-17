@@ -182,6 +182,8 @@ std::string s_to_str(s val) {
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, N>)
       return std::to_string(v.value);
+    else if constexpr (std::is_same_v<T, var>)
+      return add_perc(v.name);
     else
       return v.name;
   },
