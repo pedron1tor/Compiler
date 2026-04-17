@@ -28,9 +28,14 @@ std::vector<w> compute_IN(std::vector<w> &GEN, std::vector<w> &KILL, std::vector
 };
 void IN_to_cout(std::vector<std::vector<w>> &IN) {
   for (const auto &inst : IN) {
-    std::cout << "\t(";
+    std::cout << "(";
+    bool first = true;
     for (const auto &var : inst) {
-      std::cout << w_to_str(var) << " ";
+      if (!first) {
+        std::cout << " ";
+      }
+      std::cout << w_to_str(var);
+      first = false;
     };
     std::cout << ")\n";
   };
@@ -118,13 +123,13 @@ liveness compute_liveness(f &function) {
   return liveness{IN, OUT};
 };
 void print_liveness(liveness result) {
-  std::cout << "(";
-  std::cout << "\t(in";
+  std::cout << "(\n";
+  std::cout << "(in\n";
   IN_to_cout(result.in);
-  std::cout << "\n"
-            << ")";
-  std::cout << "\t(out" << "\n"
-            << ")";
+  std::cout << ")\n\n";
+  std::cout << "(out\n"
+            << "\n"
+            << ")\n\n";
   std::cout << ")";
 };
 
