@@ -169,7 +169,7 @@ std::string t_to_str(t val) {
     if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, var>)
-      return "%" + v.name;
+      return add_perc(v.name);
     else
       return std::to_string(v.value);
   },
@@ -193,7 +193,7 @@ std::string w_to_str(w val) {
     if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, var>)
-      return "%" + v.name;
+      return add_perc(v.name);
     else
       return v.name;
   },
