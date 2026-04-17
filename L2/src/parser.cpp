@@ -242,7 +242,7 @@ void print_function(f &fn) {
       else if constexpr (std::is_same_v<T, Assign>)
         std::cout << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, AopInst>)
-        std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << s_to_str(ins.src);
+        std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, SopReg>)
         std::cout << r_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
       else if constexpr (std::is_same_v<T, SopNum>)

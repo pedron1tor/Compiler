@@ -76,7 +76,7 @@ struct MemWrite {
 struct AopInst {
   w dest;
   aop op;
-  s src;
+  t src;
 }; // w aop t
 struct SopReg {
   r dest;
