@@ -24,7 +24,9 @@ enum class r {
   rcx, // sx
   rsp  // x only
 };
-
+struct var {
+  std::string name;
+}; // %name
 enum class aop { add,
                  sub,
                  mul,
@@ -45,12 +47,14 @@ struct label {
   std::string name;
 }; // label = :name
 
+// since t, s, and u are all supersets of w, and sx by transitivity and these are the operators actually used in the instructions
+// I will deviate from the math and add a var to these types.
 // t ::= x | N
-using t = std::variant<r, N>;
+using t = std::variant<r, N, var>;
 // s ::= t | label | l
-using s = std::variant<r, N, label, l>;
+using s = std::variant<r, N, label, l, var>;
 // u ::= w | l
-using u = std::variant<r, l>;
+using u = std::variant<r, l, var>;
 
 //  i ::=
 struct Assign {
@@ -75,7 +79,7 @@ struct AopInst {
 struct SopReg {
   r dest;
   sop op;
-  r shift;
+  t shift;
 }; // w sop sx
 struct SopNum {
   r dest;
