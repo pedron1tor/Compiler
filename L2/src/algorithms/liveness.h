@@ -56,7 +56,7 @@ void push_to_gen(std::vector<w> &gen_inst, all_inst &ins) {
       gen_inst.push_back(w{v});
     }
   },
-             ins.src);
+             ins);
 };
 liveness compute_liveness(f &function) {
   auto n = function.instructions.size();
@@ -73,7 +73,7 @@ liveness compute_liveness(f &function) {
           GEN[inst_counter].push_back(r_callee);
         };
       } else if constexpr (std::is_same_v<T, Assign>) {
-        push_to_gen(GEN[inst_counter], ins);
+        push_to_gen(GEN[inst_counter], ins.src);
         KILL[inst_counter].push_back(ins.dest);
         successors[inst_counter].push_back(inst_counter + 1);
       }
