@@ -246,23 +246,17 @@ template <>
 struct action<parse_sop_expression> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto src_item = acc.parsed_items_t.back();
+    auto src = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
-    bool reg = std::holds_alternative<r>(src_item);
-
-    t src = reg
-                ? t{std::get<r>(src_item)}
-                : t{std::get<N>(src_item)};
-
     auto sop_op = acc.parsed_sops.back();
     acc.parsed_sops.pop_back();
     auto dst = acc.parsed_items_w.back();
     acc.parsed_items_w.pop_back();
     i newI;
-    if (reg) {
-      newI = SopReg{dst, sop_op, std::get<r>(src)};
-    } else {
+    if (std::holds_alternative<N>(src)) {
       newI = SopNum{dst, sop_op, std::get<N>(src)};
+    } else {
+      newI = SopReg{dst, sop_op, src};
     }
     acc.program.functions.back().instructions.push_back(newI);
   };
