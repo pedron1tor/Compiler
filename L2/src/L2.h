@@ -26,6 +26,7 @@ enum class r {
 };
 struct var {
   std::string name;
+  bool operator<(const var &o) const { return name < o.name; }
 }; // %name
 enum class aop { add,
                  sub,
@@ -169,6 +170,10 @@ struct p {
   std::vector<f> functions;
 };
 
+struct liveness {
+  std::vector<std::vector<w>> in;
+  std::vector<std::vector<w>> out;
+};
 p parse_file(char *filename);
 
 } // namespace L2

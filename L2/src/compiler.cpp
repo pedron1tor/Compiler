@@ -1,4 +1,5 @@
 // #include "codegen.h"
+#include "algorithms/liveness.h"
 #include "parser.h"
 #include <algorithm>
 #include <assert.h>
@@ -103,20 +104,15 @@ int main(int argc, char **argv) {
     /*
      * Parse an L2 function.
      */
+    function = L2::parse_function(argv[optind]);
+    functionNumber = 1;
 
   } else {
     p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
   }
 
-  /*
-   * Print a single L2 function case.
-   */
-  if (functionNumber != -1) {
-    L2::print_function(function);
-    return 0;
-  }
-  /*
+    /*
    * Special cases.
    */
   if (spill_only) {
@@ -133,8 +129,8 @@ int main(int argc, char **argv) {
    * Liveness test.
    */
   if (liveness_only) {
-    // TODO
-
+    auto result = L2::compute_liveness(function);
+    L2::print_liveness(result);
     return 0;
   }
 
@@ -144,6 +140,13 @@ int main(int argc, char **argv) {
   if (interference_only) {
     // TODO
 
+    return 0;
+  }
+  /*
+   * Print a single L2 function case.
+   */
+  if (functionNumber != -1) {
+    L2::print_function(function);
     return 0;
   }
 
