@@ -48,6 +48,9 @@ struct parse_function_rule : pegtl::seq<parse_seps,
                                         parse_seps,
                                         pegtl::seq<parse_spaces, pegtl::one<')'>>,
                                         parse_seps> {};
+struct parse_spill_arg_1 : parse_variable {};
+struct parse_spill_arg_2 : parse_variable {};
+struct parse_function_rule_spill : pegtl::seq<parse_function_rule, parse_seps, parse_spill_arg_1, parse_seps, parse_spill_arg_2> {};
 struct parse_functions_rule : pegtl::seq<
                                   pegtl::plus<parse_function_rule>> {};
 struct parse_entry_point_rule : pegtl::seq<
@@ -89,6 +92,20 @@ struct action<parse_argument_number> {
   }
 };
 
+template <>
+struct action<parse_spill_arg_1> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_spill_args.push_back(var{in.string()});
+  }
+};
+template <>
+struct action<parse_spill_arg_2> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_spill_args.push_back(var{in.string()});
+  }
+};
 p parse_file(char *filename) {
   /*
    * Check the grammar for some possible issues.
@@ -124,6 +141,25 @@ f parse_function(char *filename) {
   state.program.entry_point.name = '_';
   parse<parse_function_rule, action>(fileInput, state);
   return state.program.functions[0];
+}
+
+f_spilled parse_function_spill(char *filename) {
+  if (pegtl::analyze<parse_function_rule>() != 0) {
+    std::cerr << "There are problems with the function grammar" << std::endl;
+    exit(1);
+  }
+  /*
+   * Parse.
+   */
+  file_input<> fileInput(filename);
+  // run to debug program...
+  // pegtl::standard_trace<parse_function_rule>(fileInput);
+  GlobalAccumulator state;
+  state.program.entry_point.name = '_';
+  parse<parse_function_rule_spill, action>(fileInput, state);
+  auto &fn = state.program.functions[0];
+  return f_spilled{fn.name, fn.num_args, fn.instructions,
+                   state.parsed_spill_args[0], state.parsed_spill_args[1]};
 }
 
 std::string

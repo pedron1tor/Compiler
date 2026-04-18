@@ -335,11 +335,8 @@ template <>
 struct action<parse_mem_aop_write> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto src_item = acc.parsed_items_t.back();
+    auto src = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
-    t src = std::holds_alternative<r>(src_item)
-                ? t{std::get<r>(src_item)}
-                : t{std::get<N>(src_item)};
     auto aop = acc.parsed_ops.back();
     acc.parsed_ops.pop_back();
     auto offset = acc.parsed_offset.back();

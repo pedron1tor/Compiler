@@ -1,6 +1,7 @@
 // #include "codegen.h"
 #include "algorithms/interference.h"
 #include "algorithms/liveness.h"
+#include "algorithms/spilling.h"
 #include "parser.h"
 #include <algorithm>
 #include <assert.h>
@@ -84,6 +85,7 @@ int main(int argc, char **argv) {
    */
   L2::p p;
   L2::f function;
+  L2::f_spilled function_spilled;
   /*
    * Print the source program.
    */
@@ -92,7 +94,8 @@ int main(int argc, char **argv) {
     /*
      * Parse an L2 function and the spill arguments.
      */
-    // TODO
+    function_spilled = L2::parse_function_spill(argv[optind]);
+    functionNumber = 1;
 
   } else if (liveness_only) {
 
@@ -118,11 +121,8 @@ int main(int argc, char **argv) {
    */
   if (spill_only) {
 
-    /*
-     * Spill.
-     */
-    // TODO
-
+    auto result = L2::compute_spilling(function_spilled);
+    L2::print_spilling(result);
     return 0;
   }
 

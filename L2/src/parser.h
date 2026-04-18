@@ -5,6 +5,7 @@
 namespace L2 {
 p parse_file(char *filename);
 f parse_function(char *filename);
+f_spilled parse_function_spill(char *filename);
 std::string r_to_str(r reg);
 std::string t_to_str(t val);
 std::string s_to_str(s val);

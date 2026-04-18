@@ -24,6 +24,7 @@ struct GlobalAccumulator {
   std::vector<label> parsed_labels;
   std::vector<u> parsed_items_u;
   std::vector<w> parsed_items_w;
+  std::vector<var> parsed_spill_args;
 };
 
 struct parse_number : pegtl::seq<pegtl::sor<

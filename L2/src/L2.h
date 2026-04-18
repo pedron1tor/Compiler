@@ -188,7 +188,13 @@ struct f {
   int64_t num_args;
   std::vector<i> instructions;
 };
-
+struct f_spilled {
+  l name; // @name
+  int64_t num_args;
+  std::vector<i> instructions;
+  var spilled_arg1;
+  var spilled_arg2;
+};
 // p ::= (l f+)
 struct p {
   l entry_point; // @name
