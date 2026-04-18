@@ -46,7 +46,8 @@ void push_to_gen(std::vector<w> &gen_inst, all_inst &ins) {
   std::visit([&](auto &v) {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, r>) {
-      if (v != r::rsp) gen_inst.push_back(w{v});
+      if (v != r::rsp)
+        gen_inst.push_back(w{v});
     } else if constexpr (std::is_same_v<V, var>) {
       gen_inst.push_back(w{v});
     }
@@ -58,7 +59,8 @@ void push_to_kill(std::vector<w> &gen_inst, all_inst &ins) {
   std::visit([&](auto &v) {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, r>) {
-      if (v != r::rsp) gen_inst.push_back(w{v});
+      if (v != r::rsp)
+        gen_inst.push_back(w{v});
     } else if constexpr (std::is_same_v<V, var>) {
       gen_inst.push_back(w{v});
     }
@@ -206,7 +208,7 @@ liveness compute_liveness(f &function) {
       }
     }
   }
-  return liveness{IN, OUT};
+  return liveness{IN, OUT, KILL};
 };
 void print_liveness(liveness result) {
   std::cout << "(\n";

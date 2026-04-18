@@ -198,6 +198,7 @@ struct p {
 struct liveness {
   std::vector<std::vector<w>> in;
   std::vector<std::vector<w>> out;
+  std::vector<std::vector<w>> kill;
 };
 struct interference {
   std::vector<std::vector<w>> array;

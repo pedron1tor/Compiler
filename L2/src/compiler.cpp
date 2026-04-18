@@ -139,7 +139,8 @@ int main(int argc, char **argv) {
    * Interference graph test.
    */
   if (interference_only) {
-    auto result = L2::compute_interference(function);
+    auto liveness_result = L2::compute_liveness(function);
+    auto result = L2::compute_interference(function, liveness_result);
     L2::print_interference(result);
     return 0;
   }
