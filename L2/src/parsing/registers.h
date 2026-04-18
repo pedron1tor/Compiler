@@ -5,6 +5,7 @@
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
 #include <tao/pegtl/contrib/raw_string.hpp>
+#include <unordered_map>
 
 #include "primitives.h"
 
