@@ -96,14 +96,14 @@ template <>
 struct action<parse_spill_arg_1> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_spill_args.push_back(var{in.string()});
+    acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
   }
 };
 template <>
 struct action<parse_spill_arg_2> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_spill_args.push_back(var{in.string()});
+    acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
   }
 };
 p parse_file(char *filename) {
