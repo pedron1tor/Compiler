@@ -45,7 +45,9 @@ template <typename all_inst>
 void push_to_gen(std::vector<w> &gen_inst, all_inst &ins) {
   std::visit([&](auto &v) {
     using V = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<V, r> || std::is_same_v<V, var>) {
+    if constexpr (std::is_same_v<V, r>) {
+      if (v != r::rsp) gen_inst.push_back(w{v});
+    } else if constexpr (std::is_same_v<V, var>) {
       gen_inst.push_back(w{v});
     }
   },
@@ -55,7 +57,9 @@ template <typename all_inst>
 void push_to_kill(std::vector<w> &gen_inst, all_inst &ins) {
   std::visit([&](auto &v) {
     using V = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<V, r> || std::is_same_v<V, var>) {
+    if constexpr (std::is_same_v<V, r>) {
+      if (v != r::rsp) gen_inst.push_back(w{v});
+    } else if constexpr (std::is_same_v<V, var>) {
       gen_inst.push_back(w{v});
     }
   },
@@ -157,18 +161,16 @@ liveness compute_liveness(f &function) {
         successors[inst_counter].push_back(inst_counter + 1);
       } else if constexpr (std::is_same_v<T, MemWrite>) {
         push_to_gen(GEN[inst_counter], ins.src);
-        push_to_kill(KILL[inst_counter], ins.base);
+        push_to_gen(GEN[inst_counter], ins.base);
         successors[inst_counter].push_back(inst_counter + 1);
       } else if constexpr (std::is_same_v<T, MemAopRead>) {
         push_to_gen(GEN[inst_counter], ins.dest);
         push_to_gen(GEN[inst_counter], ins.base);
-        push_to_kill(KILL[inst_counter], ins.base);
+        push_to_kill(KILL[inst_counter], ins.dest);
         successors[inst_counter].push_back(inst_counter + 1);
-
       } else if constexpr (std::is_same_v<T, MemAopWrite>) {
         push_to_gen(GEN[inst_counter], ins.base);
         push_to_gen(GEN[inst_counter], ins.src);
-        push_to_kill(KILL[inst_counter], ins.base);
         successors[inst_counter].push_back(inst_counter + 1);
       } else if constexpr (std::is_same_v<T, StackArg>) {
         push_to_kill(KILL[inst_counter], ins.dest);

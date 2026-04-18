@@ -5,24 +5,6 @@
 #include <vector>
 
 namespace L2 {
-std::vector<w> callee_saved_registers = {
-    r::r12,
-    r::r13,
-    r::r14,
-    r::r15,
-    r::rbp,
-    r::rbx};
-std::vector<w> caller_saved_registers = {
-    r::r10,
-    r::r11,
-    r::r8,
-    r::r9,
-    r::rax,
-    r::rcx,
-    r::rdi,
-    r::rdx,
-    r::rsi};
-std::vector<w> arg_registers = {r::rdi, r::rsi, r::rdx, r::rcx, r::r8, r::r9};
 // w, a, sx, x :: =
 enum class r {
   rax,
@@ -77,7 +59,25 @@ using t = std::variant<r, N, var>;
 using s = std::variant<r, N, label, l, var>;
 // u ::= w | l
 using u = std::variant<r, l, var>;
-
+// callee, caller and arg register sets
+inline std::vector<w> callee_saved_registers = {
+    r::r12,
+    r::r13,
+    r::r14,
+    r::r15,
+    r::rbp,
+    r::rbx};
+inline std::vector<w> caller_saved_registers = {
+    r::r10,
+    r::r11,
+    r::r8,
+    r::r9,
+    r::rax,
+    r::rcx,
+    r::rdi,
+    r::rdx,
+    r::rsi};
+inline std::vector<w> arg_registers = {r::rdi, r::rsi, r::rdx, r::rcx, r::r8, r::r9};
 //  i ::=
 struct Assign {
   w dest;
