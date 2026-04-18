@@ -28,6 +28,7 @@ struct var {
   std::string name;
   bool operator<(const var &o) const { return name < o.name; }
   bool operator==(const var &o) const { return name == o.name; }
+  bool operator!=(const var &o) const { return name != o.name; }
 }; // %name
 enum class aop { add,
                  sub,
@@ -77,6 +78,11 @@ inline std::vector<w> caller_saved_registers = {
     r::rdi,
     r::rdx,
     r::rsi};
+inline std::vector<w> gp_registers =
+    {r::r10,
+
+     r::r11, r::r12, r::r13, r::r14, r::r15, r::r8, r::r9,
+     r::rax, r::rbp, r::rbx, r::rcx, r::rdi, r::rdx, r::rsi};
 inline std::vector<w> arg_registers = {r::rdi, r::rsi, r::rdx, r::rcx, r::r8, r::r9};
 //  i ::=
 struct Assign {
@@ -193,6 +199,11 @@ struct liveness {
   std::vector<std::vector<w>> in;
   std::vector<std::vector<w>> out;
 };
-p parse_file(char *filename);
+struct interference {
+  std::vector<std::vector<w>> array;
+};
+struct
+    p
+    parse_file(char *filename);
 
 } // namespace L2

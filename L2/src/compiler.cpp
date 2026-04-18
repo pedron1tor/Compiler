@@ -1,4 +1,5 @@
 // #include "codegen.h"
+#include "algorithms/interference.h"
 #include "algorithms/liveness.h"
 #include "parser.h"
 #include <algorithm>
@@ -112,7 +113,7 @@ int main(int argc, char **argv) {
     L2::print_source_program(p);
   }
 
-    /*
+  /*
    * Special cases.
    */
   if (spill_only) {
@@ -138,8 +139,8 @@ int main(int argc, char **argv) {
    * Interference graph test.
    */
   if (interference_only) {
-    // TODO
-
+    auto result = L2::compute_interference(function);
+    L2::print_interference(result);
     return 0;
   }
   /*
