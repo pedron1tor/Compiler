@@ -39,23 +39,25 @@ void kill_out_connect(std::set<w> &nodes, std::vector<std::vector<w>> &OUT, std:
     };
   };
 };
-void push_gp_registers(std::vector<std::vector<w>> &array, int &row, std::vector<w> &unique_vars, std::vector<std::vector<w>> &IN,
-                       std::vector<std::vector<w>> &OUT, std::vector<std::vector<w>> &KILL) {
-  for (auto &reg_row : gp_registers) {
-    array[row].push_back(reg_row);
-    std::set<w> nodes(gp_registers.begin(), gp_registers.end());
-    // belong in the same out set
-    belong_same_out_in_set(nodes, OUT, reg_row);
-    // belong in the same in set
-    belong_same_out_in_set(nodes, IN, reg_row);
-    // variables in kill with those in OUT
-    kill_out_connect(nodes, OUT, KILL, reg_row);
-    for (const auto &reg_col : nodes) {
-      if (reg_row != reg_col) {
-        array[row].push_back(reg_col);
-      }
-    };
-    row++;
+void interference_for_row(std::vector<w> &array_row, const w &variable_of_interest, std::vector<std::vector<w>> &IN,
+                          std::vector<std::vector<w>> &OUT, std::vector<std::vector<w>> &KILL) {
+  array_row.push_back(variable_of_interest);
+  // if the variable of interest if a register, then we begin with a fully connected graph for the registers
+  // else we begin with an empty graph
+  std::set<w> nodes;
+  if (std::holds_alternative<r>(variable_of_interest)) {
+    nodes.insert(gp_registers.begin(), gp_registers.end());
+  }
+  // belong in the same out set
+  belong_same_out_in_set(nodes, OUT, variable_of_interest);
+  // belong in the same in set
+  belong_same_out_in_set(nodes, IN, variable_of_interest);
+  // variables in kill with those in OUT
+  kill_out_connect(nodes, OUT, KILL, variable_of_interest);
+  for (const auto &node : nodes) {
+    if (variable_of_interest != node) {
+      array_row.push_back(node);
+    }
   };
 };
 void append_unique_variables(std::vector<std::vector<w>> &IN,
@@ -78,22 +80,8 @@ interference compute_interference(f &function, liveness &liveness_result) {
   int num_unique_variables = nodes.size();
   std::vector<w> nodes_vec(nodes.begin(), nodes.end());
   std::vector<std::vector<w>> interference_array(num_unique_variables);
-  int row = 0;
-  push_gp_registers(interference_array, row, nodes_vec, IN, OUT, KILL);
-  for (int i = row; i < num_unique_variables; i++) {
-    interference_array[i].push_back(nodes_vec[i]);
-    std::set<w> final_nodes(gp_registers.begin(), gp_registers.end());
-    // belong in the same out set
-    belong_same_out_in_set(final_nodes, OUT, nodes_vec[i]);
-    // belong in the same in set
-    belong_same_out_in_set(final_nodes, IN, nodes_vec[i]);
-    // variables in kill with those in OUT
-    kill_out_connect(final_nodes, OUT, KILL, nodes_vec[i]);
-    for (const auto &reg_col : nodes) {
-      if (nodes_vec[i] != reg_col) {
-        interference_array[i].push_back(reg_col);
-      }
-    };
+  for (int i = 0; i < num_unique_variables; i++) {
+    interference_for_row(interference_array[i], nodes_vec[i], IN, OUT, KILL);
   }
 
   return interference{interference_array};
