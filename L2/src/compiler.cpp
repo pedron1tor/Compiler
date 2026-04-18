@@ -1,8 +1,14 @@
+// #include "codegen.h"
+#include "algorithms/interference.h"
+#include "algorithms/liveness.h"
+#include "algorithms/spilling.h"
+#include "parser.h"
 #include <algorithm>
 #include <assert.h>
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <set>
@@ -77,33 +83,37 @@ int main(int argc, char **argv) {
   /*
    * Parse the input file.
    */
+  L2::p p;
+  L2::f function;
+  L2::f_spilled function_spilled;
+  /*
+   * Print the source program.
+   */
   if (spill_only) {
 
     /*
      * Parse an L2 function and the spill arguments.
      */
-    // TODO
+    function_spilled = L2::parse_function_spill(argv[optind]);
+    functionNumber = 1;
 
   } else if (liveness_only) {
 
     /*
-     * Parse an L2 function.
-     */
-    // TODO
-
+     * Parse an L2 function  */
+    function = L2::parse_function(argv[optind]);
+    functionNumber = 1;
   } else if (interference_only) {
 
     /*
      * Parse an L2 function.
      */
-    // TODO
+    function = L2::parse_function(argv[optind]);
+    functionNumber = 1;
 
   } else {
-
-    /*
-     * Parse the L2 program.
-     */
-    // TODO
+    p = L2::parse_file(argv[optind]);
+    L2::print_source_program(p);
   }
 
   /*
@@ -111,11 +121,8 @@ int main(int argc, char **argv) {
    */
   if (spill_only) {
 
-    /*
-     * Spill.
-     */
-    // TODO
-
+    auto result = L2::compute_spilling(function_spilled);
+    L2::print_spilling(result);
     return 0;
   }
 
@@ -123,8 +130,8 @@ int main(int argc, char **argv) {
    * Liveness test.
    */
   if (liveness_only) {
-    // TODO
-
+    auto result = L2::compute_liveness(function);
+    L2::print_liveness(result);
     return 0;
   }
 
@@ -132,25 +139,24 @@ int main(int argc, char **argv) {
    * Interference graph test.
    */
   if (interference_only) {
-    // TODO
-
+    auto liveness_result = L2::compute_liveness(function);
+    auto result = L2::compute_interference(function, liveness_result);
+    L2::print_interference(result);
     return 0;
   }
-
   /*
    * Print a single L2 function case.
    */
   if (functionNumber != -1) {
-    // TODO
-
+    L2::print_function(function);
     return 0;
   }
 
   /*
-   * Generate the target code normally.
+   * Generate x86_64 assembly.
    */
   if (enable_code_generator) {
-    // TODO
+    // L2::generate_code(p);
   }
 
   return 0;

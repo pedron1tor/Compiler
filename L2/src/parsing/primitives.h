@@ -1,30 +1,33 @@
 #pragma once
 
+#include <L2.h>
+#include <parser.h>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
 #include <tao/pegtl/contrib/raw_string.hpp>
-#include <L1.h>
-#include <parser.h>
-
 
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L1 {
+namespace L2 {
 /*
 tokens parsed
 */
-std::vector<s> parsed_items;
-std::vector<t> parsed_items_t;
-std::vector<aop> parsed_ops;
-std::vector<sop> parsed_sops;
-std::vector<cmp> parsed_cmps;
-std::vector<N> parsed_offset;
-std::vector<label> parsed_labels;
-std::vector<u> parsed_items_u;
+struct GlobalAccumulator {
+  p program;
+  std::vector<s> parsed_items;
+  std::vector<t> parsed_items_t;
+  std::vector<aop> parsed_ops;
+  std::vector<sop> parsed_sops;
+  std::vector<cmp> parsed_cmps;
+  std::vector<N> parsed_offset;
+  std::vector<label> parsed_labels;
+  std::vector<u> parsed_items_u;
+  std::vector<w> parsed_items_w;
+  std::vector<var> parsed_spill_args;
+};
 
-
-  struct parse_number : pegtl::seq<pegtl::sor<
+struct parse_number : pegtl::seq<pegtl::sor<
                           pegtl::seq<
                               pegtl::opt<pegtl::sor<pegtl::one<'+'>, pegtl::one<'-'>>>,
                               pegtl::range<'1', '9'>,
@@ -42,12 +45,13 @@ struct parse_name : pegtl::seq<
                                 pegtl::one<'_'>,
                                 pegtl::digit>>> {
 };
-struct parse_label : pegtl::seq<pegtl::one<':'>,parse_name> {};
+struct parse_variable : pegtl::seq<pegtl::one<'%'>, parse_name> {};
+struct parse_label : pegtl::seq<pegtl::one<':'>, parse_name> {};
 struct parse_comments : pegtl::seq<pegtl::string<'/', '/'>, pegtl::until<pegtl::eolf>> {};
 /*
  * Separators.
  */
-struct parse_spaces : pegtl::star<pegtl::sor<pegtl::one<' '>,pegtl::one<'\t'>>> {};
+struct parse_spaces : pegtl::star<pegtl::sor<pegtl::one<' '>, pegtl::one<'\t'>>> {};
 struct parse_seps : pegtl::star<pegtl::sor<pegtl::space, parse_comments>> {};
 struct parse_nochar : pegtl::not_at<pegtl::alnum> {};
 /*
@@ -64,14 +68,46 @@ struct parse_right_shift_assign : pegtl::string<'>', '>', '='> {};
 struct parse_lt : pegtl::string<'<'> {};
 struct parse_lte : pegtl::string<'<', '='> {};
 struct parse_eq : pegtl::string<'='> {};
-struct parse_aop : pegtl::sor<parse_plus_assign, parse_minus_assign, parse_mult_assign, 
-parse_and_assign> {};
+struct parse_aop : pegtl::sor<parse_plus_assign, parse_minus_assign, parse_mult_assign,
+                              parse_and_assign> {};
 struct parse_sop : pegtl::sor<parse_left_shift_assign, parse_right_shift_assign> {};
-struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq> {}; 
+struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq> {};
 /*
-* Templates
+keywords
+return
+mem
+goto
+cjump
+call
+print
+input
+allocate
+tuple-error
+tensor-error
 */
+struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {};
+struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar> {};
+struct parse_goto : pegtl::seq<pegtl::string<'g', 'o', 't', 'o'>, parse_nochar> {};
+struct parse_cjump : pegtl::seq<pegtl::string<'c', 'j', 'u', 'm', 'p'>, parse_nochar> {};
+struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar> {};
+struct parse_print : pegtl::seq<pegtl::string<'p', 'r', 'i', 'n', 't'>, parse_nochar> {};
+struct parse_input : pegtl::seq<pegtl::string<'i', 'n', 'p', 'u', 't'>, parse_nochar> {};
+struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', 't', 'e'>, parse_nochar> {};
+struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
+struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {};
+struct parse_stack_arg : pegtl::seq<pegtl::string<'s', 't', 'a', 'c', 'k', '-', 'a', 'r', 'g'>, parse_nochar> {};
+
+std::string remove_perc(std::string str) {
+  return str.substr(1);
+}
+std::string add_perc(std::string str) {
+  return '%' + str;
+}
+/*
+ * Templates
+ */
 template <typename Rule>
 struct action : pegtl::nothing<Rule> {
 };
-}
+
+} // namespace L2

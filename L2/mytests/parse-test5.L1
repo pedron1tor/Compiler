@@ -1,0 +1,47 @@
+(@myFunction 
+0 
+:label
+call print 1
+call input 0
+call allocate 2 
+call tuple-error 3
+call tensor-error 1
+call tensor-error 3
+call tensor-error 4
+// comments
+rax <- rdi
+rax <- 5
+rax <- :label
+rax <- @myFunction2
+mem rsp 0 <- rdi
+rdi <- mem rsp 8
+rdi++
+rdi--
+return
+rdi -= mem rsp 8
+rdi += mem rsp 8
+mem rsp 8 -= rdi
+mem rsp 8 += rdi
+rdi <<= rcx
+rdi >>= 3
+rdi <- rax <= 10
+rdi <- 10 <= rax
+rdi <- 10 <= 11
+rdi <- 12 <= 11
+rdi <- rax <= rbx
+rdi <- rax < rbx
+rdi <- rax = rbx
+cjump rax <= rdi :yes
+cjump rax < rdi :yes
+cjump rax = rdi :yes
+goto :helloworld
+call @myFunction2 12
+call rdi 0
+rax @ rdi rax 4
+rdi += rax
+rdi *= rax
+rdi -= rax
+rdi &= rax
+return 
+)
+)
