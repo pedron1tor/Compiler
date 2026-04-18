@@ -77,6 +77,13 @@ liveness compute_liveness(f &function) {
   std::vector<std::vector<w>> GEN(n);
   std::vector<std::vector<w>> KILL(n);
   std::vector<std::vector<int>> successors(n);
+  // do a first pass to build a map between the labelinstructions and their respective line numbers for control flow jumps
+  std::map<std::string, int> label_to_index;
+  for (int j = 0; j < (int)n; j++) {
+    if (auto *li = std::get_if<LabelInst>(&function.instructions[j])) {
+      label_to_index[li->lbl.name] = j;
+    }
+  }
   int inst_counter = 0;
 
   for (auto &instr : function.instructions) {
@@ -121,9 +128,7 @@ liveness compute_liveness(f &function) {
       } else if constexpr (std::is_same_v<T, CallTupleError>) {
         push_args_to_gen(GEN[inst_counter], 3);
         push_caller_saved_r(KILL, inst_counter);
-      }
-
-      else if constexpr (std::is_same_v<T, Increment>) {
+      } else if constexpr (std::is_same_v<T, Increment>) {
         push_to_gen(GEN[inst_counter], ins.reg);
         push_to_kill(KILL[inst_counter], ins.reg);
         successors[inst_counter].push_back(inst_counter + 1);
@@ -134,38 +139,51 @@ liveness compute_liveness(f &function) {
       } else if constexpr (std::is_same_v<T, CallTensorError>) {
         push_args_to_gen(GEN[inst_counter], ins.F);
         push_caller_saved_r(KILL, inst_counter);
+      } else if constexpr (std::is_same_v<T, Compare>) {
+        push_to_kill(KILL[inst_counter], ins.dest);
+        push_to_gen(GEN[inst_counter], ins.right);
+        push_to_gen(GEN[inst_counter], ins.left);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, Cjump>) {
+        push_to_gen(GEN[inst_counter], ins.left);
+        push_to_gen(GEN[inst_counter], ins.right);
+        successors[inst_counter].push_back(inst_counter + 1);
+        successors[inst_counter].push_back(label_to_index[ins.target.name]);
+      } else if constexpr (std::is_same_v<T, Goto>) {
+        successors[inst_counter].push_back(label_to_index[ins.target.name]);
+      } else if constexpr (std::is_same_v<T, MemRead>) {
+        push_to_gen(GEN[inst_counter], ins.base);
+        push_to_kill(KILL[inst_counter], ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, MemWrite>) {
+        push_to_gen(GEN[inst_counter], ins.src);
+        push_to_kill(KILL[inst_counter], ins.base);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, MemAopRead>) {
+        push_to_gen(GEN[inst_counter], ins.dest);
+        push_to_gen(GEN[inst_counter], ins.base);
+        push_to_kill(KILL[inst_counter], ins.base);
+        successors[inst_counter].push_back(inst_counter + 1);
+
+      } else if constexpr (std::is_same_v<T, MemAopWrite>) {
+        push_to_gen(GEN[inst_counter], ins.base);
+        push_to_gen(GEN[inst_counter], ins.src);
+        push_to_kill(KILL[inst_counter], ins.base);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, StackArg>) {
+        push_to_kill(KILL[inst_counter], ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, Call>) {
+        push_caller_saved_r(KILL, inst_counter);
+        push_to_gen(GEN[inst_counter], ins.callee);
+        push_args_to_gen(GEN[inst_counter], ins.num_args.value);
+        successors[inst_counter].push_back(inst_counter + 1);
+      } else if constexpr (std::is_same_v<T, LoadAddr>) {
+        push_to_gen(GEN[inst_counter], ins.base);
+        push_to_gen(GEN[inst_counter], ins.index);
+        push_to_kill(KILL[inst_counter], ins.dest);
+        successors[inst_counter].push_back(inst_counter + 1);
       }
-      //   std::cout << "call tensor-error " << ins.F;
-      // else if constexpr (std::is_same_v<T, Compare>)
-      //   std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
-      // else if constexpr (std::is_same_v<T, Cjump>)
-      //   std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
-      // else if constexpr (std::is_same_v<T, Goto>)
-      //   std::cout << "goto " << ins.target.name;
-      // else if constexpr (std::is_same_v<T, MemRead>)
-      //   std::cout << w_to_str(ins.dest) << " <- mem " << w_to_str(ins.base) << " " << ins.offset;
-      // else if constexpr (std::is_same_v<T, MemWrite>)
-      //   std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
-      // else if constexpr (std::is_same_v<T, MemAopRead>)
-      //   std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << w_to_str(ins.base) << " " << ins.offset;
-      // else if constexpr (std::is_same_v<T, MemAopWrite>)
-      //   std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
-      // else if constexpr (std::is_same_v<T, StackArg>)
-      //   std::cout << w_to_str(ins.dest) << " <- " << "stack-arg " << std::to_string(ins.num.value);
-      // else if constexpr (std::is_same_v<T, Call>)
-      //   std::cout << "call " << std::visit([&](auto &v) -> std::string {
-      //     using U = std::decay_t<decltype(v)>;
-      //     if constexpr (std::is_same_v<U, r>)
-      //       return r_to_str(v);
-      //     else if (std::is_same_v<U, var>)
-      //       return add_perc(v.name);
-      //     else
-      //       return v.name;
-      //   },
-      //                                      ins.callee)
-      //             << " " << ins.num_args.value;
-      // else if constexpr (std::is_same_v<T, LoadAddr>)
-      //   std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
     },
                instr);
     inst_counter++;
