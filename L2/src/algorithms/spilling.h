@@ -21,13 +21,51 @@ bool is_var(const V &val, const var &v) {
   },
                     val);
 };
-std::vector<i> transform_write(i &original_instruction) {
-
+template <typename V>
+V replace_in_field(const V &val, const var &original_var, const var &replacement) {
+  return is_var(val, original_var) ? V{replacement} : val;
 };
-std::vector<i> transform_read(i &original_instruction) {
+// helper to rename the variables in the instructions with the variable+postfix number
+i transform_to_renamed_inst(const i &instr, const var &original_var, const var &replacement) {
+  return std::visit([&](const auto &ins) -> i {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, Assign>)
+      return Assign{replace_in_field(ins.dest, original_var, replacement), replace_in_field(ins.src, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, AopInst>)
+      return AopInst{replace_in_field(ins.dest, original_var, replacement), ins.op, replace_in_field(ins.src, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, SopReg>)
+      return SopReg{replace_in_field(ins.dest, original_var, replacement), ins.op, replace_in_field(ins.shift, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, SopNum>)
+      return SopNum{replace_in_field(ins.dest, original_var, replacement), ins.op, ins.shift};
+    else if constexpr (std::is_same_v<T, Increment>)
+      return Increment{replace_in_field(ins.reg, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, Decrement>)
+      return Decrement{replace_in_field(ins.reg, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, Compare>)
+      return Compare{replace_in_field(ins.dest, original_var, replacement), replace_in_field(ins.left, original_var, replacement), ins.op, replace_in_field(ins.right, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, Cjump>)
+      return Cjump{replace_in_field(ins.left, original_var, replacement), ins.op, replace_in_field(ins.right, original_var, replacement), ins.target};
+    else if constexpr (std::is_same_v<T, MemRead>)
+      return MemRead{replace_in_field(ins.dest, original_var, replacement), replace_in_field(ins.base, original_var, replacement), ins.offset};
+    else if constexpr (std::is_same_v<T, MemWrite>)
+      return MemWrite{replace_in_field(ins.base, original_var, replacement), ins.offset, replace_in_field(ins.src, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, MemAopRead>)
+      return MemAopRead{replace_in_field(ins.dest, original_var, replacement), ins.operation, replace_in_field(ins.base, original_var, replacement), ins.offset};
+    else if constexpr (std::is_same_v<T, MemAopWrite>)
+      return MemAopWrite{replace_in_field(ins.base, original_var, replacement), ins.offset, ins.operation, replace_in_field(ins.src, original_var, replacement)};
+    else if constexpr (std::is_same_v<T, StackArg>)
+      return StackArg{replace_in_field(ins.dest, original_var, replacement), ins.num};
+    else if constexpr (std::is_same_v<T, Call>)
+      return Call{replace_in_field(ins.callee, original_var, replacement), ins.num_args};
+    else if constexpr (std::is_same_v<T, LoadAddr>)
+      return LoadAddr{replace_in_field(ins.dest, original_var, replacement), replace_in_field(ins.base, original_var, replacement), replace_in_field(ins.index, original_var, replacement), ins.scale};
+    else
+      return ins;
+  },
+                    instr);
 }
 
-f compute_spilling(f_spilled &function) {
+fl1 compute_spilling(f_spilled &function) {
   int n = function.instructions.size();
   // boolean arrays to store a first pass of where the variable is being used and whether it's for read or write
   std::vector<bool> used(n, false);
@@ -87,31 +125,27 @@ f compute_spilling(f_spilled &function) {
   };
   int variable_postfix = 0;
   std::vector<i> new_function_instructions;
-  for (int i = 0; i < n; i++) {
-    if (used[i]) {
-      if (write[i]) {
-        auto transformed = transform_write(function.instructions[i]);
-        new_function_instructions.insert(
-            new_function_instructions.end(),
-            transformed.begin(),
-            transformed.end());
-      };
-      if (read[i]) {
-        auto transformed = transform_write(function.instructions[i]);
-        new_function_instructions.insert(
-            new_function_instructions.end(),
-            transformed.begin(),
-            transformed.end());
-      };
+  // j because else I shadow the i from instructions and it explodes
+  for (int j = 0; j < n; j++) {
+    if (used[j]) {
+      var replacement_variable{new_var.name + std::to_string(variable_postfix)};
+      if (read[j]) {
+        new_function_instructions.push_back(i{MemRead{replacement_variable, r::rsp, 0}});
+      }
+      new_function_instructions.push_back(transform_to_renamed_inst(function.instructions[j], original_var, replacement_variable));
+      if (write[j]) {
+        new_function_instructions.push_back(i{MemWrite{r::rsp, 0, replacement_variable}});
+      }
       variable_postfix++;
+    } else {
+      new_function_instructions.push_back(function.instructions[j]);
     };
-    new_function_instructions.push_back(function.instructions[i]);
   };
-
-  return f{function.name, function.num_args, new_function_instructions};
+  int64_t num_locals = variable_postfix > 0 ? 1 : 0;
+  return fl1{function.name, function.num_args, num_locals, new_function_instructions};
 };
-void print_spilling(f result) {
-  print_function(result);
+void print_spilling(fl1 result) {
+  print_functionl1(result);
 };
 
 } // namespace L2

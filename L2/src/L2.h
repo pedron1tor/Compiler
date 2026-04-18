@@ -188,6 +188,13 @@ struct f {
   int64_t num_args;
   std::vector<i> instructions;
 };
+// fl1 ::= (l N N i+)
+struct fl1 {
+  l name; // @name
+  int64_t num_args;
+  int64_t num_locals;
+  std::vector<i> instructions;
+};
 struct f_spilled {
   l name; // @name
   int64_t num_args;

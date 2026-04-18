@@ -14,4 +14,5 @@ std::string aop_to_str(aop op);
 std::string cmp_to_str(cmp op);
 void print_source_program(p program);
 void print_function(f &fn);
+void print_functionl1(fl1 &fn);
 } // namespace L2
