@@ -31,22 +31,21 @@ std::pair<w, r> reg_coloring_rule(w &var_to_color) {
 void selective_add_edges() {};
 
 int select_color(w &unique_var, std::vector<w> &unique_var_to_dep_nodes, std::vector<std::pair<w, r>> added_vars, int current_color) {
-  bool changed = false;
-  for (&node : added_vars) {
-    if node
-      in unique_var_to_dep_nodes {
-        if (node.second == colors[current_color]) {
-          changed = true;
-        }
+  bool invalid = true;
+  // find the color different from its dependents in the already added variables,
+  while (invalid) {
+    invalid = false;
+    for (auto &node : added_vars) {
+      bool adjacent = std::find(unique_var_to_dep_nodes.begin(),
+                                unique_var_to_dep_nodes.end(), node.first) != unique_var_to_dep_nodes.end();
+
+      if (adjacent && node.second == colors[current_color]) {
+        invalid = true;
+        current_color++;
       }
+    };
   };
-  if (!changed) {
-    // things remain without clashing
-    return current_color;
-  } else if (changed) {
-    // if there are two nodes of the same color connected by an edge.
-    return current_color++;
-  }
+  return current_color;
 };
 
 interference_colored assign_colors(f &function, interference interference, bool &coloring_succeds) {
