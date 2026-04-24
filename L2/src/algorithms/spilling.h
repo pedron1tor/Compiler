@@ -142,7 +142,6 @@ fl1 compute_spilling(f_spilled &function, int num_locals) {
       new_function_instructions.push_back(function.instructions[j]);
     };
   };
-  int64_t num_locals = variable_postfix > 0 ? 1 : 0;
   return fl1{function.name, function.num_args, num_locals, new_function_instructions};
 };
 void print_spilling(fl1 result) {

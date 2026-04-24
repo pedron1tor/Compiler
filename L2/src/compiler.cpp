@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
    */
   if (spill_only) {
 
-    L2::fl1 result = L2::compute_spilling(function_spilled);
+    L2::fl1 result = L2::compute_spilling(function_spilled, 0);
     L2::print_spilling(result);
     return 0;
   }
