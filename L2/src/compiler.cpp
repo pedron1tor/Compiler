@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
       bool coloring_succeeds = true;
       int num_locals = 0;
       L2::fl1 result;
-      while (!coloring_succeeds) { // run the loop until the graph coloring succeeds and we're done spilling variables
+      do { // run the loop until the graph coloring succeeds and we're done spilling variables
         L2::liveness liveness_result = L2::compute_liveness(fn);
         L2::interference interference_result = L2::compute_interference(fn, liveness_result);
 
@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
               coloring_result.num_args, std::stoll(coloring_result.spilled_arg1.name),
               coloring_result.instructions};
         };
-      };
+      } while (!coloring_succeeds);
       pfl1.functions.push_back(result);
     };
   }
