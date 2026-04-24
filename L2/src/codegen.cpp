@@ -7,7 +7,7 @@ namespace L2 {
 void generate_code(pfl1 &p) {
 
   std::ofstream outputFile;
-  outputFile.open("/build/prog.L1");
+  outputFile.open("prog.L1");
 
   outputFile << "(" << p.entry_point.name << "\n";
   // build the L1 code for each of the funtions inside of the ast/program

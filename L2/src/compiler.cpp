@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
   } else {
     p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
-  }
+    }
 
   /*
    * Special cases.
@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
     L2::print_interference(result);
     return 0;
   }
+
   /*
    * Print a single L2 function case.
    */
