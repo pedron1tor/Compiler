@@ -88,12 +88,12 @@ interference_colored assign_colors(f &function, interference interference, bool 
   // iterate through unique_variables and begin placing them back into the graph.
   int row = 0;
   std::vector<std::pair<w, r>> added_vars; // running collector of the variables that have been added to the graph.
-  int current_color = 0;
   for (w &unique_var : unique_variables) {
     if (coloring_succeds) {
       std::pair<w, r> added_var;
       if (is_real_var(unique_var)) {
-        current_color = select_color(unique_var, unique_variable_to_dependendency_nodes[unique_var], added_vars, current_color, coloring_succeds);
+        int current_color = select_color(unique_var, unique_variable_to_dependendency_nodes[unique_var], added_vars, 0, coloring_succeds);
+        if (!coloring_succeds) break;
         added_var = coloring_rule(unique_var, colors[current_color]);
         colored_interference[row].push_back(added_var);
       } else {
