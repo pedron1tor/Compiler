@@ -1,9 +1,9 @@
 #pragma once
 
+#include "interference.h"
 #include <L2.h>
 #include <parser.h>
 #include <stack>
-#include "interference.h"
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
 #include <tao/pegtl/contrib/raw_string.hpp>
@@ -68,7 +68,8 @@ int select_color(w &unique_var, std::vector<w> &unique_var_to_dep_nodes, std::ve
 };
 
 interference_colored assign_colors(f &function, interference interference, bool &coloring_succeds, var &var_to_spill) {
-  std::vector<std::vector<std::pair<w, r>>> colored_interference;
+  coloring_succeds = true;
+
   std::vector<w> unique_variables;
   std::map<w, std::vector<w>> unique_variable_to_dependendency_nodes;
   int var_max_degree = 0;
@@ -78,17 +79,17 @@ interference_colored assign_colors(f &function, interference interference, bool 
     std::vector<w> deps(row.begin() + 1, row.end());
     unique_variable_to_dependendency_nodes[row[0]] = deps;
     // select the variable with the highest degree for potential spilling
-    if (var_max_degree < deps.size() && is_real_var(row[0])) {
+    if (var_max_degree < (int)deps.size() && is_real_var(row[0])) {
       var_max_degree = deps.size();
       var_to_spill = std::get<var>(row[0]);
     };
   };
+  std::vector<std::vector<std::pair<w, r>>> colored_interference(unique_variables.size());
   // iterate through unique_variables and begin placing them back into the graph.
   int row = 0;
   std::vector<std::pair<w, r>> added_vars; // running collector of the variables that have been added to the graph.
   int current_color = 0;
-  for (
-      w &unique_var : unique_variables) {
+  for (w &unique_var : unique_variables) {
     if (coloring_succeds) {
       std::pair<w, r> added_var;
       if (is_real_var(unique_var)) {
@@ -100,17 +101,17 @@ interference_colored assign_colors(f &function, interference interference, bool 
         colored_interference[row].push_back(added_var);
       };
       selective_add_edges(colored_interference, added_var, added_vars, unique_variable_to_dependendency_nodes[unique_var]); // add the edges from the variable,
-      // to each of the already added variables if they're in the same row.
+      // to each of the already added variables if they're in the same row
       added_vars.push_back(added_var);
       row++;
     } else {
       break;
     };
   };
+  return interference_colored{colored_interference};
 };
 
 f_spilled compute_coloring(f &function, interference &interference_result, bool &coloring_succeeds, int &num_locals) {
-  int num_args = 0;
   var spilled_arg_1;
   var spilled_arg_2;
   // spilled variable prefix
@@ -118,11 +119,11 @@ f_spilled compute_coloring(f &function, interference &interference_result, bool 
   assign_colors(function, interference_result, coloring_succeeds, spilled_arg_1);
   if (coloring_succeeds) {
     // set num locals
-    spilled_arg_1.name = num_locals;
+    spilled_arg_1.name = std::to_string(num_locals);
   }
   return f_spilled{
       function.name,
-      num_args,
+      function.num_args,
       function.instructions,
       spilled_arg_1,
       spilled_arg_2};
