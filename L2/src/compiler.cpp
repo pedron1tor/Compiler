@@ -119,12 +119,13 @@ int main(int argc, char **argv) {
     pfl1.entry_point = p.entry_point;
     for (auto &fn : p.functions) {
       bool coloring_succeeds = false;
+      L2::fl1 result;
       while (!coloring_succeeds) { // run the loop until the graph coloring succeeds and we're done spilling variables
         L2::liveness liveness_result = L2::compute_liveness(fn);
         L2::interference interference_result = L2::compute_interference(fn, liveness_result);
 
         L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds);
-        L2::fl1 result;
+
         if (!coloring_succeeds) {
           result = L2::compute_spilling(coloring_result);
         } else {
