@@ -154,6 +154,7 @@ std::string r_to_str(L1::r reg) {
   case L1::r::rsp:
     return "rsp";
   }
+  __builtin_unreachable();
 };
 std::string t_to_str(L1::t val) {
   return std::visit([](auto &v) -> std::string {
@@ -188,6 +189,7 @@ std::string aop_to_str(L1::aop op) {
   case L1::aop::and_:
     return "&=";
   }
+  __builtin_unreachable();
 }
 std::string sop_to_str(L1::sop op) {
   switch (op) {
@@ -196,6 +198,7 @@ std::string sop_to_str(L1::sop op) {
   case L1::sop::rshift:
     return ">>=";
   }
+  __builtin_unreachable();
 }
 std::string cmp_to_str(L1::cmp op) {
   switch (op) {
@@ -206,6 +209,7 @@ std::string cmp_to_str(L1::cmp op) {
   case L1::cmp::eq:
     return "=";
   }
+  __builtin_unreachable();
 }
 void print_source_program(p program) {
   std::cout << "(" << program.entry_point.name << "\n";
