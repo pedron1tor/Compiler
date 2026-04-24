@@ -2,5 +2,5 @@
 #include "L2.h"
 
 namespace L2 {
-void generate_code(pfl1 &program);
+void generate_code(pl1 &program);
 }

@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
    * Parse the input file.
    */
   L2::p p;
-  L2::pfl1 pfl1;
+  L2::pl1 pl1;
   L2::f function;
   L2::f_spilled function_spilled;
   /*
@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
   } else {
     p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
-    pfl1.entry_point = p.entry_point;
+    pl1.entry_point = p.entry_point;
     for (auto &fn : p.functions) {
       bool coloring_succeeds = true;
       int num_locals = 0;
@@ -139,7 +139,23 @@ int main(int argc, char **argv) {
               coloring_result.instructions};
         };
       } while (!coloring_succeeds);
-      pfl1.functions.push_back(result);
+      // replace any stack arg instruction with the transformation given by
+      // t is equivalent to w <- mem rsp ? where ? is M plus the number of bytes of the stack space used for local variables
+      for (auto &instr : result.instructions) {
+        std::visit([&](auto &inst) {
+          using T = std::decay_t<decltype(inst)>;
+          if constexpr (std::is_same_v<T, L2::StackArg>) {
+            instr = L2::MemRead{
+                inst.dest,
+                L2::r::rsp,
+                (inst.num.value + (8 * num_locals))};
+          } else {
+            instr = inst;
+          };
+        },
+                   instr);
+      };
+      pl1.functions.push_back(result);
     };
   }
 
@@ -184,7 +200,7 @@ int main(int argc, char **argv) {
    * Generate L1 code
    */
   if (enable_code_generator) {
-    L2::generate_code(pfl1);
+    L2::generate_code(pl1);
   }
 
   return 0;

@@ -4,7 +4,7 @@
 
 namespace L2 {
 
-void generate_code(pfl1 &p) {
+void generate_code(pl1 &p) {
 
   std::ofstream outputFile;
   outputFile.open("prog.L1");

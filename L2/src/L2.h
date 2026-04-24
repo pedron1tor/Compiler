@@ -227,7 +227,7 @@ struct interference_colored {
   std::vector<std::vector<std::pair<w, r>>> array;
 };
 
-struct pfl1 {
+struct pl1 {
   l entry_point; // @name
   std::vector<fl1> functions;
 };
