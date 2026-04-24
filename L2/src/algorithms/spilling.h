@@ -21,12 +21,13 @@ bool is_var(const V &val, const var &v) {
   },
                     val);
 };
-template <typename V>
-V replace_in_field(const V &val, const var &original_var, const var &replacement) {
+template <typename V, typename R>
+V replace_in_field(const V &val, const var &original_var, const R &replacement) {
   return is_var(val, original_var) ? V{replacement} : val;
 };
 // helper to rename the variables in the instructions with the variable+postfix number
-i transform_to_renamed_inst(const i &instr, const var &original_var, const var &replacement) {
+template <typename R>
+i transform_to_renamed_inst(const i &instr, const var &original_var, const R &replacement) {
   return std::visit([&](const auto &ins) -> i {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, Assign>)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "interference.h"
+#include "spilling.h"
 #include <L2.h>
 #include <parser.h>
 #include <stack>
@@ -93,7 +94,8 @@ interference_colored assign_colors(f &function, interference interference, bool 
       std::pair<w, r> added_var;
       if (is_real_var(unique_var)) {
         int current_color = select_color(unique_var, unique_variable_to_dependendency_nodes[unique_var], added_vars, 0, coloring_succeds);
-        if (!coloring_succeds) break;
+        if (!coloring_succeds)
+          break;
         added_var = coloring_rule(unique_var, colors[current_color]);
         colored_interference[row].push_back(added_var);
       } else {
@@ -111,12 +113,12 @@ interference_colored assign_colors(f &function, interference interference, bool 
   return interference_colored{colored_interference};
 };
 
-f_spilled compute_coloring(f &function, interference &interference_result, bool &coloring_succeeds, int &num_locals) {
+f_spilled compute_coloring(f &function, interference &interference_result, bool &coloring_succeeds, int &num_locals, interference_colored &interference_with_color_map) {
   var spilled_arg_1;
   var spilled_arg_2;
   // spilled variable prefix
   spilled_arg_2.name = "%spilled";
-  assign_colors(function, interference_result, coloring_succeeds, spilled_arg_1);
+  interference_with_color_map = assign_colors(function, interference_result, coloring_succeeds, spilled_arg_1);
   if (coloring_succeeds) {
     // set num locals
     spilled_arg_1.name = std::to_string(num_locals);
@@ -128,5 +130,23 @@ f_spilled compute_coloring(f &function, interference &interference_result, bool 
       spilled_arg_1,
       spilled_arg_2};
 };
+void build_map(interference_colored &var_to_register_interf, std::vector<std::pair<w, r>> &accumulator) {
+  for (std::vector<std::pair<w, r>> &row : var_to_register_interf.array) {
+    accumulator.push_back(row[0]);
+  };
+};
+void substitute(fl1 &function, std::vector<std::pair<w, r>> var_to_reg_map) {
+  for (auto &[variable, reg] : var_to_reg_map) {
+    if (is_real_var(variable)) {
+      for (auto &instr : function.instructions)
+        instr = transform_to_renamed_inst(instr, std::get<var>(variable), reg);
+    }
+  }
+};
 
+void remove_variables(fl1 &function, interference_colored var_to_register_interf) {
+  std::vector<std::pair<w, r>> vars_to_registers;
+  build_map(var_to_register_interf, vars_to_registers);
+  substitute(function, vars_to_registers);
+};
 } // namespace L2

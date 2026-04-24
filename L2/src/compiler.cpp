@@ -121,11 +121,12 @@ int main(int argc, char **argv) {
       bool coloring_succeeds = true;
       int num_locals = 0;
       L2::fl1 result;
+      L2::interference_colored interference_with_color_map;
       do { // run the loop until the graph coloring succeeds and we're done spilling variables
         L2::liveness liveness_result = L2::compute_liveness(fn);
         L2::interference interference_result = L2::compute_interference(fn, liveness_result);
 
-        L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds, num_locals);
+        L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds, num_locals, interference_with_color_map);
 
         if (!coloring_succeeds) {
           result = L2::compute_spilling(coloring_result);
@@ -139,6 +140,8 @@ int main(int argc, char **argv) {
               coloring_result.instructions};
         };
       } while (!coloring_succeeds);
+      // then collect the mapping between variables to registers and substitute
+      remove_variables(result, interference_with_color_map);
       // replace any stack arg instruction with the transformation given by
       // t is equivalent to w <- mem rsp ? where ? is M plus the number of bytes of the stack space used for local variables
       for (auto &instr : result.instructions) {
