@@ -120,8 +120,18 @@ int main(int argc, char **argv) {
     for (auto &fn : p.functions) {
       L2::liveness liveness_result = L2::compute_liveness(fn);
       L2::interference interference_result = L2::compute_interference(fn, liveness_result);
-      L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result);
-      L2::fl1 result = L2::compute_spilling(coloring_result);
+      bool coloring_succeeds = false;
+      L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds);
+      L2::fl1 result;
+      if (!coloring_succeeds) {
+        result = L2::compute_spilling(coloring_result);
+      } else {
+        // if coloring succeeds, the first variable ready to color will not be spilled therefore I will use that for num_locals
+        result = L2::fl1{
+            coloring_result.name,
+            coloring_result.num_args, std::stoll(coloring_result.spilled_arg1.name),
+            coloring_result.instructions};
+      };
       pfl1.functions.push_back(result);
     };
   }
