@@ -3,6 +3,7 @@
 #include <L2.h>
 #include <parser.h>
 #include <stack>
+#include "interference.h"
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
 #include <tao/pegtl/contrib/raw_string.hpp>
@@ -15,7 +16,9 @@ std::pair<w, r> coloring_rule(w &var_to_color, r &color) {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, var>) {
       return std::make_pair(var_to_color, color);
-    };
+    } else {
+      return std::make_pair(var_to_color, v);
+    }
   },
                     var_to_color);
 };
@@ -24,17 +27,17 @@ std::pair<w, r> reg_coloring_rule(w &var_to_color) {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, r>) {
       return std::make_pair(var_to_color, v);
-    };
+    } else {
+      return std::make_pair(var_to_color, r{});
+    }
   },
                     var_to_color);
 };
 void selective_add_edges(std::vector<std::vector<std::pair<w, r>>> &array, std::pair<w, r> &a,
-                         std::vector<std::pair<w, r>> &added_vars, std::map<w, std::vector<w>> var_to_dep_nodes
-
-) {
+                         std::vector<std::pair<w, r>> &added_vars, std::vector<w> &dep_nodes) {
   for (auto &added_var : added_vars) {
-    bool adjacent = std::find(var_to_dep_nodes.begin(),
-                              var_to_dep_nodes.end(), added_var.first) != var_to_dep_nodes.end();
+    bool adjacent = std::find(dep_nodes.begin(),
+                              dep_nodes.end(), added_var.first) != dep_nodes.end();
     if (adjacent) {
       add_edge(array, added_var, a);
     }
