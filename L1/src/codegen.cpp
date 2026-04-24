@@ -314,7 +314,7 @@ void function_to_assembly(std::ofstream &outputfile, f &function) {
   };
 };
 
-void generate_code(pfl1 &program) {
+void generate_code(p &p) {
 
   std::ofstream outputFile;
   outputFile.open("prog.S");
@@ -324,7 +324,7 @@ void generate_code(pfl1 &program) {
   // push the callee saved registers
   push_callee_saved_registers(outputFile);
   // call entrypoint for L1 code
-  outputFile << "\tcall " << rename_f(program.entry_point.name) << "\n";
+  outputFile << "\tcall " << rename_f(p.entry_point.name) << "\n";
   // pop the callee saved registers
   pop_callee_saved_registers(outputFile);
   // build the assembly code for each of the funtions inside of the ast/program
