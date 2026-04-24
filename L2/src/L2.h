@@ -83,6 +83,11 @@ inline std::vector<w> gp_registers =
 
      r::r11, r::r12, r::r13, r::r14, r::r15, r::r8, r::r9,
      r::rax, r::rbp, r::rbx, r::rcx, r::rdi, r::rdx, r::rsi};
+inline std::vector<r> colors =
+    {r::r10,
+
+     r::r11, r::r12, r::r13, r::r14, r::r15, r::r8, r::r9,
+     r::rax, r::rbp, r::rbx, r::rcx, r::rdi, r::rdx, r::rsi};
 inline std::vector<w> arg_registers = {r::rdi, r::rsi, r::rdx, r::rcx, r::r8, r::r9};
 //  i ::=
 struct Assign {
@@ -217,8 +222,25 @@ struct interference {
   std::vector<std::vector<w>> array;
 };
 
+struct interference_colored {
+  // each node in the interference graph will be paired with a register. color
+  std::vector<std::vector<std::pair<w, r>>> array;
+};
+
 struct pfl1 {
   l entry_point; // @name
   std::vector<fl1> functions;
+};
+template <typename V>
+bool is_real_var(const V &val) {
+  return std::visit([&](const auto &x) -> bool {
+    // if the value in the instruction is a variable, compare against variable of interest
+    using X = std::decay_t<decltype(x)>;
+    if constexpr (std::is_same_v<X, var>)
+      return true;
+    else
+      return false;
+  },
+                    val);
 };
 } // namespace L2
