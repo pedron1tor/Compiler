@@ -116,10 +116,11 @@ int main(int argc, char **argv) {
   } else {
     p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
+    pfl1.entry_point = p.entry_point;
     for (auto &fn : p.functions) {
-      L2::liveness liveness_result = L2::compute_liveness(function);
-      L2::interference interference_result = L2::compute_interference(function, liveness_result);
-      L2::f_spilled coloring_result = L2::compute_coloring(function, interference_result);
+      L2::liveness liveness_result = L2::compute_liveness(fn);
+      L2::interference interference_result = L2::compute_interference(fn, liveness_result);
+      L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result);
       L2::fl1 result = L2::compute_spilling(coloring_result);
       pfl1.functions.push_back(result);
     };
