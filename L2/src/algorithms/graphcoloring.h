@@ -117,7 +117,7 @@ f_spilled compute_coloring(f &function, interference &interference_result, bool 
   var spilled_arg_1;
   var spilled_arg_2;
   // spilled variable prefix
-  spilled_arg_2.name = "%spilled";
+  spilled_arg_2.name = "%spilled" + std::to_string(num_locals);
   interference_with_color_map = assign_colors(function, interference_result, coloring_succeeds, spilled_arg_1);
   if (coloring_succeeds) {
     // set num locals

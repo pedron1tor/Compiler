@@ -66,7 +66,7 @@ i transform_to_renamed_inst(const i &instr, const var &original_var, const R &re
                     instr);
 }
 
-fl1 compute_spilling(f_spilled &function) {
+fl1 compute_spilling(f_spilled &function, int num_locals) {
   int n = function.instructions.size();
   // boolean arrays to store a first pass of where the variable is being used and whether it's for read or write
   std::vector<bool> used(n, false);
@@ -131,11 +131,11 @@ fl1 compute_spilling(f_spilled &function) {
     if (used[j]) {
       var replacement_variable{new_var.name + std::to_string(variable_postfix)};
       if (read[j]) {
-        new_function_instructions.push_back(i{MemRead{replacement_variable, r::rsp, 0}});
+        new_function_instructions.push_back(i{MemRead{replacement_variable, r::rsp, num_locals * 8}});
       }
       new_function_instructions.push_back(transform_to_renamed_inst(function.instructions[j], original_var, replacement_variable));
       if (write[j]) {
-        new_function_instructions.push_back(i{MemWrite{r::rsp, 0, replacement_variable}});
+        new_function_instructions.push_back(i{MemWrite{r::rsp, num_locals * 8, replacement_variable}});
       }
       variable_postfix++;
     } else {

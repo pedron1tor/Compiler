@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
         L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds, num_locals, interference_with_color_map);
 
         if (!coloring_succeeds) {
-          result = L2::compute_spilling(coloring_result);
+          result = L2::compute_spilling(coloring_result, num_locals);
           fn = L2::f{result.name, result.num_args, result.instructions};
           num_locals++;
         } else {
