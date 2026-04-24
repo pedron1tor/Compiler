@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
 
         if (!coloring_succeeds) {
           result = L2::compute_spilling(coloring_result);
+          fn = L2::f{result.name, result.num_args, result.instructions};
           num_locals++;
         } else {
           // if coloring succeeds, the first variable ready to color will not be spilled therefore I will use that for num_locals
