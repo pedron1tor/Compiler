@@ -28,9 +28,21 @@ std::pair<w, r> reg_coloring_rule(w &var_to_color) {
   },
                     var_to_color);
 };
-void selective_add_edges() {};
+void selective_add_edges(std::vector<std::vector<std::pair<w, r>>> &array, std::pair<w, r> &a,
+                         std::vector<std::pair<w, r>> &added_vars, std::map<w, std::vector<w>> var_to_dep_nodes
 
-int select_color(w &unique_var, std::vector<w> &unique_var_to_dep_nodes, std::vector<std::pair<w, r>> added_vars, int current_color) {
+) {
+  for (auto &added_var : added_vars) {
+    bool adjacent = std::find(var_to_dep_nodes.begin(),
+                              var_to_dep_nodes.end(), added_var.first) != var_to_dep_nodes.end();
+    if (adjacent) {
+      add_edge(array, added_var, a);
+    }
+  };
+};
+
+int select_color(w &unique_var, std::vector<w> &unique_var_to_dep_nodes, std::vector<std::pair<w, r>> added_vars, int current_color,
+                 bool &coloring_succeeds) {
   bool invalid = true;
   // find the color different from its dependents in the already added variables,
   while (invalid) {
@@ -42,20 +54,31 @@ int select_color(w &unique_var, std::vector<w> &unique_var_to_dep_nodes, std::ve
       if (adjacent && node.second == colors[current_color]) {
         invalid = true;
         current_color++;
+        if (current_color >= (int)colors.size()) {
+          coloring_succeeds = false;
+          return current_color;
+        }
       }
     };
   };
   return current_color;
 };
 
-interference_colored assign_colors(f &function, interference interference, bool &coloring_succeds) {
+interference_colored assign_colors(f &function, interference interference, bool &coloring_succeds, var &var_to_spill) {
   std::vector<std::vector<std::pair<w, r>>> colored_interference;
   std::vector<w> unique_variables;
   std::map<w, std::vector<w>> unique_variable_to_dependendency_nodes;
+  int var_max_degree = 0;
   // collect the first row of the matrix. These are the nodes, or unique variables
   for (std::vector<w> &row : interference.array) {
     unique_variables.push_back(row[0]);
-    unique_variable_to_dependendency_nodes[row[0]] = std::vector<w>(row.begin() + 1, row.end());
+    std::vector<w> deps(row.begin() + 1, row.end());
+    unique_variable_to_dependendency_nodes[row[0]] = deps;
+    // select the variable with the highest degree for potential spilling
+    if (var_max_degree < deps.size() && is_real_var(row[0])) {
+      var_max_degree = deps.size();
+      var_to_spill = std::get<var>(row[0]);
+    };
   };
   // iterate through unique_variables and begin placing them back into the graph.
   int row = 0;
@@ -63,31 +86,36 @@ interference_colored assign_colors(f &function, interference interference, bool 
   int current_color = 0;
   for (
       w &unique_var : unique_variables) {
-    std::pair<w, r> added_var;
-    if (is_real_var(unique_var)) {
-      current_color = select_color(unique_var, unique_variable_to_dependendency_nodes[unique_var]);
-      added_var = coloring_rule(unique_var, colors[current_color]);
-      colored_interference[row].push_back(added_var);
+    if (coloring_succeds) {
+      std::pair<w, r> added_var;
+      if (is_real_var(unique_var)) {
+        current_color = select_color(unique_var, unique_variable_to_dependendency_nodes[unique_var], added_vars, current_color, coloring_succeds);
+        added_var = coloring_rule(unique_var, colors[current_color]);
+        colored_interference[row].push_back(added_var);
+      } else {
+        added_var = reg_coloring_rule(unique_var);
+        colored_interference[row].push_back(added_var);
+      };
+      selective_add_edges(colored_interference, added_var, added_vars, unique_variable_to_dependendency_nodes[unique_var]); // add the edges from the variable,
+      // to each of the already added variables if they're in the same row.
+      added_vars.push_back(added_var);
+      row++;
     } else {
-      added_var = reg_coloring_rule(unique_var);
-      colored_interference[row].push_back(added_var);
+      break;
     };
-    selective_add_edges(colored_interference, added_var, added_vars);
-    added_vars.push_back(added_var);
-    row++;
   };
 };
 
-f_spilled compute_coloring(f &function, interference &interference_result, bool &coloring_succeeds) {
+f_spilled compute_coloring(f &function, interference &interference_result, bool &coloring_succeeds, int &num_locals) {
   int num_args = 0;
   var spilled_arg_1;
   var spilled_arg_2;
   // spilled variable prefix
   spilled_arg_2.name = "%spilled";
-  assign_colors(function, interference_result, coloring_succeeds);
+  assign_colors(function, interference_result, coloring_succeeds, spilled_arg_1);
   if (coloring_succeeds) {
     // set num locals
-    spilled_arg_1 = ;
+    spilled_arg_1.name = num_locals;
   }
   return f_spilled{
       function.name,

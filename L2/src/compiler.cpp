@@ -118,16 +118,18 @@ int main(int argc, char **argv) {
     L2::print_source_program(p);
     pfl1.entry_point = p.entry_point;
     for (auto &fn : p.functions) {
-      bool coloring_succeeds = false;
+      bool coloring_succeeds = true;
+      int num_locals = 0;
       L2::fl1 result;
       while (!coloring_succeeds) { // run the loop until the graph coloring succeeds and we're done spilling variables
         L2::liveness liveness_result = L2::compute_liveness(fn);
         L2::interference interference_result = L2::compute_interference(fn, liveness_result);
 
-        L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds);
+        L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds, num_locals);
 
         if (!coloring_succeeds) {
           result = L2::compute_spilling(coloring_result);
+          num_locals++;
         } else {
           // if coloring succeeds, the first variable ready to color will not be spilled therefore I will use that for num_locals
           result = L2::fl1{
