@@ -199,6 +199,7 @@ r_to_str(r reg) {
   case r::rsp:
     return "rsp";
   }
+  __builtin_unreachable();
 };
 std::string t_to_str(t val) {
   return std::visit([](auto &v) -> std::string {
@@ -249,6 +250,7 @@ std::string aop_to_str(aop op) {
   case aop::and_:
     return "&=";
   }
+  __builtin_unreachable();
 }
 std::string sop_to_str(sop op) {
   switch (op) {
@@ -257,6 +259,7 @@ std::string sop_to_str(sop op) {
   case sop::rshift:
     return ">>=";
   }
+  __builtin_unreachable();
 }
 std::string cmp_to_str(cmp op) {
   switch (op) {
@@ -267,6 +270,7 @@ std::string cmp_to_str(cmp op) {
   case cmp::eq:
     return "=";
   }
+  __builtin_unreachable();
 }
 
 void print_function(f &fn) {
