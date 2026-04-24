@@ -216,8 +216,9 @@ struct liveness {
 struct interference {
   std::vector<std::vector<w>> array;
 };
-struct
-    p
-    parse_file(char *filename);
 
+struct pfl1 {
+  l entry_point; // @name
+  std::vector<fl1> functions;
+};
 } // namespace L2

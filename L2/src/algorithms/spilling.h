@@ -145,7 +145,7 @@ fl1 compute_spilling(f_spilled &function) {
   return fl1{function.name, function.num_args, num_locals, new_function_instructions};
 };
 void print_spilling(fl1 result) {
-  print_functionl1(result);
+  print_functionl1(result, false);
 };
 
 } // namespace L2

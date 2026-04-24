@@ -1,7 +1,7 @@
-// #include "codegen.h"
 #include "algorithms/interference.h"
 #include "algorithms/liveness.h"
 #include "algorithms/spilling.h"
+#include "codegen.h"
 #include "parser.h"
 #include <algorithm>
 #include <assert.h>
@@ -84,6 +84,7 @@ int main(int argc, char **argv) {
    * Parse the input file.
    */
   L2::p p;
+  L2::pfl1 pfl1;
   L2::f function;
   L2::f_spilled function_spilled;
   /*
@@ -121,7 +122,7 @@ int main(int argc, char **argv) {
    */
   if (spill_only) {
 
-    auto result = L2::compute_spilling(function_spilled);
+    L2::fl1 result = L2::compute_spilling(function_spilled);
     L2::print_spilling(result);
     return 0;
   }
@@ -130,7 +131,7 @@ int main(int argc, char **argv) {
    * Liveness test.
    */
   if (liveness_only) {
-    auto result = L2::compute_liveness(function);
+    L2::liveness result = L2::compute_liveness(function);
     L2::print_liveness(result);
     return 0;
   }
@@ -139,8 +140,8 @@ int main(int argc, char **argv) {
    * Interference graph test.
    */
   if (interference_only) {
-    auto liveness_result = L2::compute_liveness(function);
-    auto result = L2::compute_interference(function, liveness_result);
+    L2::liveness liveness_result = L2::compute_liveness(function);
+    L2::interference result = L2::compute_interference(function, liveness_result);
     L2::print_interference(result);
     return 0;
   }
@@ -153,10 +154,10 @@ int main(int argc, char **argv) {
   }
 
   /*
-   * Generate x86_64 assembly.
+   * Generate L1 code
    */
   if (enable_code_generator) {
-    // L2::generate_code(p);
+    L2::generate_code(pfl1);
   }
 
   return 0;

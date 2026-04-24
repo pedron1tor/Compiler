@@ -1,4 +1,4 @@
-#include "L1.h"
+#include "L2.h"
 #include "parser.h"
 #include <fstream>
 
@@ -224,19 +224,19 @@ void conditional_jumps_to_assembly(std::ofstream &outputfile, Cjump &instruction
   }
 }
 // this function matches each of the individual instructions to its respective assembly translation
-// a few of the most important helper functions are the following: rename register, which takes a register 
-// and then returns the same string but with a % prepended, rename_f, which takes the @identifier string and replaces the 
-// leading @ with a _, r_to_str, which takes the register AST object and then transforms it into the string for that particular register, 
+// a few of the most important helper functions are the following: rename register, which takes a register
+// and then returns the same string but with a % prepended, rename_f, which takes the @identifier string and replaces the
+// leading @ with a _, r_to_str, which takes the register AST object and then transforms it into the string for that particular register,
 // most importantly the helper functions for the variant types s_set_to_assembly, t_set_to_asssembly, and u_set_to_assembly
 // they narrow down your types and then return the appropriate string already in the assembly format
-// also some important helper functions are the ones defined in parser.cpp which were originally helpers to print the program, 
+// also some important helper functions are the ones defined in parser.cpp which were originally helpers to print the program,
 // but similarly are a function from ast -> str. Very helpful
 void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_locals, int num_args) {
   std::visit([&](auto &inst) {
     using T = std::decay_t<decltype(inst)>;
     if constexpr (std::is_same_v<T, Return>) {
       int subq_num = num_locals * 8;
-      // clear the stack from all the stuff from the function when returning 
+      // clear the stack from all the stuff from the function when returning
       if (num_args > 6) {
         subq_num += 8 * (num_args - 6);
       }
@@ -277,7 +277,7 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
       int subq_val = extra_args * 8 + 8;
       outputfile << "\tsubq " << rename_constant(subq_val) << ", " << rename_register("rsp") << "\n";
       outputfile << "\tjmp " << u_set_to_assembly(inst.callee) << "\n";
-    } else if constexpr (std::is_same_v<T, CallPrint>) { // the functions with no dependencies start here. 
+    } else if constexpr (std::is_same_v<T, CallPrint>) { // the functions with no dependencies start here.
       outputfile << "\tcall print" << "\n";
     } else if constexpr (std::is_same_v<T, CallAllocate>) {
       outputfile << "\tcall allocate" << "\n";
@@ -290,12 +290,10 @@ void instruction_to_assembly(std::ofstream &outputfile, i &instruction, int num_
       std::string identifier;
       // unique identifier processing
       if (F == 1) {
-          identifier = "array_tensor_error_null";
-      }
-      else if (F == 3 ) {
+        identifier = "array_tensor_error_null";
+      } else if (F == 3) {
         identifier = "array_error";
-      }
-      else if (F == 4) {
+      } else if (F == 4) {
         identifier = "tensor_error";
       }
       outputfile << "\tcall " << identifier << "\n";
@@ -316,7 +314,7 @@ void function_to_assembly(std::ofstream &outputfile, f &function) {
   };
 };
 
-void generate_code(p &p) {
+void generate_code(pfl1 &program) {
 
   std::ofstream outputFile;
   outputFile.open("prog.S");
@@ -326,7 +324,7 @@ void generate_code(p &p) {
   // push the callee saved registers
   push_callee_saved_registers(outputFile);
   // call entrypoint for L1 code
-  outputFile << "\tcall " << rename_f(p.entry_point.name) << "\n";
+  outputFile << "\tcall " << rename_f(program.entry_point.name) << "\n";
   // pop the callee saved registers
   pop_callee_saved_registers(outputFile);
   // build the assembly code for each of the funtions inside of the ast/program
@@ -335,5 +333,5 @@ void generate_code(p &p) {
   };
 
   outputFile.close();
-}
+};
 } // namespace L1
