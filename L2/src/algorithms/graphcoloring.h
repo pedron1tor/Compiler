@@ -81,8 +81,11 @@ interference_colored assign_colors(f &function, interference interference, bool 
     unique_variable_to_dependendency_nodes[row[0]] = deps;
     // select the variable with the highest degree for potential spilling
     if (var_max_degree < (int)deps.size() && is_real_var(row[0])) {
-      var_max_degree = deps.size();
-      var_to_spill = std::get<var>(row[0]);
+      var item_var = std::get<var>(row[0]);
+      if (item_var.name.find("%spilled") == std::string::npos) {
+        var_max_degree = deps.size();
+        var_to_spill = std::get<var>(row[0]);
+      };
     };
   };
   std::vector<std::vector<std::pair<w, r>>> colored_interference(unique_variables.size());
