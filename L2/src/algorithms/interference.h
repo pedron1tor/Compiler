@@ -60,8 +60,11 @@ void interference_for_row(std::vector<w> &array_row, const w &variable_of_intere
     }
   };
 };
-void add_edge(std::vector<std::vector<w>> &array, const w &a, const w &b) {
+template <typename T>
+void add_edge(std::vector<std::vector<T>> &array, const T &a, const T &b) {
   for (auto &row : array) {
+    if (row.empty())
+      continue; // since the array is presized, this prevents accessing elements from empty rows...
     // add registers to the interference row of the shift position of sopreg.
     if (row[0] == b && std::find(row.begin(), row.end(), a) == row.end()) {
       row.push_back(a);

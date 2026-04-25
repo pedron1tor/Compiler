@@ -21,12 +21,13 @@ bool is_var(const V &val, const var &v) {
   },
                     val);
 };
-template <typename V>
-V replace_in_field(const V &val, const var &original_var, const var &replacement) {
+template <typename V, typename R>
+V replace_in_field(const V &val, const var &original_var, const R &replacement) {
   return is_var(val, original_var) ? V{replacement} : val;
 };
 // helper to rename the variables in the instructions with the variable+postfix number
-i transform_to_renamed_inst(const i &instr, const var &original_var, const var &replacement) {
+template <typename R>
+i transform_to_renamed_inst(const i &instr, const var &original_var, const R &replacement) {
   return std::visit([&](const auto &ins) -> i {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, Assign>)
@@ -65,7 +66,7 @@ i transform_to_renamed_inst(const i &instr, const var &original_var, const var &
                     instr);
 }
 
-fl1 compute_spilling(f_spilled &function) {
+fl1 compute_spilling(f_spilled &function, int num_locals) {
   int n = function.instructions.size();
   // boolean arrays to store a first pass of where the variable is being used and whether it's for read or write
   std::vector<bool> used(n, false);
@@ -130,22 +131,21 @@ fl1 compute_spilling(f_spilled &function) {
     if (used[j]) {
       var replacement_variable{new_var.name + std::to_string(variable_postfix)};
       if (read[j]) {
-        new_function_instructions.push_back(i{MemRead{replacement_variable, r::rsp, 0}});
+        new_function_instructions.push_back(i{MemRead{replacement_variable, r::rsp, num_locals * 8}});
       }
       new_function_instructions.push_back(transform_to_renamed_inst(function.instructions[j], original_var, replacement_variable));
       if (write[j]) {
-        new_function_instructions.push_back(i{MemWrite{r::rsp, 0, replacement_variable}});
+        new_function_instructions.push_back(i{MemWrite{r::rsp, num_locals * 8, replacement_variable}});
       }
       variable_postfix++;
     } else {
       new_function_instructions.push_back(function.instructions[j]);
     };
   };
-  int64_t num_locals = variable_postfix > 0 ? 1 : 0;
   return fl1{function.name, function.num_args, num_locals, new_function_instructions};
 };
 void print_spilling(fl1 result) {
-  print_functionl1(result);
+  print_functionl1(result, false);
 };
 
 } // namespace L2

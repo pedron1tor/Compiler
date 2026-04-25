@@ -1,5 +1,7 @@
-(@myFunction 
-0 
+(@myFunction
+(@myFunction
+0
+
 :label
 call print 1
 call input 0

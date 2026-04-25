@@ -1,7 +1,8 @@
-// #include "codegen.h"
+#include "algorithms/graphcoloring.h"
 #include "algorithms/interference.h"
 #include "algorithms/liveness.h"
 #include "algorithms/spilling.h"
+#include "codegen.h"
 #include "parser.h"
 #include <algorithm>
 #include <assert.h>
@@ -84,6 +85,7 @@ int main(int argc, char **argv) {
    * Parse the input file.
    */
   L2::p p;
+  L2::pl1 pl1;
   L2::f function;
   L2::f_spilled function_spilled;
   /*
@@ -114,6 +116,50 @@ int main(int argc, char **argv) {
   } else {
     p = L2::parse_file(argv[optind]);
     L2::print_source_program(p);
+    pl1.entry_point = p.entry_point;
+    for (auto &fn : p.functions) {
+      bool coloring_succeeds = true;
+      int num_locals = 0;
+      L2::fl1 result;
+      L2::interference_colored interference_with_color_map;
+      do { // run the loop until the graph coloring succeeds and we're done spilling variables
+        L2::liveness liveness_result = L2::compute_liveness(fn);
+        L2::interference interference_result = L2::compute_interference(fn, liveness_result);
+
+        L2::f_spilled coloring_result = L2::compute_coloring(fn, interference_result, coloring_succeeds, num_locals, interference_with_color_map);
+
+        if (!coloring_succeeds) {
+          result = L2::compute_spilling(coloring_result, num_locals);
+          fn = L2::f{result.name, result.num_args, result.instructions};
+          num_locals++;
+        } else {
+          // if coloring succeeds, the first variable ready to color will not be spilled therefore I will use that for num_locals
+          result = L2::fl1{
+              coloring_result.name,
+              coloring_result.num_args, std::stoll(coloring_result.spilled_arg1.name),
+              coloring_result.instructions};
+        };
+      } while (!coloring_succeeds);
+      // then collect the mapping between variables to registers and substitute
+      remove_variables(result, interference_with_color_map);
+      // replace any stack arg instruction with the transformation given by
+      // t is equivalent to w <- mem rsp ? where ? is M plus the number of bytes of the stack space used for local variables
+      for (auto &instr : result.instructions) {
+        std::visit([&](auto &inst) {
+          using T = std::decay_t<decltype(inst)>;
+          if constexpr (std::is_same_v<T, L2::StackArg>) {
+            instr = L2::MemRead{
+                inst.dest,
+                L2::r::rsp,
+                (inst.num.value + (8 * num_locals))};
+          } else {
+            instr = inst;
+          };
+        },
+                   instr);
+      };
+      pl1.functions.push_back(result);
+    };
   }
 
   /*
@@ -121,7 +167,7 @@ int main(int argc, char **argv) {
    */
   if (spill_only) {
 
-    auto result = L2::compute_spilling(function_spilled);
+    L2::fl1 result = L2::compute_spilling(function_spilled, 0);
     L2::print_spilling(result);
     return 0;
   }
@@ -130,7 +176,7 @@ int main(int argc, char **argv) {
    * Liveness test.
    */
   if (liveness_only) {
-    auto result = L2::compute_liveness(function);
+    L2::liveness result = L2::compute_liveness(function);
     L2::print_liveness(result);
     return 0;
   }
@@ -139,11 +185,12 @@ int main(int argc, char **argv) {
    * Interference graph test.
    */
   if (interference_only) {
-    auto liveness_result = L2::compute_liveness(function);
-    auto result = L2::compute_interference(function, liveness_result);
+    L2::liveness liveness_result = L2::compute_liveness(function);
+    L2::interference result = L2::compute_interference(function, liveness_result);
     L2::print_interference(result);
     return 0;
   }
+
   /*
    * Print a single L2 function case.
    */
@@ -153,10 +200,10 @@ int main(int argc, char **argv) {
   }
 
   /*
-   * Generate x86_64 assembly.
+   * Generate L1 code
    */
   if (enable_code_generator) {
-    // L2::generate_code(p);
+    L2::generate_code(pl1);
   }
 
   return 0;
