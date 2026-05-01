@@ -63,7 +63,6 @@ int main(int argc, char **argv)
    * Parse the input file.
    */
   L3::pl3 p = L3::parse_file(argv[optind]);
-  L3::pl2 pl2;
   /*
    * Print the program.
    */
@@ -77,7 +76,7 @@ int main(int argc, char **argv)
    */
   if (enable_code_generator)
   {
-    L3::generate_code(pl2);
+    L3::generate_code(p);
   }
 
   return 0;

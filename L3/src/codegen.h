@@ -3,5 +3,5 @@
 
 namespace L3
 {
-  void generate_code(pl2 &program);
+  void generate_code(pl3 &program);
 }
