@@ -179,6 +179,10 @@ namespace L3
   struct Return
   {
   };
+  struct ReturnT
+  {
+    t return_thing;
+  };
   struct Call
   {
     u callee;
@@ -226,7 +230,7 @@ namespace L3
       AopInst, SopReg, SopNum,
       MemAopWrite, MemAopRead,
       Compare, Cjump, Goto, LabelInst,
-      Return, Call, CallPrint, CallInput,
+      Return, ReturnT, Call, CallPrint, CallInput,
       CallAllocate, CallTupleError, CallTensorError,
       Increment, Decrement, LoadAddr, StackArg>;
 

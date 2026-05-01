@@ -69,7 +69,6 @@ int main(int argc, char **argv)
    */
   if (Utils::verbose)
   {
-    std::cout << "just checking \n";
     L3::print_source_program(p);
   }
 

@@ -56,8 +56,10 @@ namespace L3
                                           parse_seps,
                                           parse_vars,
                                           parse_seps,
-                                          pegtl::seq<parse_spaces, parse_instructions>,
-                                          parse_seps>
+                                          pegtl::one<'{'>,
+                                          parse_instructions,
+                                          parse_seps,
+                                          pegtl::one<'}'>>
   {
   };
   struct parse_spill_arg_1 : parse_variable
@@ -300,6 +302,8 @@ namespace L3
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
         std::cout << "return";
+      else if constexpr (std::is_same_v<T, ReturnT>)
+        std::cout << "return " << t_to_str(ins.return_thing); 
       else if constexpr (std::is_same_v<T, Assign>)
         std::cout << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, AopInst>)

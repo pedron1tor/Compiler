@@ -113,8 +113,16 @@ namespace L3
   struct parse_stack_arg_inst : pegtl::seq<parse_w, parse_spaces, parse_arrow, parse_spaces, parse_stack_arg, parse_spaces, parse_M>
   {
   };
+  struct parse_return_inst : parse_return
+  {
+  };
+  // return t
+  struct parse_return_t : pegtl::seq<parse_return, parse_seps, parse_t>
+  {
+  };
+
   struct parse_instructions : pegtl::seq<parse_seps,
-                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label, parse_load_effective_addr, parse_stack_arg_inst>, parse_seps>>>
+                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label, parse_load_effective_addr, parse_stack_arg_inst>, parse_seps>>>
   {
   };
 
@@ -132,7 +140,7 @@ namespace L3
     }
   };
   template <>
-  struct action<parse_return> : action_push<parse_return, Return>
+  struct action<parse_return_inst> : action_push<parse_return_inst, Return>
   {
   };
   template <>
@@ -499,6 +507,18 @@ namespace L3
       acc.parsed_items_w.pop_back();
       i newI = StackArg{arg, num_args};
       acc.program.functions.back().instructions.push_back(newI);
+    };
+  };
+  template <>
+  struct action<parse_return_t>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      auto t = acc.parsed_items_t.back();
+      i newI = ReturnT{t};
+      acc.program.functions.back().instructions.push_back(newI);
+      ;
     };
   };
 } // namespace L3
