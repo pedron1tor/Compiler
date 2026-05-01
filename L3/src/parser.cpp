@@ -37,16 +37,26 @@ namespace L3
   struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name>
   {
   };
-
+  struct parse_vars_var : parse_variable
+  {
+  };
+  struct parse_vars : pegtl::seq<
+                          pegtl::one<'('>,
+                          parse_seps,
+                          parse_vars_var,
+                          pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_vars_var>>,
+                          parse_seps,
+                          pegtl::one<')'>>
+  {
+  };
   struct parse_function_rule : pegtl::seq<parse_seps,
-                                          pegtl::seq<parse_spaces, pegtl::one<'('>>,
+                                          parse_define,
                                           parse_seps,
                                           parse_function_name,
                                           parse_seps,
+                                          parse_vars,
+                                          parse_seps,
                                           pegtl::seq<parse_spaces, parse_instructions>,
-                                          parse_seps,
-                                          parse_seps,
-                                          pegtl::seq<parse_spaces, pegtl::one<')'>>,
                                           parse_seps>
   {
   };
@@ -65,12 +75,7 @@ namespace L3
   };
   struct parse_entry_point_rule : pegtl::seq<
                                       parse_seps,
-                                      pegtl::seq<parse_spaces, pegtl::one<'('>>,
-                                      parse_seps,
-                                      parse_function_name,
-                                      parse_seps,
                                       parse_functions_rule,
-                                      pegtl::seq<parse_spaces, pegtl::one<')'>>,
                                       parse_seps>
   {
   };
@@ -93,6 +98,16 @@ namespace L3
       fl3 newF;
       newF.name.name = in.string();
       acc.program.functions.push_back(newF);
+    }
+  };
+
+  template <>
+  struct action<parse_vars_var>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.program.functions.back().vars.push_back(var{remove_perc(in.string())});
     }
   };
 
@@ -259,7 +274,24 @@ namespace L3
 
   void print_functionl3(fl3 &fn)
   {
-    std::cout << "define " << fn.name.name << "\n";
+    std::cout << "define " << fn.name.name;
+    // print variables
+    std::cout << " (";
+    bool first = true;
+    for (var &variable : fn.vars)
+    {
+      if (first)
+      {
+        first = false;
+      }
+      else
+      {
+        std::cout << ", ";
+      }
+      std::cout << add_perc(variable.name);
+    }
+    std::cout << ")";
+    std::cout << "{\n";
     for (auto &instr : fn.instructions)
     {
       std::cout << "\t";
@@ -325,7 +357,7 @@ namespace L3
                  instr);
       std::cout << "\n";
     }
-    std::cout << ")\n";
+    std::cout << "}\n";
   };
   void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile)
   {

@@ -126,6 +126,7 @@ namespace L3
   tensor-error
   stack-arg
   define
+  ,
   */
   struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar>
   {
@@ -161,6 +162,9 @@ namespace L3
   {
   };
   struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e'>, parse_nochar>
+  {
+  };
+  struct parse_comma : pegtl::seq<pegtl::one<','>, parse_nochar>
   {
   };
 
