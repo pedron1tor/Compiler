@@ -5,7 +5,7 @@
 namespace L3
 {
 
-  void generate_code(pl1 &p)
+  void generate_code(pl2 &p)
   {
 
     std::ofstream outputFile;
@@ -15,7 +15,7 @@ namespace L3
     // build the L2 code for each of the funtions inside of the ast/program
     for (auto &fn : p.functions)
     {
-      print_functionl1(fn, true, &outputFile);
+      print_functionl2(fn, true, &outputFile);
     };
     outputFile << ")\n";
 

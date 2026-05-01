@@ -230,11 +230,25 @@ namespace L3
       CallAllocate, CallTupleError, CallTensorError,
       Increment, Decrement, LoadAddr, StackArg>;
 
-  // f ::= (l N N i+)
+  // fl2 ::= (l N N i+)
   struct f
   {
     l name; // @name
     int64_t num_args;
+    std::vector<i> instructions;
+  };
+  // fl2 ::= (l N N i+)
+  struct fl2
+  {
+    l name; // @name
+    int64_t num_args;
+    std::vector<i> instructions;
+  };
+  // fl3::= define l ( vars ) { i+ }
+  struct fl3
+  {
+    l name;
+    std::vector<var> vars;
     std::vector<i> instructions;
   };
   // fl1 ::= (l N N i+)
@@ -253,11 +267,21 @@ namespace L3
     var spilled_arg1;
     var spilled_arg2;
   };
-  // p ::= (l f+)
+  // pl2 ::= (l f+)
   struct p
   {
     l entry_point; // @name
     std::vector<f> functions;
+  };
+  // pl2 ::= (l f+)
+  struct pl2
+  {
+    l entry_point; // @name
+    std::vector<fl2> functions;
+  };
+  struct pl3
+  {
+    std::vector<fl3> functions;
   };
 
   struct liveness

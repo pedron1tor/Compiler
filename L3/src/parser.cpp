@@ -136,7 +136,7 @@ namespace L3
       acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
     }
   };
-  p parse_file(char *filename)
+  pl3 parse_file(char *filename)
   {
     /*
      * Check the grammar for some possible issues.
@@ -319,8 +319,81 @@ namespace L3
     __builtin_unreachable();
   }
 
-  void print_function(f &fn)
+  void print_functionl3(fl3 &fn)
   {
+    std::cout << "(" << fn.name.name << "\n";
+    std::cout << "\t" << fn.num_args << "\n";
+    for (auto &instr : fn.instructions)
+    {
+      std::cout << "\t";
+      std::visit([&](auto &ins)
+                 {
+      using T = std::decay_t<decltype(ins)>;
+      if constexpr (std::is_same_v<T, Return>)
+        std::cout << "return";
+      else if constexpr (std::is_same_v<T, Assign>)
+        std::cout << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, AopInst>)
+        std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, SopReg>)
+        std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
+      else if constexpr (std::is_same_v<T, SopNum>)
+        std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
+      else if constexpr (std::is_same_v<T, LabelInst>)
+        std::cout << ins.lbl.name;
+      else if constexpr (std::is_same_v<T, CallPrint>)
+        std::cout << "call print 1";
+      else if constexpr (std::is_same_v<T, CallInput>)
+        std::cout << "call input 0";
+      else if constexpr (std::is_same_v<T, CallAllocate>)
+        std::cout << "call allocate 2";
+      else if constexpr (std::is_same_v<T, CallTupleError>)
+        std::cout << "call tuple-error 3";
+      else if constexpr (std::is_same_v<T, Increment>)
+        std::cout << w_to_str(ins.reg) << "++";
+      else if constexpr (std::is_same_v<T, Decrement>)
+        std::cout << w_to_str(ins.reg) << "--";
+      else if constexpr (std::is_same_v<T, CallTensorError>)
+        std::cout << "call tensor-error " << ins.F;
+      else if constexpr (std::is_same_v<T, Compare>)
+        std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
+      else if constexpr (std::is_same_v<T, Cjump>)
+        std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
+      else if constexpr (std::is_same_v<T, Goto>)
+        std::cout << "goto " << ins.target.name;
+      else if constexpr (std::is_same_v<T, MemRead>)
+        std::cout << w_to_str(ins.dest) << " <- mem " << w_to_str(ins.base) << " " << ins.offset;
+      else if constexpr (std::is_same_v<T, MemWrite>)
+        std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, MemAopRead>)
+        std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << w_to_str(ins.base) << " " << ins.offset;
+      else if constexpr (std::is_same_v<T, MemAopWrite>)
+        std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, StackArg>)
+        std::cout << w_to_str(ins.dest) << " <- " << "stack-arg " << std::to_string(ins.num.value);
+      else if constexpr (std::is_same_v<T, Call>)
+        std::cout << "call " << std::visit([&](auto &v) -> std::string {
+          using U = std::decay_t<decltype(v)>;
+          if constexpr (std::is_same_v<U, r>)
+            return r_to_str(v);
+          else if (std::is_same_v<U, var>)
+            return add_perc(v.name);
+          else
+            return v.name;
+        },
+                                           ins.callee)
+                  << " " << ins.num_args.value;
+      else if constexpr (std::is_same_v<T, LoadAddr>)
+        std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale; },
+                 instr);
+      std::cout << "\n";
+    }
+    std::cout << ")\n";
+  };
+  void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile)
+  {
+    std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
+    std::ostream &out = *outp;
     std::cout << "(" << fn.name.name << "\n";
     std::cout << "\t" << fn.num_args << "\n";
     for (auto &instr : fn.instructions)
@@ -463,13 +536,12 @@ namespace L3
     }
     out << ")\n";
   };
-  void print_source_program(p program)
+  void print_source_program(pl3 program)
   {
-    std::cout << "(" << program.entry_point.name << "\n";
     for (auto &fn : program.functions)
     {
-      print_function(fn);
+      std::cout << "define";
+      print_functionl3(fn);
     };
-    std::cout << ")\n";
   };
 } // namespace L3

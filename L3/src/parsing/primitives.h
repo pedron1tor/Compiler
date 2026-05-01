@@ -16,7 +16,7 @@ namespace L3
   */
   struct GlobalAccumulator
   {
-    p program;
+    pl3 program;
     std::vector<s> parsed_items;
     std::vector<t> parsed_items_t;
     std::vector<aop> parsed_ops;
@@ -124,6 +124,8 @@ namespace L3
   allocate
   tuple-error
   tensor-error
+  stack-arg
+  define
   */
   struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar>
   {
@@ -156,6 +158,9 @@ namespace L3
   {
   };
   struct parse_stack_arg : pegtl::seq<pegtl::string<'s', 't', 'a', 'c', 'k', '-', 'a', 'r', 'g'>, parse_nochar>
+  {
+  };
+  struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e', >, parse_nochar>
   {
   };
 

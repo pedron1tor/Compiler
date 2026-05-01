@@ -4,7 +4,7 @@
 
 namespace L3
 {
-  p parse_file(char *filename);
+  pl3 parse_file(char *filename);
   f parse_function(char *filename);
   f_spilled parse_function_spill(char *filename);
   std::string r_to_str(r reg);
@@ -13,7 +13,8 @@ namespace L3
   std::string w_to_str(w val);
   std::string aop_to_str(aop op);
   std::string cmp_to_str(cmp op);
-  void print_source_program(p program);
-  void print_function(f &fn);
+  void print_source_program(pl3 program);
+  void print_functionl3(f &fn);
   void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile = nullptr);
+  void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile = nullptr);
 } // namespace L3
