@@ -1,6 +1,7 @@
 #pragma once
-#include "L2.h"
+#include "L3.h"
 
-namespace L2 {
-void generate_code(pl1 &program);
+namespace L3
+{
+  void generate_code(pl1 &program);
 }

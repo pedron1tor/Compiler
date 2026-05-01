@@ -1,21 +1,24 @@
-#include "L2.h"
+#include "L3.h"
 #include "parser.h"
 #include <fstream>
 
-namespace L2 {
+namespace L3
+{
 
-void generate_code(pl1 &p) {
+  void generate_code(pl1 &p)
+  {
 
-  std::ofstream outputFile;
-  outputFile.open("prog.L1");
+    std::ofstream outputFile;
+    outputFile.open("prog.L2");
 
-  outputFile << "(" << p.entry_point.name << "\n";
-  // build the L1 code for each of the funtions inside of the ast/program
-  for (auto &fn : p.functions) {
-    print_functionl1(fn, true, &outputFile);
-  };
-  outputFile << ")\n";
+    outputFile << "(" << p.entry_point.name << "\n";
+    // build the L2 code for each of the funtions inside of the ast/program
+    for (auto &fn : p.functions)
+    {
+      print_functionl1(fn, true, &outputFile);
+    };
+    outputFile << ")\n";
 
-  outputFile.close();
-}
-} // namespace L2
+    outputFile.close();
+  }
+} // namespace L3

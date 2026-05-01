@@ -1,6 +1,6 @@
 #pragma once
 
-#include <L2.h>
+#include <L3.h>
 #include <parser.h>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
@@ -9,91 +9,111 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L2 {
-std::vector<w> compute_IN(std::vector<w> &GEN, std::vector<w> &KILL, std::vector<w> &OUT) {
-  std::set<w> s_OUT(OUT.begin(), OUT.end());
-  for (const auto &k : KILL) {
-    s_OUT.erase(k);
-  };
-  std::set<w> s_IN(GEN.begin(), GEN.end());
-  s_IN.insert(s_OUT.begin(), s_OUT.end());
-  return std::vector<w>(s_IN.begin(), s_IN.end());
-};
-std::vector<w> compute_OUT(std::vector<std::vector<w>> &OUT, std::vector<std::vector<w>> &IN, std::vector<std::vector<int>> &successors, int inst_counter) {
-  OUT[inst_counter].clear();
-  std::set<w> out_set;
-  for (int s : successors[inst_counter]) {
-    out_set.insert(IN[s].begin(), IN[s].end());
-  }
-  return std::vector<w>(out_set.begin(), out_set.end());
-};
-void INOUT_to_cout(std::vector<std::vector<w>> &IN) {
-  for (const auto &inst : IN) {
-    std::cout << "(";
-    bool first = true;
-    for (const auto &var : inst) {
-      if (!first) {
-        std::cout << " ";
-      }
-      std::cout << w_to_str(var);
-      first = false;
+namespace L3
+{
+  std::vector<w> compute_IN(std::vector<w> &GEN, std::vector<w> &KILL, std::vector<w> &OUT)
+  {
+    std::set<w> s_OUT(OUT.begin(), OUT.end());
+    for (const auto &k : KILL)
+    {
+      s_OUT.erase(k);
     };
-    std::cout << ")\n";
+    std::set<w> s_IN(GEN.begin(), GEN.end());
+    s_IN.insert(s_OUT.begin(), s_OUT.end());
+    return std::vector<w>(s_IN.begin(), s_IN.end());
   };
-};
-template <typename all_inst>
-void push_to_gen(std::vector<w> &gen_inst, all_inst &ins) {
-  std::visit([&](auto &v) {
+  std::vector<w> compute_OUT(std::vector<std::vector<w>> &OUT, std::vector<std::vector<w>> &IN, std::vector<std::vector<int>> &successors, int inst_counter)
+  {
+    OUT[inst_counter].clear();
+    std::set<w> out_set;
+    for (int s : successors[inst_counter])
+    {
+      out_set.insert(IN[s].begin(), IN[s].end());
+    }
+    return std::vector<w>(out_set.begin(), out_set.end());
+  };
+  void INOUT_to_cout(std::vector<std::vector<w>> &IN)
+  {
+    for (const auto &inst : IN)
+    {
+      std::cout << "(";
+      bool first = true;
+      for (const auto &var : inst)
+      {
+        if (!first)
+        {
+          std::cout << " ";
+        }
+        std::cout << w_to_str(var);
+        first = false;
+      };
+      std::cout << ")\n";
+    };
+  };
+  template <typename all_inst>
+  void push_to_gen(std::vector<w> &gen_inst, all_inst &ins)
+  {
+    std::visit([&](auto &v)
+               {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, r>) {
       if (v != r::rsp)
         gen_inst.push_back(w{v});
     } else if constexpr (std::is_same_v<V, var>) {
       gen_inst.push_back(w{v});
-    }
-  },
-             ins);
-};
-template <typename all_inst>
-void push_to_kill(std::vector<w> &gen_inst, all_inst &ins) {
-  std::visit([&](auto &v) {
+    } },
+               ins);
+  };
+  template <typename all_inst>
+  void push_to_kill(std::vector<w> &gen_inst, all_inst &ins)
+  {
+    std::visit([&](auto &v)
+               {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, r>) {
       if (v != r::rsp)
         gen_inst.push_back(w{v});
     } else if constexpr (std::is_same_v<V, var>) {
       gen_inst.push_back(w{v});
-    }
-  },
-             ins);
-};
-
-void push_args_to_gen(std::vector<w> &gen_inst, int64_t num_args) {
-  for (int a = 0; a < num_args && a < (int)arg_registers.size(); a++) {
-    gen_inst.push_back(arg_registers[a]);
-  }
-};
-void push_caller_saved_r(std::vector<std::vector<w>> &KILL, int &inst_counter) {
-  for (auto &r_caller : caller_saved_registers) {
-    KILL[inst_counter].push_back(r_caller);
+    } },
+               ins);
   };
-};
-liveness compute_liveness(f &function) {
-  auto n = function.instructions.size();
-  std::vector<std::vector<w>> GEN(n);
-  std::vector<std::vector<w>> KILL(n);
-  std::vector<std::vector<int>> successors(n);
-  // do a first pass to build a map between the labelinstructions and their respective line numbers for control flow jumps
-  std::map<std::string, int> label_to_index;
-  for (int j = 0; j < (int)n; j++) {
-    if (auto *li = std::get_if<LabelInst>(&function.instructions[j])) {
-      label_to_index[li->lbl.name] = j;
-    }
-  }
-  int inst_counter = 0;
 
-  for (auto &instr : function.instructions) {
-    std::visit([&](auto &ins) {
+  void push_args_to_gen(std::vector<w> &gen_inst, int64_t num_args)
+  {
+    for (int a = 0; a < num_args && a < (int)arg_registers.size(); a++)
+    {
+      gen_inst.push_back(arg_registers[a]);
+    }
+  };
+  void push_caller_saved_r(std::vector<std::vector<w>> &KILL, int &inst_counter)
+  {
+    for (auto &r_caller : caller_saved_registers)
+    {
+      KILL[inst_counter].push_back(r_caller);
+    };
+  };
+  liveness compute_liveness(f &function)
+  {
+    auto n = function.instructions.size();
+    std::vector<std::vector<w>> GEN(n);
+    std::vector<std::vector<w>> KILL(n);
+    std::vector<std::vector<int>> successors(n);
+    // do a first pass to build a map between the labelinstructions and their respective line numbers for control flow jumps
+    std::map<std::string, int> label_to_index;
+    for (int j = 0; j < (int)n; j++)
+    {
+      if (auto *li = std::get_if<LabelInst>(&function.instructions[j]))
+      {
+        label_to_index[li->lbl.name] = j;
+      }
+    }
+    int inst_counter = 0;
+
+    for (auto &instr : function.instructions)
+    {
+      std::visit([&](auto &ins)
+                 {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>) {
         GEN[inst_counter].push_back(r::rax);
@@ -187,38 +207,41 @@ liveness compute_liveness(f &function) {
         push_to_gen(GEN[inst_counter], ins.index);
         push_to_kill(KILL[inst_counter], ins.dest);
         successors[inst_counter].push_back(inst_counter + 1);
-      }
-    },
-               instr);
-    inst_counter++;
-  };
+      } },
+                 instr);
+      inst_counter++;
+    };
 
-  std::vector<std::vector<w>> IN(n);
-  std::vector<std::vector<w>> OUT(n);
-  bool changes = true;
-  while (changes) {
-    changes = false;
-    for (int i = n - 1; i >= 0; i--) {
-      auto prev_in = IN[i];
-      auto prev_out = OUT[i];
-      OUT[i] = compute_OUT(OUT, IN, successors, i);
-      IN[i] = compute_IN(GEN[i], KILL[i], OUT[i]);
-      if (IN[i] != prev_in || OUT[i] != prev_out) {
-        changes = true;
+    std::vector<std::vector<w>> IN(n);
+    std::vector<std::vector<w>> OUT(n);
+    bool changes = true;
+    while (changes)
+    {
+      changes = false;
+      for (int i = n - 1; i >= 0; i--)
+      {
+        auto prev_in = IN[i];
+        auto prev_out = OUT[i];
+        OUT[i] = compute_OUT(OUT, IN, successors, i);
+        IN[i] = compute_IN(GEN[i], KILL[i], OUT[i]);
+        if (IN[i] != prev_in || OUT[i] != prev_out)
+        {
+          changes = true;
+        }
       }
     }
-  }
-  return liveness{IN, OUT, KILL};
-};
-void print_liveness(liveness result) {
-  std::cout << "(\n";
-  std::cout << "(in\n";
-  INOUT_to_cout(result.in);
-  std::cout << ")\n\n";
-  std::cout << "(out\n";
-  INOUT_to_cout(result.out);
-  std::cout << ")\n\n";
-  std::cout << ")";
-};
+    return liveness{IN, OUT, KILL};
+  };
+  void print_liveness(liveness result)
+  {
+    std::cout << "(\n";
+    std::cout << "(in\n";
+    INOUT_to_cout(result.in);
+    std::cout << ")\n\n";
+    std::cout << "(out\n";
+    INOUT_to_cout(result.out);
+    std::cout << ")\n\n";
+    std::cout << ")";
+  };
 
-} // namespace L2
+} // namespace L3

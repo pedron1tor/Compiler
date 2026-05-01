@@ -17,7 +17,7 @@
 #include <tao/pegtl/contrib/raw_string.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
 
-#include <L2.h>
+#include <L3.h>
 #include <parser.h>
 
 #include "parsing/instructions.h"
@@ -27,194 +27,234 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L2 {
+namespace L3
+{
 
-/*
- * Grammar rules definitions from now on.
- */
+  /*
+   * Grammar rules definitions from now on.
+   */
 
-struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name> {};
+  struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name>
+  {
+  };
 
-struct parse_argument_number : parse_number {};
+  struct parse_argument_number : parse_number
+  {
+  };
 
-struct parse_function_rule : pegtl::seq<parse_seps,
-                                        pegtl::seq<parse_spaces, pegtl::one<'('>>,
-                                        parse_seps,
-                                        parse_function_name,
-                                        parse_seps,
-                                        pegtl::seq<parse_spaces, parse_argument_number>,
-                                        parse_seps,
-                                        pegtl::seq<parse_spaces, parse_instructions>,
-                                        parse_seps,
-                                        parse_seps,
-                                        pegtl::seq<parse_spaces, pegtl::one<')'>>,
-                                        parse_seps> {};
-struct parse_spill_arg_1 : parse_variable {};
-struct parse_spill_arg_2 : parse_variable {};
-struct parse_function_rule_spill : pegtl::seq<parse_function_rule, parse_seps, parse_spill_arg_1, parse_seps, parse_spill_arg_2> {};
-struct parse_functions_rule : pegtl::seq<
-                                  pegtl::plus<parse_function_rule>> {};
-struct parse_entry_point_rule : pegtl::seq<
-                                    parse_seps,
-                                    pegtl::seq<parse_spaces, pegtl::one<'('>>,
-                                    parse_seps,
-                                    parse_function_name,
-                                    parse_seps,
-                                    parse_functions_rule,
-                                    pegtl::seq<parse_spaces, pegtl::one<')'>>,
-                                    parse_seps> {};
+  struct parse_function_rule : pegtl::seq<parse_seps,
+                                          pegtl::seq<parse_spaces, pegtl::one<'('>>,
+                                          parse_seps,
+                                          parse_function_name,
+                                          parse_seps,
+                                          pegtl::seq<parse_spaces, parse_argument_number>,
+                                          parse_seps,
+                                          pegtl::seq<parse_spaces, parse_instructions>,
+                                          parse_seps,
+                                          parse_seps,
+                                          pegtl::seq<parse_spaces, pegtl::one<')'>>,
+                                          parse_seps>
+  {
+  };
+  struct parse_spill_arg_1 : parse_variable
+  {
+  };
+  struct parse_spill_arg_2 : parse_variable
+  {
+  };
+  struct parse_function_rule_spill : pegtl::seq<parse_function_rule, parse_seps, parse_spill_arg_1, parse_seps, parse_spill_arg_2>
+  {
+  };
+  struct parse_functions_rule : pegtl::seq<
+                                    pegtl::plus<parse_function_rule>>
+  {
+  };
+  struct parse_entry_point_rule : pegtl::seq<
+                                      parse_seps,
+                                      pegtl::seq<parse_spaces, pegtl::one<'('>>,
+                                      parse_seps,
+                                      parse_function_name,
+                                      parse_seps,
+                                      parse_functions_rule,
+                                      pegtl::seq<parse_spaces, pegtl::one<')'>>,
+                                      parse_seps>
+  {
+  };
 
-struct grammar : pegtl::seq<
-                     parse_entry_point_rule, pegtl::eof> {
-};
+  struct grammar : pegtl::seq<
+                       parse_entry_point_rule, pegtl::eof>
+  {
+  };
 
-/*
- * templates
- */
-template <>
-struct action<parse_function_name> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    if (acc.program.entry_point.name.empty()) {
-      acc.program.entry_point.name = in.string();
-    } else {
-      f newF;
-      newF.name.name = in.string();
-      acc.program.functions.push_back(newF);
+  /*
+   * templates
+   */
+  template <>
+  struct action<parse_function_name>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      if (acc.program.entry_point.name.empty())
+      {
+        acc.program.entry_point.name = in.string();
+      }
+      else
+      {
+        f newF;
+        newF.name.name = in.string();
+        acc.program.functions.push_back(newF);
+      }
     }
-  }
-};
-template <>
-struct action<parse_argument_number> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    auto &currentF = acc.program.functions.back();
-    currentF.num_args = std::stoll(in.string());
-  }
-};
+  };
+  template <>
+  struct action<parse_argument_number>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      auto &currentF = acc.program.functions.back();
+      currentF.num_args = std::stoll(in.string());
+    }
+  };
 
-template <>
-struct action<parse_spill_arg_1> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
-  }
-};
-template <>
-struct action<parse_spill_arg_2> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
-  }
-};
-p parse_file(char *filename) {
-  /*
-   * Check the grammar for some possible issues.
-   */
-  if (pegtl::analyze<grammar>() != 0) {
-    std::cerr << "There are problems with the grammar" << std::endl;
-    exit(1);
+  template <>
+  struct action<parse_spill_arg_1>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
+    }
+  };
+  template <>
+  struct action<parse_spill_arg_2>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
+    }
+  };
+  p parse_file(char *filename)
+  {
+    /*
+     * Check the grammar for some possible issues.
+     */
+    if (pegtl::analyze<grammar>() != 0)
+    {
+      std::cerr << "There are problems with the grammar" << std::endl;
+      exit(1);
+    }
+
+    /*
+     * Parse.
+     */
+    file_input<> fileInput(filename);
+    // run to debug program...
+    // pegtl::standard_trace<grammar>(fileInput);
+    GlobalAccumulator state;
+    parse<grammar, action>(fileInput, state);
+    return state.program;
   }
 
-  /*
-   * Parse.
-   */
-  file_input<> fileInput(filename);
-  // run to debug program...
-  // pegtl::standard_trace<grammar>(fileInput);
-  GlobalAccumulator state;
-  parse<grammar, action>(fileInput, state);
-  return state.program;
-}
-
-f parse_function(char *filename) {
-  if (pegtl::analyze<parse_function_rule>() != 0) {
-    std::cerr << "There are problems with the function grammar" << std::endl;
-    exit(1);
+  f parse_function(char *filename)
+  {
+    if (pegtl::analyze<parse_function_rule>() != 0)
+    {
+      std::cerr << "There are problems with the function grammar" << std::endl;
+      exit(1);
+    }
+    /*
+     * Parse.
+     */
+    file_input<> fileInput(filename);
+    // run to debug program...
+    // pegtl::standard_trace<parse_function_rule>(fileInput);
+    GlobalAccumulator state;
+    state.program.entry_point.name = '_';
+    parse<parse_function_rule, action>(fileInput, state);
+    return state.program.functions[0];
   }
-  /*
-   * Parse.
-   */
-  file_input<> fileInput(filename);
-  // run to debug program...
-  // pegtl::standard_trace<parse_function_rule>(fileInput);
-  GlobalAccumulator state;
-  state.program.entry_point.name = '_';
-  parse<parse_function_rule, action>(fileInput, state);
-  return state.program.functions[0];
-}
 
-f_spilled parse_function_spill(char *filename) {
-  if (pegtl::analyze<parse_function_rule>() != 0) {
-    std::cerr << "There are problems with the function grammar" << std::endl;
-    exit(1);
+  f_spilled parse_function_spill(char *filename)
+  {
+    if (pegtl::analyze<parse_function_rule>() != 0)
+    {
+      std::cerr << "There are problems with the function grammar" << std::endl;
+      exit(1);
+    }
+    /*
+     * Parse.
+     */
+    file_input<> fileInput(filename);
+    // run to debug program...
+    // pegtl::standard_trace<parse_function_rule>(fileInput);
+    GlobalAccumulator state;
+    state.program.entry_point.name = '_';
+    parse<parse_function_rule_spill, action>(fileInput, state);
+    auto &fn = state.program.functions[0];
+    return f_spilled{fn.name, fn.num_args, fn.instructions,
+                     state.parsed_spill_args[0], state.parsed_spill_args[1]};
   }
-  /*
-   * Parse.
-   */
-  file_input<> fileInput(filename);
-  // run to debug program...
-  // pegtl::standard_trace<parse_function_rule>(fileInput);
-  GlobalAccumulator state;
-  state.program.entry_point.name = '_';
-  parse<parse_function_rule_spill, action>(fileInput, state);
-  auto &fn = state.program.functions[0];
-  return f_spilled{fn.name, fn.num_args, fn.instructions,
-                   state.parsed_spill_args[0], state.parsed_spill_args[1]};
-}
 
-std::string
-r_to_str(r reg) {
-  switch (reg) {
-  case r::rax:
-    return "rax";
-  case r::rbx:
-    return "rbx";
-  case r::rbp:
-    return "rbp";
-  case r::r10:
-    return "r10";
-  case r::r11:
-    return "r11";
-  case r::r12:
-    return "r12";
-  case r::r13:
-    return "r13";
-  case r::r14:
-    return "r14";
-  case r::r15:
-    return "r15";
-  case r::rdi:
-    return "rdi";
-  case r::rsi:
-    return "rsi";
-  case r::rdx:
-    return "rdx";
-  case r::r8:
-    return "r8";
-  case r::r9:
-    return "r9";
-  case r::rcx:
-    return "rcx";
-  case r::rsp:
-    return "rsp";
-  }
-  __builtin_unreachable();
-};
-std::string t_to_str(t val) {
-  return std::visit([](auto &v) -> std::string {
+  std::string
+  r_to_str(r reg)
+  {
+    switch (reg)
+    {
+    case r::rax:
+      return "rax";
+    case r::rbx:
+      return "rbx";
+    case r::rbp:
+      return "rbp";
+    case r::r10:
+      return "r10";
+    case r::r11:
+      return "r11";
+    case r::r12:
+      return "r12";
+    case r::r13:
+      return "r13";
+    case r::r14:
+      return "r14";
+    case r::r15:
+      return "r15";
+    case r::rdi:
+      return "rdi";
+    case r::rsi:
+      return "rsi";
+    case r::rdx:
+      return "rdx";
+    case r::r8:
+      return "r8";
+    case r::r9:
+      return "r9";
+    case r::rcx:
+      return "rcx";
+    case r::rsp:
+      return "rsp";
+    }
+    __builtin_unreachable();
+  };
+  std::string t_to_str(t val)
+  {
+    return std::visit([](auto &v) -> std::string
+                      {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, var>)
       return add_perc(v.name);
     else
-      return std::to_string(v.value);
-  },
-                    val);
-}
-std::string s_to_str(s val) {
-  return std::visit([](auto &v) -> std::string {
+      return std::to_string(v.value); },
+                      val);
+  }
+  std::string s_to_str(s val)
+  {
+    return std::visit([](auto &v) -> std::string
+                      {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
@@ -223,62 +263,71 @@ std::string s_to_str(s val) {
     else if constexpr (std::is_same_v<T, var>)
       return add_perc(v.name);
     else
-      return v.name;
-  },
-                    val);
-}
-std::string w_to_str(w val) {
-  return std::visit([](auto &v) -> std::string {
+      return v.name; },
+                      val);
+  }
+  std::string w_to_str(w val)
+  {
+    return std::visit([](auto &v) -> std::string
+                      {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, var>)
       return add_perc(v.name);
     else
-      return v.name;
-  },
-                    val);
-}
-std::string aop_to_str(aop op) {
-  switch (op) {
-  case aop::add:
-    return "+=";
-  case aop::sub:
-    return "-=";
-  case aop::mul:
-    return "*=";
-  case aop::and_:
-    return "&=";
+      return v.name; },
+                      val);
   }
-  __builtin_unreachable();
-}
-std::string sop_to_str(sop op) {
-  switch (op) {
-  case sop::lshift:
-    return "<<=";
-  case sop::rshift:
-    return ">>=";
+  std::string aop_to_str(aop op)
+  {
+    switch (op)
+    {
+    case aop::add:
+      return "+=";
+    case aop::sub:
+      return "-=";
+    case aop::mul:
+      return "*=";
+    case aop::and_:
+      return "&=";
+    }
+    __builtin_unreachable();
   }
-  __builtin_unreachable();
-}
-std::string cmp_to_str(cmp op) {
-  switch (op) {
-  case cmp::lt:
-    return "<";
-  case cmp::le:
-    return "<=";
-  case cmp::eq:
-    return "=";
+  std::string sop_to_str(sop op)
+  {
+    switch (op)
+    {
+    case sop::lshift:
+      return "<<=";
+    case sop::rshift:
+      return ">>=";
+    }
+    __builtin_unreachable();
   }
-  __builtin_unreachable();
-}
+  std::string cmp_to_str(cmp op)
+  {
+    switch (op)
+    {
+    case cmp::lt:
+      return "<";
+    case cmp::le:
+      return "<=";
+    case cmp::eq:
+      return "=";
+    }
+    __builtin_unreachable();
+  }
 
-void print_function(f &fn) {
-  std::cout << "(" << fn.name.name << "\n";
-  std::cout << "\t" << fn.num_args << "\n";
-  for (auto &instr : fn.instructions) {
-    std::cout << "\t";
-    std::visit([&](auto &ins) {
+  void print_function(f &fn)
+  {
+    std::cout << "(" << fn.name.name << "\n";
+    std::cout << "\t" << fn.num_args << "\n";
+    for (auto &instr : fn.instructions)
+    {
+      std::cout << "\t";
+      std::visit([&](auto &ins)
+                 {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
         std::cout << "return";
@@ -335,21 +384,23 @@ void print_function(f &fn) {
                                            ins.callee)
                   << " " << ins.num_args.value;
       else if constexpr (std::is_same_v<T, LoadAddr>)
-        std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
-    },
-               instr);
-    std::cout << "\n";
-  }
-  std::cout << ")\n";
-};
-void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile) {
-  std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
-  std::ostream &out = *outp;
-  out << "(" << fn.name.name << "\n";
-  out << "    " << fn.num_args << " " << fn.num_locals << "\n";
-  for (auto &instr : fn.instructions) {
-    out << "\t";
-    std::visit([&](auto &ins) {
+        std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale; },
+                 instr);
+      std::cout << "\n";
+    }
+    std::cout << ")\n";
+  };
+  void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile)
+  {
+    std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
+    std::ostream &out = *outp;
+    out << "(" << fn.name.name << "\n";
+    out << "    " << fn.num_args << " " << fn.num_locals << "\n";
+    for (auto &instr : fn.instructions)
+    {
+      out << "\t";
+      std::visit([&](auto &ins)
+                 {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
         out << "return";
@@ -406,18 +457,19 @@ void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile) {
                                      ins.callee)
             << " " << ins.num_args.value;
       else if constexpr (std::is_same_v<T, LoadAddr>)
-        out << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
-    },
-               instr);
-    out << "\n";
-  }
-  out << ")\n";
-};
-void print_source_program(p program) {
-  std::cout << "(" << program.entry_point.name << "\n";
-  for (auto &fn : program.functions) {
-    print_function(fn);
+        out << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale; },
+                 instr);
+      out << "\n";
+    }
+    out << ")\n";
   };
-  std::cout << ")\n";
-};
-} // namespace L2
+  void print_source_program(p program)
+  {
+    std::cout << "(" << program.entry_point.name << "\n";
+    for (auto &fn : program.functions)
+    {
+      print_function(fn);
+    };
+    std::cout << ")\n";
+  };
+} // namespace L3
