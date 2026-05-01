@@ -43,8 +43,9 @@ namespace L3
   struct parse_vars : pegtl::seq<
                           pegtl::one<'('>,
                           parse_seps,
-                          parse_vars_var,
-                          pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_vars_var>>,
+                          pegtl::opt<pegtl::seq<
+                              parse_vars_var,
+                              pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_vars_var>>>>,
                           parse_seps,
                           pegtl::one<')'>>
   {
