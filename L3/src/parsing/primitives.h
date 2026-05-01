@@ -160,7 +160,7 @@ namespace L3
   struct parse_stack_arg : pegtl::seq<pegtl::string<'s', 't', 'a', 'c', 'k', '-', 'a', 'r', 'g'>, parse_nochar>
   {
   };
-  struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e', >, parse_nochar>
+  struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e'>, parse_nochar>
   {
   };
 

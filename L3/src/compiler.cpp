@@ -11,7 +11,8 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-
+#include "parser.h"
+#include "codegen.h"
 #include <utils.h>
 
 void print_help(char *progName)
@@ -61,20 +62,23 @@ int main(int argc, char **argv)
   /*
    * Parse the input file.
    */
-
+  L3::pl3 p = L3::parse_file(argv[optind]);
+  L3::pl2 pl2;
   /*
    * Print the program.
    */
   if (Utils::verbose)
   {
-    }
+    std::cout << "just checking \n";
+    L3::print_source_program(p);
+  }
 
   /*
    * Generate the code.
    */
   if (enable_code_generator)
   {
-    // TODO
+    L3::generate_code(pl2);
   }
 
   return 0;

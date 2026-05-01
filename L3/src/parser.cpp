@@ -38,16 +38,10 @@ namespace L3
   {
   };
 
-  struct parse_argument_number : parse_number
-  {
-  };
-
   struct parse_function_rule : pegtl::seq<parse_seps,
                                           pegtl::seq<parse_spaces, pegtl::one<'('>>,
                                           parse_seps,
                                           parse_function_name,
-                                          parse_seps,
-                                          pegtl::seq<parse_spaces, parse_argument_number>,
                                           parse_seps,
                                           pegtl::seq<parse_spaces, parse_instructions>,
                                           parse_seps,
@@ -95,26 +89,10 @@ namespace L3
     template <typename Input>
     static void apply(const Input &in, GlobalAccumulator &acc)
     {
-      if (acc.program.entry_point.name.empty())
-      {
-        acc.program.entry_point.name = in.string();
-      }
-      else
-      {
-        f newF;
-        newF.name.name = in.string();
-        acc.program.functions.push_back(newF);
-      }
-    }
-  };
-  template <>
-  struct action<parse_argument_number>
-  {
-    template <typename Input>
-    static void apply(const Input &in, GlobalAccumulator &acc)
-    {
-      auto &currentF = acc.program.functions.back();
-      currentF.num_args = std::stoll(in.string());
+
+      fl3 newF;
+      newF.name.name = in.string();
+      acc.program.functions.push_back(newF);
     }
   };
 
@@ -156,46 +134,6 @@ namespace L3
     GlobalAccumulator state;
     parse<grammar, action>(fileInput, state);
     return state.program;
-  }
-
-  f parse_function(char *filename)
-  {
-    if (pegtl::analyze<parse_function_rule>() != 0)
-    {
-      std::cerr << "There are problems with the function grammar" << std::endl;
-      exit(1);
-    }
-    /*
-     * Parse.
-     */
-    file_input<> fileInput(filename);
-    // run to debug program...
-    // pegtl::standard_trace<parse_function_rule>(fileInput);
-    GlobalAccumulator state;
-    state.program.entry_point.name = '_';
-    parse<parse_function_rule, action>(fileInput, state);
-    return state.program.functions[0];
-  }
-
-  f_spilled parse_function_spill(char *filename)
-  {
-    if (pegtl::analyze<parse_function_rule>() != 0)
-    {
-      std::cerr << "There are problems with the function grammar" << std::endl;
-      exit(1);
-    }
-    /*
-     * Parse.
-     */
-    file_input<> fileInput(filename);
-    // run to debug program...
-    // pegtl::standard_trace<parse_function_rule>(fileInput);
-    GlobalAccumulator state;
-    state.program.entry_point.name = '_';
-    parse<parse_function_rule_spill, action>(fileInput, state);
-    auto &fn = state.program.functions[0];
-    return f_spilled{fn.name, fn.num_args, fn.instructions,
-                     state.parsed_spill_args[0], state.parsed_spill_args[1]};
   }
 
   std::string
@@ -321,8 +259,7 @@ namespace L3
 
   void print_functionl3(fl3 &fn)
   {
-    std::cout << "(" << fn.name.name << "\n";
-    std::cout << "\t" << fn.num_args << "\n";
+    std::cout << "define " << fn.name.name << "\n";
     for (auto &instr : fn.instructions)
     {
       std::cout << "\t";
@@ -540,7 +477,6 @@ namespace L3
   {
     for (auto &fn : program.functions)
     {
-      std::cout << "define";
       print_functionl3(fn);
     };
   };
