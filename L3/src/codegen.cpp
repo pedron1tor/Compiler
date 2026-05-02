@@ -20,7 +20,7 @@ namespace L3
   {
     // allocate the variables to the registers first, then if still remaining allocate stack space.
     std::vector<i> allocating_instructions;
-    for (int reg_idx = 0; reg_idx < (int)std::min(7UL, variables.size()); reg_idx++)
+    for (int reg_idx = 0; reg_idx < (int)std::min(6UL, variables.size()); reg_idx++)
     {
       allocating_instructions.push_back(Assign{w{variables[reg_idx]}, w_to_s(arg_registers[reg_idx])});
     }
