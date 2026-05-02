@@ -1,0 +1,3 @@
+define @myF (%v1, %v2){
+  return %v1
+}
