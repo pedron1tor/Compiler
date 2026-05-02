@@ -112,22 +112,25 @@ namespace L3
                                        parse_and_assign>
   {
   };
-  struct parse_plus : pegtl::seq<pegtl::one<'+'>, pegtl::not_at<pegtl::one<'='>>>
+  struct parse_plus : pegtl::seq<pegtl::one<'+'>>
   {
   };
-  struct parse_minus : pegtl::seq<pegtl::one<'-'>, pegtl::not_at<pegtl::one<'='>>>
+  struct parse_minus : pegtl::seq<pegtl::one<'-'>>
   {
   };
-  struct parse_mult : pegtl::seq<pegtl::one<'*'>, pegtl::not_at<pegtl::one<'='>>>
+  struct parse_mult : pegtl::seq<pegtl::one<'*'>>
   {
   };
-  struct parse_and : pegtl::seq<pegtl::one<'&'>, pegtl::not_at<pegtl::one<'='>>>
+  struct parse_and : pegtl::seq<pegtl::one<'&'>>
   {
   };
-  struct parse_aop : pegtl::sor<parse_plus, parse_minus, parse_mult, parse_and>
+  struct parse_rshift : pegtl::seq<pegtl::string<'>', '>'>>
   {
   };
-  struct parse_sop : pegtl::sor<parse_left_shift_assign, parse_right_shift_assign>
+  struct parse_lshift : pegtl::seq<pegtl::string<'<', '<'>>
+  {
+  };
+  struct parse_aop : pegtl::sor<parse_plus, parse_minus, parse_mult, parse_and, parse_rshift, parse_lshift>
   {
   };
   struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq, parse_gt>

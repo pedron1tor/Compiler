@@ -170,24 +170,13 @@ namespace L3
         acc.parsed_ops.push_back(aop::mul);
       else if (in.string() == "&")
         acc.parsed_ops.push_back(aop::and_);
+      else if (in.string() == "<<")
+        acc.parsed_ops.push_back(aop::lshift);
+      else if (in.string() == ">>")
+        acc.parsed_ops.push_back(aop::rshift);
     }
   };
-  template <>
-  struct action<parse_sop>
-  {
-    template <typename Input>
-    static void apply(const Input &in, GlobalAccumulator &acc)
-    {
-      if (in.string() == "<<=")
-      {
-        acc.parsed_sops.push_back(sop::lshift);
-      }
-      else if (in.string() == ">>=")
-      {
-        acc.parsed_sops.push_back(sop::rshift);
-      }
-    }
-  };
+
   template <>
   struct action<parse_cmp>
   {
@@ -324,8 +313,6 @@ namespace L3
       acc.parsed_items_u.pop_back();
     }
   };
-
-  // dest var
   template <>
   struct action<parse_call_callee_dest>
   {

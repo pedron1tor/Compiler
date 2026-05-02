@@ -38,7 +38,9 @@ namespace L3
     add,
     sub,
     mul,
-    and_
+    and_,
+    lshift,
+    rshift
   }; // += | -= | *= | &=
   enum class sop
   {

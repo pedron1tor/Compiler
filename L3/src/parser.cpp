@@ -247,6 +247,10 @@ namespace L3
       return "*=";
     case aop::and_:
       return "&=";
+    case aop::lshift:
+      return "<<";
+    case aop::rshift:
+      return ">>";
     }
     __builtin_unreachable();
   }
