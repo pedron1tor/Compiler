@@ -111,6 +111,13 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
           }
         } else if constexpr (std::is_same_v<T, LoadL3>) {
           new_function.instructions.push_back(MemRead{w{inst.dest}, w{inst.src}, 0});
+        } else if constexpr (std::is_same_v<T, Compare>) {
+          if (inst.op == cmp::gt)
+            new_function.instructions.push_back(Compare{inst.dest, inst.right, cmp::lt, inst.left});
+          else if (inst.op == cmp::gte)
+            new_function.instructions.push_back(Compare{inst.dest, inst.right, cmp::le, inst.left});
+          else
+            new_function.instructions.push_back(inst);
         } else if constexpr (std::is_same_v<T, Assign>) {
           // if the src contains a label, then check_map and rename label, else thread the same src
           if (std::holds_alternative<label>(inst.src)) {
