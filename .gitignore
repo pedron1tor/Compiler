@@ -1,3 +1,5 @@
 L1/out
 L2/out
 L3/out
+L3/obj/*
+L3/bin/*
