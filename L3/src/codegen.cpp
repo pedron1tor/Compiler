@@ -93,8 +93,21 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
           new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
           new_function.instructions.push_back(Return{});
         } else if constexpr (std::is_same_v<T, L3::AopL3>) {
-          new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
-          new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
+          bool right_is_dest = std::visit([&](auto &d) -> bool {
+            using DT = std::decay_t<decltype(d)>;
+            if constexpr (std::is_same_v<DT, var>)
+              return std::holds_alternative<var>(inst.right) && std::get<var>(inst.right).name == d.name;
+            else if constexpr (std::is_same_v<DT, r>)
+              return std::holds_alternative<r>(inst.right) && std::get<r>(inst.right) == d;
+            return false;
+          }, inst.dest);
+          if (right_is_dest) {
+            new_function.instructions.push_back(Assign{inst.dest, w_to_s(inst.dest)});
+            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.left});
+          } else {
+            new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
+            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
+          }
         } else if constexpr (std::is_same_v<T, L3::LabelInst>) {  // for all instructions that have labels or have a label in their variant, rename labels according to function scope
           new_function.instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
         } else if constexpr (std::is_same_v<T, L3::brlabel>) {
