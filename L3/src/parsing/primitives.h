@@ -105,6 +105,9 @@ namespace L3
   struct parse_lte : pegtl::string<'<', '='>
   {
   };
+  struct parse_gte : pegtl::string<'>', '='>
+  {
+  };
   struct parse_eq : pegtl::string<'='>
   {
   };
@@ -133,7 +136,7 @@ namespace L3
   struct parse_aop : pegtl::sor<parse_plus, parse_minus, parse_mult, parse_and, parse_rshift, parse_lshift>
   {
   };
-  struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq, parse_gt>
+  struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq, parse_gte, parse_gt>
   {
   };
   /*

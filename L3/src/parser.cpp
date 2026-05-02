@@ -277,6 +277,8 @@ namespace L3
       return "<=";
     case cmp::eq:
       return "=";
+    case cmp::gte:
+      return ">=";
     }
     __builtin_unreachable();
   }

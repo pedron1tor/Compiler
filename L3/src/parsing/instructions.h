@@ -212,6 +212,10 @@ namespace L3
       {
         acc.parsed_cmps.push_back(cmp::le);
       }
+      else if (in.string() == ">=")
+      {
+        acc.parsed_cmps.push_back(cmp::gte);
+      }
       else if (in.string() == "=")
       {
         acc.parsed_cmps.push_back(cmp::eq);

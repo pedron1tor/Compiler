@@ -52,6 +52,7 @@ namespace L3
     lt,
     gt,
     le,
+    gte,
     eq
   }; // < | <= | =
 
