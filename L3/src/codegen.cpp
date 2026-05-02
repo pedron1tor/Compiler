@@ -105,7 +105,7 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
           if (right_is_dest && inst.op == aop::sub) {
             // dest = left - right, but right == dest
             // generate a temporary variable... because the operation is non commutative
-            var tmp{"%__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
+            var tmp{"__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
             new_function.instructions.push_back(Assign{w{tmp}, t_to_s(inst.left)});
             new_function.instructions.push_back(AopInst{w{tmp}, inst.op, inst.right});
             new_function.instructions.push_back(Assign{inst.dest, s{tmp}});
