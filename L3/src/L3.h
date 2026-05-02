@@ -261,6 +261,11 @@ namespace L3
     var dest;
     t src;
   }; // store %var <- t
+  struct LoadL3
+  {
+    var dest;
+    var src;
+  }; // %dest <- load %src
   using i = std::variant<
       Assign, MemRead, MemWrite,
       AopInst, SopReg, SopNum,
@@ -270,7 +275,7 @@ namespace L3
       CallAllocate, CallTupleError, CallTensorError,
       Increment, Decrement, LoadAddr, StackArg,
       AopL3, CallL3, CallAssignL3,
-      StoreL3, brlabel, brtlabel>;
+      StoreL3, LoadL3, brlabel, brtlabel>;
 
   // fl2 ::= (l N N i+)
   struct f
