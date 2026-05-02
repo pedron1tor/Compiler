@@ -86,6 +86,7 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
   new_function.instructions.insert(new_function.instructions.end(), register_assigns.begin(), register_assigns.end());
 
   int call_counter = 0;
+  int temp_counter = 0;
   for (auto &instr : f.instructions) {
     std::visit([&](auto &inst) {
         using T = std::decay_t<decltype(inst)>;
@@ -101,7 +102,14 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
               return std::holds_alternative<r>(inst.right) && std::get<r>(inst.right) == d;
             return false;
           }, inst.dest);
-          if (right_is_dest) {
+          if (right_is_dest && inst.op == aop::sub) {
+            // dest = left - right, but right == dest
+            // generate a temporary variable... because the operation is non commutative
+            var tmp{"%__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
+            new_function.instructions.push_back(Assign{w{tmp}, t_to_s(inst.left)});
+            new_function.instructions.push_back(AopInst{w{tmp}, inst.op, inst.right});
+            new_function.instructions.push_back(Assign{inst.dest, s{tmp}});
+          } else if (right_is_dest) {
             new_function.instructions.push_back(Assign{inst.dest, w_to_s(inst.dest)});
             new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.left});
           } else {
