@@ -260,8 +260,8 @@ namespace L3
   struct StoreL3
   {
     var dest;
-    t src;
-  }; // store %var <- t
+    s src;
+  }; // store %var <- s
   struct LoadL3
   {
     var dest;

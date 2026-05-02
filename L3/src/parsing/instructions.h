@@ -118,11 +118,11 @@ namespace L3
   struct parse_load_l3 : pegtl::seq<parse_load_dest, parse_spaces, parse_arrow, parse_spaces, parse_load, parse_spaces, parse_load_src>
   {
   };
-  // store %var <- t
+  // store %var <- s
   struct parse_store_dest : parse_variable
   {
   };
-  struct parse_store_l3 : pegtl::seq<parse_store, parse_spaces, parse_store_dest, parse_spaces, parse_arrow, parse_spaces, parse_t>
+  struct parse_store_l3 : pegtl::seq<parse_store, parse_spaces, parse_store_dest, parse_spaces, parse_arrow, parse_spaces, parse_s>
   {
   };
   // w <- t aop t
@@ -469,8 +469,8 @@ namespace L3
     template <typename Input>
     static void apply(const Input &, GlobalAccumulator &acc)
     {
-      auto src = acc.parsed_items_t.back();
-      acc.parsed_items_t.pop_back();
+      auto src = acc.parsed_items.back();
+      acc.parsed_items.pop_back();
       auto dest = std::get<var>(acc.parsed_items_w.back());
       acc.parsed_items_w.pop_back();
       acc.program.functions.back().instructions.push_back(i{StoreL3{dest, src}});
