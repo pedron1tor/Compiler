@@ -49,13 +49,10 @@ namespace L3
           if constexpr (std::is_same_v<T, L3::ReturnT>) {
             new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
             new_function.instructions.push_back(Return{});
-          } 
-          // else if constexpr (std::is_same_v<T, L3::CallL3>) {
-          //   new_function.instructions.push_back();
-          // } else if constexpr (std::is_same_v<T, L3::CallAssignL3>) { 
-            
-          // }
-          else {
+          } else if constexpr (std::is_same_v<T, L3::AopL3>) {
+            new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
+            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
+          } else {
              new_function.instructions.push_back(inst);
           }; },
                  instr);

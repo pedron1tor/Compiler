@@ -226,6 +226,13 @@ namespace L3
     w dest;
     N num;
   }; // w <- stack-arg M
+  struct AopL3
+  {
+    w dest;
+    t left;
+    aop op;
+    t right;
+  }; // w <- t + t
   using callee_type = std::variant<u, CallPrint, CallInput, CallAllocate,
                                    CallTupleError, CallTensorError>;
   struct CallL3
@@ -255,7 +262,7 @@ namespace L3
       Return, ReturnT, Call, CallPrint, CallInput,
       CallAllocate, CallTupleError, CallTensorError,
       Increment, Decrement, LoadAddr, StackArg,
-      CallL3, CallAssignL3,
+      AopL3, CallL3, CallAssignL3,
       brlabel, brtlabel>;
 
   // fl2 ::= (l N N i+)
