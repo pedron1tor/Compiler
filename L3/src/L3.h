@@ -48,6 +48,7 @@ namespace L3
   enum class cmp
   {
     lt,
+    gt,
     le,
     eq
   }; // < | <= | =
@@ -188,6 +189,7 @@ namespace L3
     u callee;
     N num_args;
   };
+
   struct CallPrint
   {
   };
@@ -224,7 +226,27 @@ namespace L3
     w dest;
     N num;
   }; // w <- stack-arg M
-
+  using callee_type = std::variant<u, CallPrint, CallInput, CallAllocate,
+                                   CallTupleError, CallTensorError>;
+  struct CallL3
+  {
+    callee_type callee;
+    std::vector<t> args;
+  };
+  struct CallAssignL3
+  {
+    var dest;
+    CallL3 callexpr;
+  };
+  struct brlabel
+  {
+    l label;
+  };
+  struct brtlabel
+  {
+    t cond;
+    l label;
+  };
   using i = std::variant<
       Assign, MemRead, MemWrite,
       AopInst, SopReg, SopNum,
@@ -232,7 +254,8 @@ namespace L3
       Compare, Cjump, Goto, LabelInst,
       Return, ReturnT, Call, CallPrint, CallInput,
       CallAllocate, CallTupleError, CallTensorError,
-      Increment, Decrement, LoadAddr, StackArg>;
+      Increment, Decrement, LoadAddr, StackArg,
+      CallL3, CallAssignL3>;
 
   // fl2 ::= (l N N i+)
   struct f

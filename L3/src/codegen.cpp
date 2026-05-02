@@ -27,7 +27,7 @@ namespace L3
     // continue allocating on the stack if more than 6 args
     if (variables.size() > 6)
     {
-      // allocate stack space for the remaning variables
+      // TODO allocate stack space for the remaning variables
     }
     return allocating_instructions;
   };
@@ -49,7 +49,13 @@ namespace L3
           if constexpr (std::is_same_v<T, L3::ReturnT>) {
             new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
             new_function.instructions.push_back(Return{});
-          } else {
+          } 
+          // else if constexpr (std::is_same_v<T, L3::CallL3>) {
+          //   new_function.instructions.push_back();
+          // } else if constexpr (std::is_same_v<T, L3::CallAssignL3>) { 
+            
+          // }
+          else {
              new_function.instructions.push_back(inst);
           }; },
                  instr);

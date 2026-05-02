@@ -27,6 +27,8 @@ namespace L3
     std::vector<u> parsed_items_u;
     std::vector<w> parsed_items_w;
     std::vector<var> parsed_spill_args;
+    std::vector<callee_type> parsed_callee;
+    std::vector<t> parsed_call_args;
   };
 
   struct parse_number : pegtl::seq<pegtl::sor<
@@ -96,6 +98,9 @@ namespace L3
   struct parse_lt : pegtl::string<'<'>
   {
   };
+  struct parse_gt : pegtl::string<'>'>
+  {
+  };
   struct parse_lte : pegtl::string<'<', '='>
   {
   };
@@ -109,7 +114,7 @@ namespace L3
   struct parse_sop : pegtl::sor<parse_left_shift_assign, parse_right_shift_assign>
   {
   };
-  struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq>
+  struct parse_cmp : pegtl::sor<parse_lte, parse_lt, parse_eq, parse_gt>
   {
   };
   /*
