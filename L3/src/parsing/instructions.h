@@ -108,6 +108,13 @@ namespace L3
   struct parse_brtlabel_inst : pegtl::seq<parse_br, parse_spaces, parse_t, parse_spaces, parse_br_target>
   {
   };
+  // store %var <- t
+  struct parse_store_dest : parse_variable
+  {
+  };
+  struct parse_store_l3 : pegtl::seq<parse_store, parse_spaces, parse_store_dest, parse_spaces, parse_arrow, parse_spaces, parse_t>
+  {
+  };
   // w <- t aop t
   struct parse_arith_l3_op : parse_aop
   {
@@ -125,7 +132,7 @@ namespace L3
   };
 
   struct parse_instructions : pegtl::seq<parse_seps,
-                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assign_cmp, parse_arith_l3, parse_assignment>, parse_seps>>>
+                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assign_cmp, parse_arith_l3, parse_store_l3, parse_assignment>, parse_seps>>>
   {
   };
 
@@ -400,6 +407,28 @@ namespace L3
       auto dest = acc.parsed_items_w.back();
       acc.parsed_items_w.pop_back();
       acc.program.functions.back().instructions.push_back(i{AopL3{dest, left, op, right}});
+    }
+  };
+  template <>
+  struct action<parse_store_dest>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.parsed_items_w.push_back(w{var{remove_perc(in.string())}});
+    }
+  };
+  template <>
+  struct action<parse_store_l3>
+  {
+    template <typename Input>
+    static void apply(const Input &, GlobalAccumulator &acc)
+    {
+      auto src = acc.parsed_items_t.back();
+      acc.parsed_items_t.pop_back();
+      auto dest = std::get<var>(acc.parsed_items_w.back());
+      acc.parsed_items_w.pop_back();
+      acc.program.functions.back().instructions.push_back(i{StoreL3{dest, src}});
     }
   };
 } // namespace L3

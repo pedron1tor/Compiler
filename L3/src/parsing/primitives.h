@@ -173,6 +173,9 @@ namespace L3
   struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e'>, parse_nochar>
   {
   };
+  struct parse_store : pegtl::seq<pegtl::string<'s', 't', 'o', 'r', 'e'>, parse_nochar>
+  {
+  };
   struct parse_br : pegtl::seq<pegtl::string<'b', 'r'>, parse_nochar>
   {
   };
