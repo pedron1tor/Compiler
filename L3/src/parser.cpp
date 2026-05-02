@@ -267,6 +267,8 @@ namespace L3
     {
     case cmp::lt:
       return "<";
+    case cmp::gt:
+      return ">";
     case cmp::le:
       return "<=";
     case cmp::eq:
