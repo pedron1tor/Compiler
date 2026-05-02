@@ -25,10 +25,19 @@ namespace L3
       allocating_instructions.push_back(Assign{w{variables[reg_idx]}, w_to_s(arg_registers[reg_idx])});
     }
     // continue allocating on the stack if more than 6 args
+    int stack_arg_counter = 0;
     if (variables.size() > 6)
     {
-      // TODO allocate stack space for the remaning variables
-    }
+      for (int reg_idx = 6; reg_idx < variables.size(); reg_idx++)
+      {
+        // allocate stack space for the remaning variables
+        allocating_instructions.push_back(StackArg{w{
+                                                       variables[reg_idx]},
+                                                   N{stack_arg_counter}});
+        stack_arg_counter += 8;
+      };
+    };
+
     return allocating_instructions;
   };
   fl2 fl3_to_fl2(fl3 &f)
