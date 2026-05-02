@@ -9,7 +9,7 @@ s t_to_s(t &t_item) {
 s w_to_s(w &w_item) {
   return std::visit([](auto &v) -> s { return s{v}; }, w_item);
 }
-std::vector<i>
+std::vector<i> // this function when we first go into the scope of an l2 function.
 args_to_regs(std::vector<var> &variables) {
   // allocate the variables to the registers first, then if still remaining allocate stack space.
   std::vector<i> allocating_instructions;
@@ -30,6 +30,24 @@ args_to_regs(std::vector<var> &variables) {
 
   return allocating_instructions;
 };
+
+std::vector<i>
+regs_to_args(std::vector<t> &args) {
+  std::vector<i> instructions;
+  // allocate the variables to the registers first, then if still remaining allocate stack space.
+  for (int idx = 0; idx < (int)std::min(6UL, args.size()); idx++) {
+    instructions.push_back(Assign{w{arg_registers[idx]}, t_to_s(args[idx])});
+  }
+  // handle stack spilling for >6 args
+  if (args.size() > 6) {
+    for (int idx = 6; idx < (int)args.size(); idx++) {
+      // since the return label will be at -8, we have to make sure that the arguments get put at -16, and onwards...
+      instructions.push_back(MemWrite{w{r::rsp}, -8 - (int64_t)((idx - 6 + 1) * 8), t_to_s(args[idx])});
+    }
+  }
+  return instructions;
+}
+
 label check_map_and_rename_label(std::unordered_map<label, label> &map, label &lbl, int &global_counter) {
   auto it = map.find(lbl);
   label new_label = label{lbl.name + "_global_" + std::to_string(global_counter)};
@@ -40,13 +58,24 @@ label check_map_and_rename_label(std::unordered_map<label, label> &map, label &l
       return label{s};
     } else {
       map[lbl] = new_label;
+      return new_label;
     };
   } else {
     map[new_label] = new_label;
     return new_label;
   };
 };
-
+void emit_call(fl2 &new_function, callee_type &c, int64_t num_args) {
+  // if the callee variant is of type u, we have to rewrap it with a standard L2 call...
+  std::visit([&](auto &callee_val) {
+    using CT = std::decay_t<decltype(callee_val)>;
+    if constexpr (std::is_same_v<CT, u>)
+      new_function.instructions.push_back(Call{callee_val, N{num_args}});
+    else
+      new_function.instructions.push_back(callee_val);
+  },
+             c);
+};
 fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_counter) {
   fl2 new_function;
   new_function.name = f.name;
@@ -56,58 +85,65 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
   // append to the instructions of the function.
   new_function.instructions.insert(new_function.instructions.end(), register_assigns.begin(), register_assigns.end());
 
+  int call_counter = 0;
   for (auto &instr : f.instructions) {
     std::visit([&](auto &inst) {
-          using T = std::decay_t<decltype(inst)>;
-          if constexpr (std::is_same_v<T, L3::ReturnT>) {
-            new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
-            new_function.instructions.push_back(Return{});
-          } else if constexpr (std::is_same_v<T, L3::AopL3>) {
-            new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
-            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
-          } else if constexpr (std::is_same_v<T, L3::LabelInst>)
-          {
-            new_function.instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)}); 
-          } else if constexpr (std::is_same_v<T, L3::brlabel>){
-            new_function.instructions.push_back(Goto{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
+        using T = std::decay_t<decltype(inst)>;
+        if constexpr (std::is_same_v<T, L3::ReturnT>) {
+          new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
+          new_function.instructions.push_back(Return{});
+        } else if constexpr (std::is_same_v<T, L3::AopL3>) {
+          new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
+          new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
+        } else if constexpr (std::is_same_v<T, L3::LabelInst>) {  // for all instructions that have labels or have a label in their variant, rename labels according to function scope
+          new_function.instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
+        } else if constexpr (std::is_same_v<T, L3::brlabel>) {
+          new_function.instructions.push_back(Goto{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
+        } else if constexpr (std::is_same_v<T, brtlabel>) {
+          label renamed_lbl = check_map_and_rename_label(label_map, inst.lbl, lbl_counter);
+          new_function.instructions.push_back(Cjump{inst.cond, cmp::eq, t{N{1}}, renamed_lbl});
+        } else if constexpr (std::is_same_v<T, StoreL3>) { // if the src contains a label, then check_map and rename label, else thread the same src
+          if (std::holds_alternative<label>(inst.src)) {
+            label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
+            new_function.instructions.push_back(MemWrite{w{inst.dest}, 0, s{renamed}});
+          } else {
+            new_function.instructions.push_back(MemWrite{w{inst.dest}, 0, inst.src});
           }
-          else if constexpr (std::is_same_v<T, brtlabel>) {
-            // cjump cond = 1 lbl 
-            new_function.instructions.push_back(brtlabel{inst.cond, check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
-          } else if constexpr (std::is_same_v<T, StoreL3>) {    
-            MemWrite new_inst;                                                                                                                       
-      if (std::holds_alternative<label>(inst.src)) {      
-        // if store.src is a label, then check_map and rename label                                                                                                                   
-          label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);                                                                     
-          new_function.instructions.push_back(StoreL3{inst.dest, s{renamed}});                                                                                               
-           new_inst = MemWrite{inst.dest, 0, s{renamed}}; 
-      } else {                                                                                                                                                             
-          new_inst = MemWrite{inst.dest, 0, inst.src};                                                                                                                      
-      };   
-new_function.instructions.push_back(new_inst);    
-  }
-  else if constexpr (std::is_same_v<T, LoadL3>) {    
-            MemRead new_inst;                                                                                                                                                                                                                                   
-           new_inst = MemRead{inst.dest, inst.src, 0};                                                                                                                          
-new_function.instructions.push_back(new_inst);    
-  }
-  else if constexpr (std::is_same_v<T, Assign>) {        
-    // if assign.src is a label, then check_map and rename label                                                                                                                    
-      if (std::holds_alternative<label>(inst.src)) {
-          label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);                                                                     
-          new_function.instructions.push_back(Assign{inst.dest, s{renamed}});                                                                                                
-      } else {
-          new_function.instructions.push_back(inst);                                                                                                                         
-      }                                                                                                                                                                      
-  }
-            
+        } else if constexpr (std::is_same_v<T, LoadL3>) {
+          new_function.instructions.push_back(MemRead{w{inst.dest}, w{inst.src}, 0});
+        } else if constexpr (std::is_same_v<T, Assign>) {
+          // if the src contains a label, then check_map and rename label, else thread the same src
+          if (std::holds_alternative<label>(inst.src)) {
+            label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
+            new_function.instructions.push_back(Assign{inst.dest, s{renamed}});
+          }
           else {
-             new_function.instructions.push_back(inst);
-          }; },
+          new_function.instructions.push_back(inst);                                                                                                                         
+      } 
+        } else if constexpr (std::is_same_v<T, CallL3>) { // then, if we have function call in L3. pass the arguments to the registers, remaining arguments to stack
+          auto arg_insts = regs_to_args(inst.args);
+          new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
+          label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)}; // generate return label, and push to stack at -8 on top of rsp
+          new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+          emit_call(new_function, inst.callee, (int64_t)inst.args.size());
+          new_function.instructions.push_back(LabelInst{ret_label});
+        } else if constexpr (std::is_same_v<T, CallAssignL3>) {
+          auto arg_insts = regs_to_args(inst.callexpr.args);
+          new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
+          label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
+          new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+          emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
+          new_function.instructions.push_back(LabelInst{ret_label});
+          // same thing as above, just assign the result in rax to the dest...
+          new_function.instructions.push_back(Assign{w{inst.dest}, s{r::rax}});
+        }else {
+            new_function.instructions.push_back(inst);
+          } },
                instr);
-  };
+  }
   return new_function;
-};
+}
+
 pl2 pl3_to_pl2(pl3 &p) {
   std::string entry_point = p.functions[0].name.name;
   std::vector<fl2> function_list;
