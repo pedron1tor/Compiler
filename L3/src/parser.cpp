@@ -240,13 +240,13 @@ namespace L3
     switch (op)
     {
     case aop::add:
-      return "+=";
+      return "+";
     case aop::sub:
-      return "-=";
+      return "-";
     case aop::mul:
-      return "*=";
+      return "*";
     case aop::and_:
-      return "&=";
+      return "&";
     case aop::lshift:
       return "<<";
     case aop::rshift:
@@ -363,7 +363,7 @@ namespace L3
       else if constexpr (std::is_same_v<T, LoadAddr>)
         std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
       else if constexpr (std::is_same_v<T, AopL3>)
-        std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << aop_to_str(ins.op)[0] << " " << t_to_str(ins.right);
+        std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.right);
       else if constexpr (std::is_same_v<T, brlabel>)
         std::cout << "br " << ins.label.name;
       else if constexpr (std::is_same_v<T, brtlabel>)
