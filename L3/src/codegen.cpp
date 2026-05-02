@@ -71,7 +71,9 @@ void emit_call(fl2 &new_function, callee_type &c, int64_t num_args) {
     using CT = std::decay_t<decltype(callee_val)>;
     if constexpr (std::is_same_v<CT, u>)
       new_function.instructions.push_back(Call{callee_val, N{num_args}});
-    else
+    else if constexpr (std::is_same_v<CT, CallTensorError>) {
+      new_function.instructions.push_back(CallTensorError{num_args});
+    } else
       new_function.instructions.push_back(callee_val);
   },
              c);
