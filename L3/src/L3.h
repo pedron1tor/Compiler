@@ -255,7 +255,8 @@ namespace L3
       Return, ReturnT, Call, CallPrint, CallInput,
       CallAllocate, CallTupleError, CallTensorError,
       Increment, Decrement, LoadAddr, StackArg,
-      CallL3, CallAssignL3>;
+      CallL3, CallAssignL3,
+      brlabel, brtlabel>;
 
   // fl2 ::= (l N N i+)
   struct f

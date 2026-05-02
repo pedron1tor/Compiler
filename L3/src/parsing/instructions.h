@@ -159,8 +159,20 @@ namespace L3
   {
   };
 
+  // br :label
+  struct parse_br_target : parse_label
+  {
+  };
+  struct parse_brlabel_inst : pegtl::seq<parse_br, parse_spaces, parse_br_target>
+  {
+  };
+  // br t :label
+  struct parse_brtlabel_inst : pegtl::seq<parse_br, parse_spaces, parse_t, parse_spaces, parse_br_target>
+  {
+  };
+
   struct parse_instructions : pegtl::seq<parse_seps,
-                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label, parse_load_effective_addr, parse_stack_arg_inst>, parse_seps>>>
+                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_call_inst, parse_cond_jump, parse_label_inst, parse_memwrite_expression, parse_aop_expression, parse_sop_expression, parse_memread_expression, parse_assign_cmp, parse_assignment, parse_increment, parse_decrement, parse_mem_aop_read, parse_mem_aop_write, parse_goto_label, parse_load_effective_addr, parse_stack_arg_inst>, parse_seps>>>
   {
   };
 
@@ -630,6 +642,39 @@ namespace L3
       auto dest = std::get<var>(acc.parsed_items_w.back());
       acc.parsed_items_w.pop_back();
       acc.program.functions.back().instructions.push_back(i{CallAssignL3{dest, CallL3{callee, args}}});
+    }
+  };
+  template <>
+  struct action<parse_br_target>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.parsed_labels.push_back(label{in.string()});
+    }
+  };
+  template <>
+  struct action<parse_brlabel_inst>
+  {
+    template <typename Input>
+    static void apply(const Input &, GlobalAccumulator &acc)
+    {
+      auto lbl = acc.parsed_labels.back();
+      acc.parsed_labels.pop_back();
+      acc.program.functions.back().instructions.push_back(i{brlabel{l{lbl.name}}});
+    }
+  };
+  template <>
+  struct action<parse_brtlabel_inst>
+  {
+    template <typename Input>
+    static void apply(const Input &, GlobalAccumulator &acc)
+    {
+      auto lbl = acc.parsed_labels.back();
+      acc.parsed_labels.pop_back();
+      auto cond = acc.parsed_items_t.back();
+      acc.parsed_items_t.pop_back();
+      acc.program.functions.back().instructions.push_back(i{brtlabel{cond, l{lbl.name}}});
     }
   };
 } // namespace L3
