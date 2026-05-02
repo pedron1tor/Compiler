@@ -120,21 +120,32 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
           else {
           new_function.instructions.push_back(inst);                                                                                                                         
       } 
-        } else if constexpr (std::is_same_v<T, CallL3>) { // then, if we have function call in L3. pass the arguments to the registers, remaining arguments to stack
+        } else if constexpr (std::is_same_v<T, CallL3>) {
           auto arg_insts = regs_to_args(inst.args);
           new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
-          label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)}; // generate return label, and push to stack at -8 on top of rsp
-          new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-          emit_call(new_function, inst.callee, (int64_t)inst.args.size());
-          new_function.instructions.push_back(LabelInst{ret_label});
+          bool is_user_call = std::holds_alternative<u>(inst.callee);
+          if (is_user_call) {
+            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
+            new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+            emit_call(new_function, inst.callee, (int64_t)inst.args.size());
+            new_function.instructions.push_back(LabelInst{ret_label});
+          } else {
+            call_counter++;
+            emit_call(new_function, inst.callee, (int64_t)inst.args.size());
+          }
         } else if constexpr (std::is_same_v<T, CallAssignL3>) {
           auto arg_insts = regs_to_args(inst.callexpr.args);
           new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
-          label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-          new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-          emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
-          new_function.instructions.push_back(LabelInst{ret_label});
-          // same thing as above, just assign the result in rax to the dest...
+          bool is_user_call = std::holds_alternative<u>(inst.callexpr.callee);
+          if (is_user_call) {
+            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
+            new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+            emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
+            new_function.instructions.push_back(LabelInst{ret_label});
+          } else {
+            call_counter++;
+            emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
+          }
           new_function.instructions.push_back(Assign{w{inst.dest}, s{r::rax}});
         }else {
             new_function.instructions.push_back(inst);
