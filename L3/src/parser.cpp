@@ -277,6 +277,43 @@ namespace L3
     __builtin_unreachable();
   }
 
+  std::string callee_to_str(callee_type &callee)
+  {
+    return std::visit([](auto &c) -> std::string
+                      {
+      using C = std::decay_t<decltype(c)>;
+      if constexpr (std::is_same_v<C, CallPrint>) return "print";
+      else if constexpr (std::is_same_v<C, CallInput>) return "input";
+      else if constexpr (std::is_same_v<C, CallAllocate>) return "allocate";
+      else if constexpr (std::is_same_v<C, CallTupleError>) return "tuple-error";
+      else if constexpr (std::is_same_v<C, CallTensorError>) return "tensor-error";
+      else return std::visit([](auto &v) -> std::string {
+        using V = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<V, r>) return r_to_str(v);
+        else if constexpr (std::is_same_v<V, var>) return add_perc(v.name);
+        else return v.name;
+      }, c); }, callee);
+  }
+  std::string call_args_to_str(std::vector<t> &args)
+  {
+    std::string result = "(";
+    bool first = true;
+    for (auto &arg : args)
+    {
+      if (first)
+      {
+        first = false;
+      }
+      else
+      {
+        result += ", ";
+      }
+
+      result += t_to_str(arg);
+    }
+    return result + ")";
+  }
+
   void print_functionl3(fl3 &fn)
   {
     std::cout << "define " << fn.name.name;
@@ -311,56 +348,26 @@ namespace L3
         std::cout << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, AopInst>)
         std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
-      else if constexpr (std::is_same_v<T, SopReg>)
-        std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
-      else if constexpr (std::is_same_v<T, SopNum>)
-        std::cout << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << ins.shift.value;
       else if constexpr (std::is_same_v<T, LabelInst>)
         std::cout << ins.lbl.name;
-      else if constexpr (std::is_same_v<T, CallPrint>)
-        std::cout << "call print 1";
-      else if constexpr (std::is_same_v<T, CallInput>)
-        std::cout << "call input 0";
-      else if constexpr (std::is_same_v<T, CallAllocate>)
-        std::cout << "call allocate 2";
-      else if constexpr (std::is_same_v<T, CallTupleError>)
-        std::cout << "call tuple-error 3";
-      else if constexpr (std::is_same_v<T, Increment>)
-        std::cout << w_to_str(ins.reg) << "++";
-      else if constexpr (std::is_same_v<T, Decrement>)
-        std::cout << w_to_str(ins.reg) << "--";
-      else if constexpr (std::is_same_v<T, CallTensorError>)
-        std::cout << "call tensor-error " << ins.F;
+     
+    
       else if constexpr (std::is_same_v<T, Compare>)
         std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right);
-      else if constexpr (std::is_same_v<T, Cjump>)
-        std::cout << "cjump " << t_to_str(ins.left) << " " << cmp_to_str(ins.op) << " " << t_to_str(ins.right) << " " << ins.target.name;
-      else if constexpr (std::is_same_v<T, Goto>)
-        std::cout << "goto " << ins.target.name;
-      else if constexpr (std::is_same_v<T, MemRead>)
-        std::cout << w_to_str(ins.dest) << " <- mem " << w_to_str(ins.base) << " " << ins.offset;
-      else if constexpr (std::is_same_v<T, MemWrite>)
-        std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " <- " << s_to_str(ins.src);
-      else if constexpr (std::is_same_v<T, MemAopRead>)
-        std::cout << w_to_str(ins.dest) << " " << aop_to_str(ins.operation) << " mem " << w_to_str(ins.base) << " " << ins.offset;
-      else if constexpr (std::is_same_v<T, MemAopWrite>)
-        std::cout << "mem " << w_to_str(ins.base) << " " << ins.offset << " " << aop_to_str(ins.operation) << " " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, StackArg>)
         std::cout << w_to_str(ins.dest) << " <- " << "stack-arg " << std::to_string(ins.num.value);
-      else if constexpr (std::is_same_v<T, Call>)
-        std::cout << "call " << std::visit([&](auto &v) -> std::string {
-          using U = std::decay_t<decltype(v)>;
-          if constexpr (std::is_same_v<U, r>)
-            return r_to_str(v);
-          else if (std::is_same_v<U, var>)
-            return add_perc(v.name);
-          else
-            return v.name;
-        },
-                                           ins.callee)
-                  << " " << ins.num_args.value;
       else if constexpr (std::is_same_v<T, LoadAddr>)
-        std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale; },
+        std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
+      else if constexpr (std::is_same_v<T, AopL3>)
+        std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << aop_to_str(ins.op)[0] << " " << t_to_str(ins.right);
+      else if constexpr (std::is_same_v<T, brlabel>)
+        std::cout << "br " << ins.label.name;
+      else if constexpr (std::is_same_v<T, brtlabel>)
+        std::cout << "br " << t_to_str(ins.cond) << " " << ins.label.name;
+      else if constexpr (std::is_same_v<T, CallL3>)
+        std::cout << "call " << callee_to_str(ins.callee) << call_args_to_str(ins.args);
+      else if constexpr (std::is_same_v<T, CallAssignL3>)
+        std::cout << add_perc(ins.dest.name) << " <- call " << callee_to_str(ins.callexpr.callee) << call_args_to_str(ins.callexpr.args); },
                  instr);
       std::cout << "\n";
     }

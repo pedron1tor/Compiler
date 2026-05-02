@@ -89,6 +89,7 @@ namespace L3
   struct parse_and_assign : pegtl::string<'&', '='>
   {
   };
+
   struct parse_left_shift_assign : pegtl::string<'<', '<', '='>
   {
   };
@@ -107,8 +108,23 @@ namespace L3
   struct parse_eq : pegtl::string<'='>
   {
   };
-  struct parse_aop : pegtl::sor<parse_plus_assign, parse_minus_assign, parse_mult_assign,
-                                parse_and_assign>
+  struct parse_aop_assign : pegtl::sor<parse_plus_assign, parse_minus_assign, parse_mult_assign,
+                                       parse_and_assign>
+  {
+  };
+  struct parse_plus : pegtl::seq<pegtl::one<'+'>, pegtl::not_at<pegtl::one<'='>>>
+  {
+  };
+  struct parse_minus : pegtl::seq<pegtl::one<'-'>, pegtl::not_at<pegtl::one<'='>>>
+  {
+  };
+  struct parse_mult : pegtl::seq<pegtl::one<'*'>, pegtl::not_at<pegtl::one<'='>>>
+  {
+  };
+  struct parse_and : pegtl::seq<pegtl::one<'&'>, pegtl::not_at<pegtl::one<'='>>>
+  {
+  };
+  struct parse_aop : pegtl::sor<parse_plus, parse_minus, parse_mult, parse_and>
   {
   };
   struct parse_sop : pegtl::sor<parse_left_shift_assign, parse_right_shift_assign>
@@ -120,9 +136,6 @@ namespace L3
   /*
   keywords
   return
-  mem
-  goto
-  cjump
   call
   print
   input
@@ -134,15 +147,6 @@ namespace L3
   ,
   */
   struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar>
-  {
-  };
-  struct parse_mem : pegtl::seq<pegtl::string<'m', 'e', 'm'>, parse_nochar>
-  {
-  };
-  struct parse_goto : pegtl::seq<pegtl::string<'g', 'o', 't', 'o'>, parse_nochar>
-  {
-  };
-  struct parse_cjump : pegtl::seq<pegtl::string<'c', 'j', 'u', 'm', 'p'>, parse_nochar>
   {
   };
   struct parse_call : pegtl::seq<pegtl::string<'c', 'a', 'l', 'l'>, parse_nochar>
@@ -161,9 +165,6 @@ namespace L3
   {
   };
   struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar>
-  {
-  };
-  struct parse_stack_arg : pegtl::seq<pegtl::string<'s', 't', 'a', 'c', 'k', '-', 'a', 'r', 'g'>, parse_nochar>
   {
   };
   struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e'>, parse_nochar>
