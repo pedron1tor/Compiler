@@ -185,7 +185,7 @@ namespace L3
   struct parse_br : pegtl::seq<pegtl::string<'b', 'r'>, parse_nochar>
   {
   };
-  struct parse_comma : pegtl::seq<pegtl::one<','>, parse_nochar>
+  struct parse_comma : pegtl::one<','>
   {
   };
 
