@@ -42,7 +42,7 @@ regs_to_args(std::vector<t> &args) {
   if (args.size() > 6) {
     for (int idx = 6; idx < (int)args.size(); idx++) {
       // since the return label will be at -8, we have to make sure that the arguments get put at -16, and onwards...
-      instructions.push_back(MemWrite{w{r::rsp}, -8 - (int64_t)((idx - 6 + 1) * 8), t_to_s(args[idx])});
+      instructions.push_back(MemWrite{w{r::rsp}, -(int64_t)((args.size() - idx + 1) * 8), t_to_s(args[idx])});
     }
   }
   return instructions;
