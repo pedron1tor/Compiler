@@ -156,7 +156,7 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
 }
 
 pl2 pl3_to_pl2(pl3 &p) {
-  std::string entry_point = p.functions[0].name.name;
+  std::string entry_point = "@main";
   std::vector<fl2> function_list;
   int glob_lbl_counter = 0;
   // hash map, l3-labels -> l2-labels
