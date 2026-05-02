@@ -390,7 +390,7 @@ namespace L3
     {
       auto lbl = acc.parsed_labels.back();
       acc.parsed_labels.pop_back();
-      acc.program.functions.back().instructions.push_back(i{brlabel{l{lbl.name}}});
+      acc.program.functions.back().instructions.push_back(i{brlabel{lbl}});
     }
   };
   template <>
@@ -403,7 +403,7 @@ namespace L3
       acc.parsed_labels.pop_back();
       auto cond = acc.parsed_items_t.back();
       acc.parsed_items_t.pop_back();
-      acc.program.functions.back().instructions.push_back(i{brtlabel{cond, l{lbl.name}}});
+      acc.program.functions.back().instructions.push_back(i{brtlabel{cond, lbl}});
     }
   };
   template <>

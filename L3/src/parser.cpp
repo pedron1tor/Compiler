@@ -254,6 +254,25 @@ namespace L3
     }
     __builtin_unreachable();
   }
+  std::string aop_to_str_l2(aop op)
+  {
+    switch (op)
+    {
+    case aop::add:
+      return "+=";
+    case aop::sub:
+      return "-=";
+    case aop::mul:
+      return "*=";
+    case aop::and_:
+      return "&=";
+    case aop::lshift:
+      return "<<=";
+    case aop::rshift:
+      return ">>=";
+    }
+    __builtin_unreachable();
+  }
   std::string sop_to_str(sop op)
   {
     switch (op)
@@ -371,9 +390,9 @@ namespace L3
       else if constexpr (std::is_same_v<T, LoadL3>)
         std::cout << add_perc(ins.dest.name) << " <- load " << add_perc(ins.src.name);
       else if constexpr (std::is_same_v<T, brlabel>)
-        std::cout << "br " << ins.label.name;
+        std::cout << "br " << ins.lbl.name;
       else if constexpr (std::is_same_v<T, brtlabel>)
-        std::cout << "br " << t_to_str(ins.cond) << " " << ins.label.name;
+        std::cout << "br " << t_to_str(ins.cond) << " " << ins.lbl.name;
       else if constexpr (std::is_same_v<T, CallL3>)
         std::cout << "call " << callee_to_str(ins.callee) << call_args_to_str(ins.args);
       else if constexpr (std::is_same_v<T, CallAssignL3>)
@@ -400,7 +419,7 @@ namespace L3
       else if constexpr (std::is_same_v<T, Assign>)
         out << w_to_str(ins.dest) << " <- " << s_to_str(ins.src);
       else if constexpr (std::is_same_v<T, AopInst>)
-        out << w_to_str(ins.dest) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.src);
+        out << w_to_str(ins.dest) << " " << aop_to_str_l2(ins.op) << " " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, SopReg>)
         out << w_to_str(ins.dest) << " " << sop_to_str(ins.op) << " " << t_to_str(ins.shift);
       else if constexpr (std::is_same_v<T, SopNum>)

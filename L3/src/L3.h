@@ -67,6 +67,7 @@ namespace L3
   struct label
   {
     std::string name;
+    bool operator==(const label &other) const { return name == other.name; }
   }; // label = :name
 
   // since t, s, and u are all supersets of w, and sx by transitivity and these are the operators actually used in the instructions
@@ -250,12 +251,12 @@ namespace L3
   };
   struct brlabel
   {
-    l label;
+    label lbl;
   };
   struct brtlabel
   {
     t cond;
-    l label;
+    label lbl;
   };
   struct StoreL3
   {
@@ -367,4 +368,13 @@ namespace L3
       return false; },
                       val);
   };
+
 } // namespace L3
+template <>
+struct std::hash<L3::label>
+{
+  size_t operator()(const L3::label &l) const
+  {
+    return std::hash<std::string>{}(l.name);
+  }
+};
