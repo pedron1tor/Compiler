@@ -322,6 +322,7 @@ struct Leaf {
 };
 
 struct Inner;
+struct CallNode;
 
 using Tree = std::variant<Leaf, std::unique_ptr<Inner>,
                           std::unique_ptr<CallNode>>;
@@ -354,7 +355,7 @@ struct Inner {
 
 struct CallNode {
   std::optional<var> dest;
-  var callee;
+  callee_type callee;
   std::vector<var> args;
 };
 

@@ -96,91 +96,128 @@ std::vector<context> identify_contexts(std::vector<i> &instructions) {
                instr);
   };
 };
+Op toOp(aop operation) {
+  switch (operation) {
+  case aop::add:
+    return Op::Add;
+  case aop::sub:
+    return Op::Sub;
+  case aop::mul:
+    return Op::Mul;
+  case aop::and_:
+    return Op::And;
+  case aop::lshift:
+    return Op::Shl;
+  case aop::rshift:
+    return Op::Shr;
+  }
+}
 
-// helper functions to cut down on boiler plate in the transform_contexts_to_trees func
-auto makeInnerNode = [&](Op op, var dest = {},
-                         std::optional<Tree> left = std::nullopt,
-                         std::optional<Tree> right = std::nullopt, std::vector<Tree> tree_vector) {
-  auto node = std::make_unique<Inner>();
-  node->op = op;
-  node->dest = dest;
-  if (left)
-    node->left = std::move(*left);
-  if (right)
-    node->right = std::move(*right);
-  tree_vector.push_back(Tree{std::move(node)});
-};
-
-auto makeCallNode = [&](std::optional<var> dest, var callee, std::vector<var> args, std::vector<Tree> tree_vector) {
-  auto node = std::make_unique<CallNode>();
-  node->dest = dest;
-  node->callee = callee;
-  node->args = std::move(args);
-  tree_vector.push_back(Tree{std::move(node)});
-};
+Op toCmpOp(cmp operation) {
+  switch (operation) {
+  case cmp::lt:
+    return Op::Lt;
+  case cmp::gt:
+    return Op::Gt;
+  case cmp::le:
+    return Op::Le;
+  case cmp::gte:
+    return Op::Ge;
+  case cmp::eq:
+    return Op::Eq;
+  }
+}
 
 std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> &contexts) {
   std::vector<std::vector<Tree>> tree_contexts;
   for (context &context_obj : contexts) {
     std::vector<Tree> tree_vector;
-    for (auto &instr : context_obj.instructions) {
-      for (auto &instr : context_obj.instructions) {
-        std::visit([&](auto &inst) {
-          using T = std::decay_t<decltype(inst)>;
-
-          if constexpr (std::is_same_v<T, L3::Return>)
-            makeInnerNode(Op::Return);
-
-          else if constexpr (std::is_same_v<T, L3::ReturnT>)
-            makeInnerNode(Op::Return, {}, Tree{Leaf{t_to_str(inst.return_thing)}});
-
-          else if constexpr (std::is_same_v<T, L3::AopL3>)
-            makeInnerNode(toOp(inst.op), inst.dest, Tree{Leaf{inst.t1}}, Tree{Leaf{inst.t2}});
-
-          else if constexpr (std::is_same_v<T, L3::Compare>)
-            makeInnerNode(toCmpOp(inst.cmp), inst.dest, Tree{Leaf{inst.t1}}, Tree{Leaf{inst.t2}});
-
-          else if constexpr (std::is_same_v<T, L3::Assign>)
-            makeInnerNode(Op::Assign, inst.dest, Tree{Leaf{inst.src}});
-
-          else if constexpr (std::is_same_v<T, L3::LoadL3>)
-            makeInnerNode(Op::Load, inst.dest, Tree{Leaf{inst.addr}});
-
-          else if constexpr (std::is_same_v<T, L3::StoreL3>)
-            makeInnerNode(Op::Store, {}, Tree{Leaf{inst.addr}}, Tree{Leaf{inst.val}});
-
-          else if constexpr (std::is_same_v<T, L3::LabelInst>)
-            makeInnerNode(Op::Label, {}, Tree{Leaf{inst.lbl}});
-
-          else if constexpr (std::is_same_v<T, L3::brlabel>)
-            makeInnerNode(Op::Br, {}, Tree{Leaf{inst.lbl}});
-
-          else if constexpr (std::is_same_v<T, L3::brtlabel>)
-            makeInnerNode(Op::BrCond, {}, Tree{Leaf{inst.cond}}, Tree{Leaf{inst.label}});
-
-          else if constexpr (std::is_same_v<T, L3::CallL3>)
-            makeCall(std::nullopt, inst.callee, inst.args);
-
-          else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
-            makeCall(inst.dest, inst.callee, inst.args);
-        },
-                   instr);
-        tree_contexts.push_back(tree_vector);
-      };
+    // helper functions to reduce boilerplate
+    auto makeInnerNode = [&](Op op, var dest = {},
+                             std::optional<Tree> left = std::nullopt,
+                             std::optional<Tree> right = std::nullopt) {
+      auto node = std::make_unique<Inner>();
+      node->op = op;
+      node->dest = dest;
+      if (left)
+        node->left = std::move(*left);
+      if (right)
+        node->right = std::move(*right);
+      tree_vector.push_back(Tree{std::move(node)});
     };
-    return tree_contexts;
-  };
+    auto makeCallNode = [&](std::optional<var> dest, callee_type callee, std::vector<var> args) {
+      auto node = std::make_unique<CallNode>();
+      node->dest = dest;
+      node->callee = callee;
+      node->args = std::move(args);
+      tree_vector.push_back(Tree{std::move(node)});
+    };
 
-  std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> & tree_contexts){
-
-  };
-
-  std::vector<i> tiling(std::vector<std::vector<Tree>> & instructions, std::unordered_map<label, label> & label_map, int &lbl_counter) {
-    int call_counter = 0;
-    int temp_counter = 0;
-    std::vector<i> new_function_instructions;
-    for (auto &instr : instructions) {
+    for (auto &instr : context_obj.instructions) {
       std::visit([&](auto &inst) {
+        using T = std::decay_t<decltype(inst)>;
+
+        if constexpr (std::is_same_v<T, L3::Return>)
+          makeInnerNode(Op::Return);
+
+        else if constexpr (std::is_same_v<T, L3::ReturnT>)
+          makeInnerNode(Op::Return, {}, Tree{Leaf{var{t_to_str(inst.return_thing)}}});
+
+        else if constexpr (std::is_same_v<T, L3::AopL3>)
+          makeInnerNode(toOp(inst.op), std::get<var>(inst.dest), Tree{Leaf{var{t_to_str(inst.left)}}}, Tree{Leaf{var{t_to_str(inst.right)}}});
+
+        else if constexpr (std::is_same_v<T, L3::Compare>)
+          makeInnerNode(toCmpOp(inst.op), std::get<var>(inst.dest), Tree{Leaf{var{t_to_str(inst.left)}}}, Tree{Leaf{var{t_to_str(inst.right)}}});
+
+        else if constexpr (std::is_same_v<T, L3::Assign>)
+          makeInnerNode(Op::Assign, std::get<var>(inst.dest), Tree{Leaf{var{s_to_str(inst.src)}}});
+
+        else if constexpr (std::is_same_v<T, L3::LoadL3>)
+          makeInnerNode(Op::Load, inst.dest, Tree{Leaf{inst.src}});
+
+        else if constexpr (std::is_same_v<T, L3::StoreL3>)
+          makeInnerNode(Op::Store, {}, Tree{Leaf{inst.dest}}, Tree{Leaf{var{s_to_str(inst.src)}}});
+
+        else if constexpr (std::is_same_v<T, L3::LabelInst>)
+          makeInnerNode(Op::Label, {}, Tree{Leaf{var{inst.lbl.name}}});
+
+        else if constexpr (std::is_same_v<T, L3::brlabel>)
+          makeInnerNode(Op::Br, {}, Tree{Leaf{var{inst.lbl.name}}});
+
+        else if constexpr (std::is_same_v<T, L3::brtlabel>)
+          makeInnerNode(Op::BrCond, {}, Tree{Leaf{var{t_to_str(inst.cond)}}}, Tree{Leaf{var{inst.lbl.name}}});
+
+        else if constexpr (std::is_same_v<T, L3::CallL3>) {
+          std::vector<var> args_vars;
+          for (const auto &a : inst.args)
+            args_vars.push_back(var{t_to_str(a)});
+          makeCallNode(std::nullopt, inst.callee, std::move(args_vars));
+        }
+
+        else if constexpr (std::is_same_v<T, L3::CallAssignL3>) {
+          std::vector<var> args_vars;
+          for (const auto &a : inst.callexpr.args)
+            args_vars.push_back(var{t_to_str(a)});
+          makeCallNode(inst.dest, inst.callexpr.callee, std::move(args_vars));
+        }
+      },
+                 instr);
+    }
+    tree_contexts.push_back(tree_vector);
+  }
+  return tree_contexts;
+};
+
+std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_contexts) {
+
+};
+
+std::vector<i> tiling(std::vector<std::vector<Tree>> &instructions, std::unordered_map<label, label> &label_map, int &lbl_counter) {
+  int call_counter = 0;
+  int temp_counter = 0;
+  std::vector<i> new_function_instructions;
+  for (auto &instr : instructions) {
+    std::visit([&](auto &inst) {
         using T = std::decay_t<decltype(inst)>;
         if constexpr (std::is_same_v<T, L3::ReturnT>) {
           new_function_instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
@@ -270,56 +307,56 @@ std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> 
         }else {
             new_function_instructions.push_back(inst);
           } },
-                 instr);
-    }
-    return new_function_instructions;
-  };
-
-  fl2 fl3_to_fl2(fl3 & f, std::unordered_map<label, label> & label_map, int &lbl_counter) {
-    fl2 new_function;
-    new_function.name = f.name;
-    new_function.num_args = f.vars.size();
-    // assign a register for each of the parameters
-    std::vector<i> register_assigns = args_to_regs(f.vars);
-    // append to the instructions of the function.
-    new_function.instructions.insert(new_function.instructions.end(), register_assigns.begin(), register_assigns.end());
-    // identify contexts
-    std::vector<context> contexts = identify_contexts(f.instructions);
-    // tree generation
-    std::vector<std::vector<Tree>> tree_contexts = transform_contexts_to_trees(contexts);
-    // tree merging
-    std::vector<std::vector<Tree>> tree_contexts_merged = merge_trees(tree_contexts);
-    // tiling...
-    new_function.instructions = tiling(tree_contexts_merged, label_map, lbl_counter);
-    return new_function;
+               instr);
   }
+  return new_function_instructions;
+};
 
-  pl2 pl3_to_pl2(pl3 & p) {
-    std::string entry_point = "@main";
-    std::vector<fl2> function_list;
-    int glob_lbl_counter = 0;
-    // hash map, l3-labels -> l2-labels
-    std::unordered_map<label, label> label_map;
-    for (auto &fn : p.functions) {
-      function_list.push_back(fl3_to_fl2(fn, label_map, glob_lbl_counter));
-      glob_lbl_counter++;
-    }
-    return pl2{
-        entry_point, function_list};
-  };
-  void generate_code(pl3 & p) {
-    pl2 transformed_p;
-    transformed_p = pl3_to_pl2(p);
-    std::ofstream outputFile;
-    outputFile.open("prog.L2");
+fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_counter) {
+  fl2 new_function;
+  new_function.name = f.name;
+  new_function.num_args = f.vars.size();
+  // assign a register for each of the parameters
+  std::vector<i> register_assigns = args_to_regs(f.vars);
+  // append to the instructions of the function.
+  new_function.instructions.insert(new_function.instructions.end(), register_assigns.begin(), register_assigns.end());
+  // identify contexts
+  std::vector<context> contexts = identify_contexts(f.instructions);
+  // tree generation
+  std::vector<std::vector<Tree>> tree_contexts = transform_contexts_to_trees(contexts);
+  // tree merging
+  std::vector<std::vector<Tree>> tree_contexts_merged = merge_trees(tree_contexts);
+  // tiling...
+  new_function.instructions = tiling(tree_contexts_merged, label_map, lbl_counter);
+  return new_function;
+}
 
-    outputFile << "(" << transformed_p.entry_point.name << "\n";
-    // build the L2 code for each of the funtions inside of the ast/program
-    for (auto &fn : transformed_p.functions) {
-      print_functionl2(fn, true, &outputFile);
-    };
-    outputFile << ")\n";
-
-    outputFile.close();
+pl2 pl3_to_pl2(pl3 &p) {
+  std::string entry_point = "@main";
+  std::vector<fl2> function_list;
+  int glob_lbl_counter = 0;
+  // hash map, l3-labels -> l2-labels
+  std::unordered_map<label, label> label_map;
+  for (auto &fn : p.functions) {
+    function_list.push_back(fl3_to_fl2(fn, label_map, glob_lbl_counter));
+    glob_lbl_counter++;
   }
+  return pl2{
+      entry_point, function_list};
+};
+void generate_code(pl3 &p) {
+  pl2 transformed_p;
+  transformed_p = pl3_to_pl2(p);
+  std::ofstream outputFile;
+  outputFile.open("prog.L2");
+
+  outputFile << "(" << transformed_p.entry_point.name << "\n";
+  // build the L2 code for each of the funtions inside of the ast/program
+  for (auto &fn : transformed_p.functions) {
+    print_functionl2(fn, true, &outputFile);
+  };
+  outputFile << ")\n";
+
+  outputFile.close();
+}
 } // namespace L3
