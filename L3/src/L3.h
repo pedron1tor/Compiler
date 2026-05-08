@@ -347,7 +347,7 @@ enum class Op { Add,
 
 struct Inner {
   Op op;
-  var root;
+  var dest;
   Tree left;
   Tree right;
 };

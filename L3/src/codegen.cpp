@@ -65,36 +65,126 @@ label check_map_and_rename_label(std::unordered_map<label, label> &map, label &l
     return new_label;
   };
 };
-void emit_call(fl2 &new_function, callee_type &c, int64_t num_args) {
+void emit_call(std::vector<i> &new_function_instructions, callee_type &c, int64_t num_args) {
   // if the callee variant is of type u, we have to rewrap it with a standard L2 call...
   std::visit([&](auto &callee_val) {
     using CT = std::decay_t<decltype(callee_val)>;
     if constexpr (std::is_same_v<CT, u>)
-      new_function.instructions.push_back(Call{callee_val, N{num_args}});
+      new_function_instructions.push_back(Call{callee_val, N{num_args}});
     else if constexpr (std::is_same_v<CT, CallTensorError>) {
-      new_function.instructions.push_back(CallTensorError{num_args});
+      new_function_instructions.push_back(CallTensorError{num_args});
     } else
-      new_function.instructions.push_back(callee_val);
+      new_function_instructions.push_back(callee_val);
   },
              c);
 };
-fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_counter) {
-  fl2 new_function;
-  new_function.name = f.name;
-  new_function.num_args = f.vars.size();
-  // assign a register for each of the parameters
-  std::vector<i> register_assigns = args_to_regs(f.vars);
-  // append to the instructions of the function.
-  new_function.instructions.insert(new_function.instructions.end(), register_assigns.begin(), register_assigns.end());
 
-  int call_counter = 0;
-  int temp_counter = 0;
-  for (auto &instr : f.instructions) {
+std::vector<context> identify_contexts(std::vector<i> &instructions) {
+  std::vector<context> contexts;
+  context context_obj;
+  for (auto &instr : instructions) {
     std::visit([&](auto &inst) {
+      using T = std::decay_t<decltype(inst)>;
+      if constexpr (std::is_same_v<T, L3::ReturnT> || std::is_same_v<T, L3::CallL3> || std::is_same_v<T, L3::LabelInst> || std::is_same_v<T, L3::brlabel> || std::is_same_v<T, L3::brtlabel>) {
+        context_obj.instructions.push_back(inst);
+        contexts.push_back(context_obj);
+        context_obj.instructions.clear();
+      } else {
+        context_obj.instructions.push_back(inst);
+      };
+    },
+               instr);
+  };
+};
+
+// helper functions to cut down on boiler plate in the transform_contexts_to_trees func
+auto makeInnerNode = [&](Op op, var dest = {},
+                         std::optional<Tree> left = std::nullopt,
+                         std::optional<Tree> right = std::nullopt, std::vector<Tree> tree_vector) {
+  auto node = std::make_unique<Inner>();
+  node->op = op;
+  node->dest = dest;
+  if (left)
+    node->left = std::move(*left);
+  if (right)
+    node->right = std::move(*right);
+  tree_vector.push_back(Tree{std::move(node)});
+};
+
+auto makeCallNode = [&](std::optional<var> dest, var callee, std::vector<var> args, std::vector<Tree> tree_vector) {
+  auto node = std::make_unique<CallNode>();
+  node->dest = dest;
+  node->callee = callee;
+  node->args = std::move(args);
+  tree_vector.push_back(Tree{std::move(node)});
+};
+
+std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> &contexts) {
+  std::vector<std::vector<Tree>> tree_contexts;
+  for (context &context_obj : contexts) {
+    std::vector<Tree> tree_vector;
+    for (auto &instr : context_obj.instructions) {
+      for (auto &instr : context_obj.instructions) {
+        std::visit([&](auto &inst) {
+          using T = std::decay_t<decltype(inst)>;
+
+          if constexpr (std::is_same_v<T, L3::Return>)
+            makeInnerNode(Op::Return);
+
+          else if constexpr (std::is_same_v<T, L3::ReturnT>)
+            makeInnerNode(Op::Return, {}, Tree{Leaf{t_to_str(inst.return_thing)}});
+
+          else if constexpr (std::is_same_v<T, L3::AopL3>)
+            makeInnerNode(toOp(inst.op), inst.dest, Tree{Leaf{inst.t1}}, Tree{Leaf{inst.t2}});
+
+          else if constexpr (std::is_same_v<T, L3::Compare>)
+            makeInnerNode(toCmpOp(inst.cmp), inst.dest, Tree{Leaf{inst.t1}}, Tree{Leaf{inst.t2}});
+
+          else if constexpr (std::is_same_v<T, L3::Assign>)
+            makeInnerNode(Op::Assign, inst.dest, Tree{Leaf{inst.src}});
+
+          else if constexpr (std::is_same_v<T, L3::LoadL3>)
+            makeInnerNode(Op::Load, inst.dest, Tree{Leaf{inst.addr}});
+
+          else if constexpr (std::is_same_v<T, L3::StoreL3>)
+            makeInnerNode(Op::Store, {}, Tree{Leaf{inst.addr}}, Tree{Leaf{inst.val}});
+
+          else if constexpr (std::is_same_v<T, L3::LabelInst>)
+            makeInnerNode(Op::Label, {}, Tree{Leaf{inst.lbl}});
+
+          else if constexpr (std::is_same_v<T, L3::brlabel>)
+            makeInnerNode(Op::Br, {}, Tree{Leaf{inst.lbl}});
+
+          else if constexpr (std::is_same_v<T, L3::brtlabel>)
+            makeInnerNode(Op::BrCond, {}, Tree{Leaf{inst.cond}}, Tree{Leaf{inst.label}});
+
+          else if constexpr (std::is_same_v<T, L3::CallL3>)
+            makeCall(std::nullopt, inst.callee, inst.args);
+
+          else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
+            makeCall(inst.dest, inst.callee, inst.args);
+        },
+                   instr);
+        tree_contexts.push_back(tree_vector);
+      };
+    };
+    return tree_contexts;
+  };
+
+  std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> & tree_contexts){
+
+  };
+
+  std::vector<i> tiling(std::vector<std::vector<Tree>> & instructions, std::unordered_map<label, label> & label_map, int &lbl_counter) {
+    int call_counter = 0;
+    int temp_counter = 0;
+    std::vector<i> new_function_instructions;
+    for (auto &instr : instructions) {
+      std::visit([&](auto &inst) {
         using T = std::decay_t<decltype(inst)>;
         if constexpr (std::is_same_v<T, L3::ReturnT>) {
-          new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
-          new_function.instructions.push_back(Return{});
+          new_function_instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
+          new_function_instructions.push_back(Return{});
         } else if constexpr (std::is_same_v<T, L3::AopL3>) {
           bool right_is_dest = std::visit([&](auto &d) -> bool {
             using DT = std::decay_t<decltype(d)>;
@@ -108,109 +198,128 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
             // dest = left - right, but right == dest
             // generate a temporary variable... because the operation is non commutative
             var tmp{"__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
-            new_function.instructions.push_back(Assign{w{tmp}, t_to_s(inst.left)});
-            new_function.instructions.push_back(AopInst{w{tmp}, inst.op, inst.right});
-            new_function.instructions.push_back(Assign{inst.dest, s{tmp}});
+            new_function_instructions.push_back(Assign{w{tmp}, t_to_s(inst.left)});
+            new_function_instructions.push_back(AopInst{w{tmp}, inst.op, inst.right});
+            new_function_instructions.push_back(Assign{inst.dest, s{tmp}});
           } else if (right_is_dest) {
-            new_function.instructions.push_back(Assign{inst.dest, w_to_s(inst.dest)});
-            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.left});
+            new_function_instructions.push_back(Assign{inst.dest, w_to_s(inst.dest)});
+            new_function_instructions.push_back(AopInst{inst.dest, inst.op, inst.left});
           } else {
-            new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
-            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
+            new_function_instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
+            new_function_instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
           }
         } else if constexpr (std::is_same_v<T, L3::LabelInst>) {  // for all instructions that have labels or have a label in their variant, rename labels according to function scope
-          new_function.instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
+          new_function_instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
         } else if constexpr (std::is_same_v<T, L3::brlabel>) {
-          new_function.instructions.push_back(Goto{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
+          new_function_instructions.push_back(Goto{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
         } else if constexpr (std::is_same_v<T, brtlabel>) {
           label renamed_lbl = check_map_and_rename_label(label_map, inst.lbl, lbl_counter);
-          new_function.instructions.push_back(Cjump{inst.cond, cmp::eq, t{N{1}}, renamed_lbl});
+          new_function_instructions.push_back(Cjump{inst.cond, cmp::eq, t{N{1}}, renamed_lbl});
         } else if constexpr (std::is_same_v<T, StoreL3>) { // if the src contains a label, then check_map and rename label, else thread the same src
           if (std::holds_alternative<label>(inst.src)) {
             label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
-            new_function.instructions.push_back(MemWrite{w{inst.dest}, 0, s{renamed}});
+            new_function_instructions.push_back(MemWrite{w{inst.dest}, 0, s{renamed}});
           } else {
-            new_function.instructions.push_back(MemWrite{w{inst.dest}, 0, inst.src});
+            new_function_instructions.push_back(MemWrite{w{inst.dest}, 0, inst.src});
           }
         } else if constexpr (std::is_same_v<T, LoadL3>) {
-          new_function.instructions.push_back(MemRead{w{inst.dest}, w{inst.src}, 0});
+          new_function_instructions.push_back(MemRead{w{inst.dest}, w{inst.src}, 0});
         } else if constexpr (std::is_same_v<T, Compare>) {
           if (inst.op == cmp::gt)
-            new_function.instructions.push_back(Compare{inst.dest, inst.right, cmp::lt, inst.left});
+            new_function_instructions.push_back(Compare{inst.dest, inst.right, cmp::lt, inst.left});
           else if (inst.op == cmp::gte)
-            new_function.instructions.push_back(Compare{inst.dest, inst.right, cmp::le, inst.left});
+            new_function_instructions.push_back(Compare{inst.dest, inst.right, cmp::le, inst.left});
           else
-            new_function.instructions.push_back(inst);
+            new_function_instructions.push_back(inst);
         } else if constexpr (std::is_same_v<T, Assign>) {
           // if the src contains a label, then check_map and rename label, else thread the same src
           if (std::holds_alternative<label>(inst.src)) {
             label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
-            new_function.instructions.push_back(Assign{inst.dest, s{renamed}});
+            new_function_instructions.push_back(Assign{inst.dest, s{renamed}});
           }
           else {
-          new_function.instructions.push_back(inst);                                                                                                                         
+          new_function_instructions.push_back(inst);                                                                                                                         
       } 
         } else if constexpr (std::is_same_v<T, CallL3>) {
           auto arg_insts = regs_to_args(inst.args);
-          new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
+          new_function_instructions.insert(new_function_instructions.end(), arg_insts.begin(), arg_insts.end());
           bool is_user_call = std::holds_alternative<u>(inst.callee);
           if (is_user_call) {
             label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-            new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-            emit_call(new_function, inst.callee, (int64_t)inst.args.size());
-            new_function.instructions.push_back(LabelInst{ret_label});
+            new_function_instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+            emit_call(new_function_instructions, inst.callee, (int64_t)inst.args.size());
+            new_function_instructions.push_back(LabelInst{ret_label});
           } else {
             call_counter++;
-            emit_call(new_function, inst.callee, (int64_t)inst.args.size());
+            emit_call(new_function_instructions, inst.callee, (int64_t)inst.args.size());
           }
         } else if constexpr (std::is_same_v<T, CallAssignL3>) {
           auto arg_insts = regs_to_args(inst.callexpr.args);
-          new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
+          new_function_instructions.insert(new_function_instructions.end(), arg_insts.begin(), arg_insts.end());
           bool is_user_call = std::holds_alternative<u>(inst.callexpr.callee);
           if (is_user_call) {
             label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-            new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-            emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
-            new_function.instructions.push_back(LabelInst{ret_label});
+            new_function_instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+            emit_call(new_function_instructions, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
+            new_function_instructions.push_back(LabelInst{ret_label});
           } else {
             call_counter++;
-            emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
+            emit_call(new_function_instructions, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
           }
-          new_function.instructions.push_back(Assign{w{inst.dest}, s{r::rax}});
+          new_function_instructions.push_back(Assign{w{inst.dest}, s{r::rax}});
         }else {
-            new_function.instructions.push_back(inst);
+            new_function_instructions.push_back(inst);
           } },
-               instr);
-  }
-  return new_function;
-}
-
-pl2 pl3_to_pl2(pl3 &p) {
-  std::string entry_point = "@main";
-  std::vector<fl2> function_list;
-  int glob_lbl_counter = 0;
-  // hash map, l3-labels -> l2-labels
-  std::unordered_map<label, label> label_map;
-  for (auto &fn : p.functions) {
-    function_list.push_back(fl3_to_fl2(fn, label_map, glob_lbl_counter));
-    glob_lbl_counter++;
-  }
-  return pl2{
-      entry_point, function_list};
-};
-void generate_code(pl3 &p) {
-  pl2 transformed_p;
-  transformed_p = pl3_to_pl2(p);
-  std::ofstream outputFile;
-  outputFile.open("prog.L2");
-
-  outputFile << "(" << transformed_p.entry_point.name << "\n";
-  // build the L2 code for each of the funtions inside of the ast/program
-  for (auto &fn : transformed_p.functions) {
-    print_functionl2(fn, true, &outputFile);
+                 instr);
+    }
+    return new_function_instructions;
   };
-  outputFile << ")\n";
 
-  outputFile.close();
-}
+  fl2 fl3_to_fl2(fl3 & f, std::unordered_map<label, label> & label_map, int &lbl_counter) {
+    fl2 new_function;
+    new_function.name = f.name;
+    new_function.num_args = f.vars.size();
+    // assign a register for each of the parameters
+    std::vector<i> register_assigns = args_to_regs(f.vars);
+    // append to the instructions of the function.
+    new_function.instructions.insert(new_function.instructions.end(), register_assigns.begin(), register_assigns.end());
+    // identify contexts
+    std::vector<context> contexts = identify_contexts(f.instructions);
+    // tree generation
+    std::vector<std::vector<Tree>> tree_contexts = transform_contexts_to_trees(contexts);
+    // tree merging
+    std::vector<std::vector<Tree>> tree_contexts_merged = merge_trees(tree_contexts);
+    // tiling...
+    new_function.instructions = tiling(tree_contexts_merged, label_map, lbl_counter);
+    return new_function;
+  }
+
+  pl2 pl3_to_pl2(pl3 & p) {
+    std::string entry_point = "@main";
+    std::vector<fl2> function_list;
+    int glob_lbl_counter = 0;
+    // hash map, l3-labels -> l2-labels
+    std::unordered_map<label, label> label_map;
+    for (auto &fn : p.functions) {
+      function_list.push_back(fl3_to_fl2(fn, label_map, glob_lbl_counter));
+      glob_lbl_counter++;
+    }
+    return pl2{
+        entry_point, function_list};
+  };
+  void generate_code(pl3 & p) {
+    pl2 transformed_p;
+    transformed_p = pl3_to_pl2(p);
+    std::ofstream outputFile;
+    outputFile.open("prog.L2");
+
+    outputFile << "(" << transformed_p.entry_point.name << "\n";
+    // build the L2 code for each of the funtions inside of the ast/program
+    for (auto &fn : transformed_p.functions) {
+      print_functionl2(fn, true, &outputFile);
+    };
+    outputFile << ")\n";
+
+    outputFile.close();
+  }
 } // namespace L3
