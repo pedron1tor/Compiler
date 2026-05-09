@@ -86,7 +86,7 @@ std::vector<context> identify_contexts(std::vector<i> &instructions) {
   for (auto &instr : instructions) {
     std::visit([&](auto &inst) {
       using T = std::decay_t<decltype(inst)>;
-      if constexpr (std::is_same_v<T, L3::ReturnT> || std::is_same_v<T, L3::CallL3> || std::is_same_v<T, L3::LabelInst> || std::is_same_v<T, L3::brlabel> || std::is_same_v<T, L3::brtlabel>) {
+      if constexpr (std::is_same_v<T, L3::Return> || std::is_same_v<T, L3::ReturnT> || std::is_same_v<T, L3::CallL3> || std::is_same_v<T, L3::LabelInst> || std::is_same_v<T, L3::brlabel> || std::is_same_v<T, L3::brtlabel>) {
         context_obj.instructions.push_back(inst);
         contexts.push_back(context_obj);
         context_obj.instructions.clear();
@@ -96,6 +96,8 @@ std::vector<context> identify_contexts(std::vector<i> &instructions) {
     },
                instr);
   };
+  if (!context_obj.instructions.empty())
+    contexts.push_back(std::move(context_obj));
   return contexts;
 };
 Op toOp(aop operation) {
@@ -440,7 +442,8 @@ fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_cou
   // tree merging
   std::vector<std::vector<Tree>> tree_contexts_merged = merge_trees(tree_contexts);
   // tiling...
-  new_function.instructions = tiling(tree_contexts_merged, label_map, lbl_counter);
+  std::vector<i> tiled = tiling(tree_contexts_merged, label_map, lbl_counter);
+  new_function.instructions.insert(new_function.instructions.end(), tiled.begin(), tiled.end());
   return new_function;
 }
 
