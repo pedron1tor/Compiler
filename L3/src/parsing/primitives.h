@@ -147,20 +147,20 @@ struct parse_br : pegtl::seq<pegtl::string<'b', 'r'>, parse_nochar> {
 struct parse_comma : pegtl::one<','> {
 };
 
-std::string remove_perc(std::string str) {
+inline std::string remove_perc(std::string str) {
   return str.substr(1);
 }
-std::string add_perc(std::string str) {
+inline std::string add_perc(std::string str) {
   return '%' + str;
 }
 // to/translation functions
-s t_to_s(t &t_item) {
+inline s t_to_s(t &t_item) {
   return std::visit([](auto &v) -> s { return s{v}; }, t_item);
 }
-s w_to_s(w &w_item) {
+inline s w_to_s(w &w_item) {
   return std::visit([](auto &v) -> s { return s{v}; }, w_item);
 }
-Op toOp(aop operation) {
+inline Op toOp(aop operation) {
   switch (operation) {
   case aop::add:
     return Op::Add;
@@ -177,7 +177,7 @@ Op toOp(aop operation) {
   }
 }
 
-Op toCmpOp(cmp operation) {
+inline Op toCmpOp(cmp operation) {
   switch (operation) {
   case cmp::lt:
     return Op::Lt;
@@ -192,7 +192,7 @@ Op toCmpOp(cmp operation) {
   }
 }
 
-t s_to_t(const s &sv) {
+inline t s_to_t(const s &sv) {
   return std::visit([](auto &x) -> t {
     using X = std::decay_t<decltype(x)>;
     if constexpr (std::is_same_v<X, r>)
@@ -208,7 +208,7 @@ t s_to_t(const s &sv) {
                     sv);
 }
 
-w s_to_w(const s &sv) {
+inline w s_to_w(const s &sv) {
   return std::visit([](auto &x) -> w {
     using X = std::decay_t<decltype(x)>;
     if constexpr (std::is_same_v<X, r>)
@@ -222,7 +222,7 @@ w s_to_w(const s &sv) {
                     sv);
 }
 
-aop op_to_aop(Op op) {
+inline aop op_to_aop(Op op) {
   switch (op) {
   case Op::Add:
     return aop::add;
@@ -241,7 +241,7 @@ aop op_to_aop(Op op) {
   }
 }
 
-std::string
+inline std::string
 r_to_str(r reg) {
   switch (reg) {
   case r::rax:
@@ -279,7 +279,7 @@ r_to_str(r reg) {
   }
   __builtin_unreachable();
 };
-std::string t_to_str(t val) {
+inline std::string t_to_str(t val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
@@ -290,7 +290,7 @@ std::string t_to_str(t val) {
       return std::to_string(v.value); },
                     val);
 }
-std::string s_to_str(s val) {
+inline std::string s_to_str(s val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
@@ -303,7 +303,7 @@ std::string s_to_str(s val) {
       return v.name; },
                     val);
 }
-std::string w_to_str(w val) {
+inline std::string w_to_str(w val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, r>)
@@ -314,7 +314,7 @@ std::string w_to_str(w val) {
       return v.name; },
                     val);
 }
-std::string aop_to_str(aop op) {
+inline std::string aop_to_str(aop op) {
   switch (op) {
   case aop::add:
     return "+";
@@ -331,7 +331,7 @@ std::string aop_to_str(aop op) {
   }
   __builtin_unreachable();
 }
-std::string aop_to_str_l2(aop op) {
+inline std::string aop_to_str_l2(aop op) {
   switch (op) {
   case aop::add:
     return "+=";
@@ -348,7 +348,7 @@ std::string aop_to_str_l2(aop op) {
   }
   __builtin_unreachable();
 }
-std::string sop_to_str(sop op) {
+inline std::string sop_to_str(sop op) {
   switch (op) {
   case sop::lshift:
     return "<<=";
@@ -357,7 +357,7 @@ std::string sop_to_str(sop op) {
   }
   __builtin_unreachable();
 }
-std::string cmp_to_str(cmp op) {
+inline std::string cmp_to_str(cmp op) {
   switch (op) {
   case cmp::lt:
     return "<";
@@ -373,7 +373,7 @@ std::string cmp_to_str(cmp op) {
   __builtin_unreachable();
 }
 
-std::string callee_to_str(callee_type &callee) {
+inline std::string callee_to_str(callee_type &callee) {
   return std::visit([](auto &c) -> std::string {
       using C = std::decay_t<decltype(c)>;
       if constexpr (std::is_same_v<C, CallPrint>) return "print";
@@ -388,7 +388,7 @@ std::string callee_to_str(callee_type &callee) {
         else return v.name;
       }, c); }, callee);
 }
-std::string call_args_to_str(std::vector<t> &args) {
+inline std::string call_args_to_str(std::vector<t> &args) {
   std::string result = "(";
   bool first = true;
   for (auto &arg : args) {
