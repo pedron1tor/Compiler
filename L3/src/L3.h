@@ -5,9 +5,7 @@
 #include <vector>
 
 namespace L3 {
-struct context {
-  std::vector<i> instructions;
-};
+
 // w, a, sx, x :: =
 enum class r {
   rax,
@@ -317,8 +315,11 @@ bool is_real_var(const V &val) {
       return false; },
                     val);
 };
+struct context {
+  std::vector<i> instructions;
+};
 struct Leaf {
-  var value;
+  s value;
 };
 
 struct Inner;
@@ -356,7 +357,7 @@ struct Inner {
 struct CallNode {
   std::optional<var> dest;
   callee_type callee;
-  std::vector<var> args;
+  std::vector<s> args;
 };
 
 } // namespace L3
@@ -366,3 +367,10 @@ struct std::hash<L3::label> {
     return std::hash<std::string>{}(l.name);
   }
 };
+
+template <class... Ts>
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;

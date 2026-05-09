@@ -2,6 +2,7 @@
 #include "parser.h"
 #include <fstream>
 #include <unordered_map>
+
 namespace L3 {
 s t_to_s(t &t_item) {
   return std::visit([](auto &v) -> s { return s{v}; }, t_item);
@@ -95,6 +96,7 @@ std::vector<context> identify_contexts(std::vector<i> &instructions) {
     },
                instr);
   };
+  return contexts;
 };
 Op toOp(aop operation) {
   switch (operation) {
@@ -145,7 +147,7 @@ std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> 
         node->right = std::move(*right);
       tree_vector.push_back(Tree{std::move(node)});
     };
-    auto makeCallNode = [&](std::optional<var> dest, callee_type callee, std::vector<var> args) {
+    auto makeCallNode = [&](std::optional<var> dest, callee_type callee, std::vector<s> args) {
       auto node = std::make_unique<CallNode>();
       node->dest = dest;
       node->callee = callee;
@@ -161,155 +163,266 @@ std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> 
           makeInnerNode(Op::Return);
 
         else if constexpr (std::is_same_v<T, L3::ReturnT>)
-          makeInnerNode(Op::Return, {}, Tree{Leaf{var{t_to_str(inst.return_thing)}}});
+          makeInnerNode(Op::Return, {}, Tree{Leaf{t_to_s(inst.return_thing)}});
 
         else if constexpr (std::is_same_v<T, L3::AopL3>)
-          makeInnerNode(toOp(inst.op), std::get<var>(inst.dest), Tree{Leaf{var{t_to_str(inst.left)}}}, Tree{Leaf{var{t_to_str(inst.right)}}});
+          makeInnerNode(toOp(inst.op), std::get<var>(inst.dest), Tree{Leaf{t_to_s(inst.left)}}, Tree{Leaf{t_to_s(inst.right)}});
 
         else if constexpr (std::is_same_v<T, L3::Compare>)
-          makeInnerNode(toCmpOp(inst.op), std::get<var>(inst.dest), Tree{Leaf{var{t_to_str(inst.left)}}}, Tree{Leaf{var{t_to_str(inst.right)}}});
+          makeInnerNode(toCmpOp(inst.op), std::get<var>(inst.dest), Tree{Leaf{t_to_s(inst.left)}}, Tree{Leaf{t_to_s(inst.right)}});
 
         else if constexpr (std::is_same_v<T, L3::Assign>)
-          makeInnerNode(Op::Assign, std::get<var>(inst.dest), Tree{Leaf{var{s_to_str(inst.src)}}});
+          makeInnerNode(Op::Assign, std::get<var>(inst.dest), Tree{Leaf{inst.src}});
 
         else if constexpr (std::is_same_v<T, L3::LoadL3>)
           makeInnerNode(Op::Load, inst.dest, Tree{Leaf{inst.src}});
 
         else if constexpr (std::is_same_v<T, L3::StoreL3>)
-          makeInnerNode(Op::Store, {}, Tree{Leaf{inst.dest}}, Tree{Leaf{var{s_to_str(inst.src)}}});
+          makeInnerNode(Op::Store, {}, Tree{Leaf{inst.dest}}, Tree{Leaf{inst.src}});
 
         else if constexpr (std::is_same_v<T, L3::LabelInst>)
-          makeInnerNode(Op::Label, {}, Tree{Leaf{var{inst.lbl.name}}});
+          makeInnerNode(Op::Label, {}, Tree{Leaf{s{inst.lbl}}});
 
         else if constexpr (std::is_same_v<T, L3::brlabel>)
-          makeInnerNode(Op::Br, {}, Tree{Leaf{var{inst.lbl.name}}});
+          makeInnerNode(Op::Br, {}, Tree{Leaf{s{inst.lbl}}});
 
         else if constexpr (std::is_same_v<T, L3::brtlabel>)
-          makeInnerNode(Op::BrCond, {}, Tree{Leaf{var{t_to_str(inst.cond)}}}, Tree{Leaf{var{inst.lbl.name}}});
+          makeInnerNode(Op::BrCond, {}, Tree{Leaf{t_to_s(inst.cond)}}, Tree{Leaf{s{inst.lbl}}});
 
         else if constexpr (std::is_same_v<T, L3::CallL3>) {
-          std::vector<var> args_vars;
-          for (const auto &a : inst.args)
-            args_vars.push_back(var{t_to_str(a)});
+          std::vector<s> args_vars;
+          for (auto &a : inst.args)
+            args_vars.push_back(t_to_s(a));
           makeCallNode(std::nullopt, inst.callee, std::move(args_vars));
         }
 
         else if constexpr (std::is_same_v<T, L3::CallAssignL3>) {
-          std::vector<var> args_vars;
-          for (const auto &a : inst.callexpr.args)
-            args_vars.push_back(var{t_to_str(a)});
+          std::vector<s> args_vars;
+          for (auto &a : inst.callexpr.args)
+            args_vars.push_back(t_to_s(a));
           makeCallNode(inst.dest, inst.callexpr.callee, std::move(args_vars));
         }
       },
                  instr);
     }
-    tree_contexts.push_back(tree_vector);
+    tree_contexts.push_back(std::move(tree_vector));
   }
   return tree_contexts;
 };
 
 std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_contexts) {
-
+  return std::move(tree_contexts);
 };
 
-std::vector<i> tiling(std::vector<std::vector<Tree>> &instructions, std::unordered_map<label, label> &label_map, int &lbl_counter) {
+t s_to_t(const s &sv) {
+  return std::visit([](auto &x) -> t {
+    using X = std::decay_t<decltype(x)>;
+    if constexpr (std::is_same_v<X, r>)
+      return t{x};
+    else if constexpr (std::is_same_v<X, N>)
+      return t{x};
+    else if constexpr (std::is_same_v<X, var>)
+      return t{x};
+    else {
+      __builtin_unreachable();
+    }
+  },
+                    sv);
+}
+
+w s_to_w(const s &sv) {
+  return std::visit([](auto &x) -> w {
+    using X = std::decay_t<decltype(x)>;
+    if constexpr (std::is_same_v<X, r>)
+      return w{x};
+    else if constexpr (std::is_same_v<X, var>)
+      return w{x};
+    else {
+      __builtin_unreachable();
+    }
+  },
+                    sv);
+}
+
+aop op_to_aop(Op op) {
+  switch (op) {
+  case Op::Add:
+    return aop::add;
+  case Op::Sub:
+    return aop::sub;
+  case Op::Mul:
+    return aop::mul;
+  case Op::And:
+    return aop::and_;
+  case Op::Shl:
+    return aop::lshift;
+  case Op::Shr:
+    return aop::rshift;
+  default:
+    __builtin_unreachable();
+  }
+}
+
+s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter,
+            std::unordered_map<label, label> &label_map, int &call_counter) {
+
+  return std::visit(overloaded{
+
+                        [](Leaf &l) -> s {
+                          return l.value;
+                        },
+
+                        [&](std::unique_ptr<Inner> &node) -> s {
+                          switch (node->op) {
+
+                          case Op::Assign: {
+                            s src = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            if (std::holds_alternative<label>(src))
+                              src = s{check_map_and_rename_label(label_map, std::get<label>(src), lbl_counter)};
+                            out.push_back(Assign{w{node->dest}, src});
+                            return s{node->dest};
+                          }
+
+                          case Op::Load: {
+                            s base = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            out.push_back(MemRead{w{node->dest}, s_to_w(base), 0});
+                            return s{node->dest};
+                          }
+
+                          case Op::Store: {
+                            s addr = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            s val = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
+                            if (std::holds_alternative<label>(val)) {
+                              label renamed = check_map_and_rename_label(label_map, std::get<label>(val), lbl_counter);
+                              out.push_back(MemWrite{s_to_w(addr), 0, s{renamed}});
+                            } else {
+                              out.push_back(MemWrite{s_to_w(addr), 0, val});
+                            }
+                            return s{var{}};
+                          }
+
+                          case Op::Add:
+                          case Op::Sub:
+                          case Op::Mul:
+                          case Op::And:
+                          case Op::Shl:
+                          case Op::Shr: {
+                            aop aop_val = op_to_aop(node->op);
+                            s lv = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            s rv = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
+                            bool right_is_dest = std::holds_alternative<var>(rv) &&
+                                                 std::get<var>(rv).name == node->dest.name;
+                            if (right_is_dest && aop_val == aop::sub) {
+                              var tmp{"__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
+                              out.push_back(Assign{w{tmp}, lv});
+                              out.push_back(AopInst{w{tmp}, aop_val, s_to_t(rv)});
+                              out.push_back(Assign{w{node->dest}, s{tmp}});
+                            } else if (right_is_dest) {
+                              out.push_back(Assign{w{node->dest}, rv});
+                              out.push_back(AopInst{w{node->dest}, aop_val, s_to_t(lv)});
+                            } else {
+                              out.push_back(Assign{w{node->dest}, lv});
+                              out.push_back(AopInst{w{node->dest}, aop_val, s_to_t(rv)});
+                            }
+                            return s{node->dest};
+                          }
+
+                          case Op::Lt:
+                          case Op::Le:
+                          case Op::Eq: {
+                            s lv = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            s rv = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
+                            cmp op_val = (node->op == Op::Lt) ? cmp::lt : (node->op == Op::Le) ? cmp::le
+                                                                                               : cmp::eq;
+                            out.push_back(Compare{w{node->dest}, s_to_t(lv), op_val, s_to_t(rv)});
+                            return s{node->dest};
+                          }
+
+                          case Op::Gt: {
+                            s lv = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            s rv = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
+                            out.push_back(Compare{w{node->dest}, s_to_t(rv), cmp::lt, s_to_t(lv)});
+                            return s{node->dest};
+                          }
+
+                          case Op::Ge: {
+                            s lv = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            s rv = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
+                            out.push_back(Compare{w{node->dest}, s_to_t(rv), cmp::le, s_to_t(lv)});
+                            return s{node->dest};
+                          }
+
+                          case Op::Return: {
+                            bool has_val = !std::holds_alternative<Leaf>(node->left) ||
+                                           !(std::holds_alternative<var>(std::get<Leaf>(node->left).value) &&
+                                             std::get<var>(std::get<Leaf>(node->left).value).name.empty());
+                            // handle the case where it's returnt
+                            if (has_val) {
+                              s val = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                              out.push_back(Assign{w{r::rax}, val});
+                            }
+                            out.push_back(Return{});
+                            return s{var{}};
+                          }
+
+                          case Op::Label: {
+                            label lbl = std::get<label>(std::get<Leaf>(node->left).value);
+                            out.push_back(LabelInst{check_map_and_rename_label(label_map, lbl, lbl_counter)});
+                            return s{var{}};
+                          }
+
+                          case Op::Br: {
+                            label lbl = std::get<label>(std::get<Leaf>(node->left).value);
+                            out.push_back(Goto{check_map_and_rename_label(label_map, lbl, lbl_counter)});
+                            return s{var{}};
+                          }
+
+                          case Op::BrCond: {
+                            s cond = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
+                            label lbl = std::get<label>(std::get<Leaf>(node->right).value);
+                            label renamed = check_map_and_rename_label(label_map, lbl, lbl_counter);
+                            out.push_back(Cjump{s_to_t(cond), cmp::eq, t{N{1}}, renamed});
+                            return s{var{}};
+                          }
+
+                          default:
+                            __builtin_unreachable();
+                          }
+                        },
+
+                        [&](std::unique_ptr<CallNode> &node) -> s {
+                          std::vector<t> arg_ts;
+                          for (auto &a : node->args)
+                            arg_ts.push_back(s_to_t(a));
+                          auto arg_insts = regs_to_args(arg_ts);
+                          out.insert(out.end(), arg_insts.begin(), arg_insts.end());
+                          bool is_user_call = std::holds_alternative<u>(node->callee);
+                          if (is_user_call) {
+                            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
+                            out.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
+                            emit_call(out, node->callee, (int64_t)node->args.size());
+                            out.push_back(LabelInst{ret_label});
+                          } else {
+                            call_counter++;
+                            emit_call(out, node->callee, (int64_t)node->args.size());
+                          }
+                          if (node->dest.has_value()) {
+                            out.push_back(Assign{w{*node->dest}, s{r::rax}});
+                            return s{*node->dest};
+                          }
+                          return s{var{}};
+                        }},
+                    tree);
+}
+
+std::vector<i> tiling(std::vector<std::vector<Tree>> &tree_contexts, std::unordered_map<label, label> &label_map, int &lbl_counter) {
   int call_counter = 0;
   int temp_counter = 0;
-  std::vector<i> new_function_instructions;
-  for (auto &instr : instructions) {
-    std::visit([&](auto &inst) {
-        using T = std::decay_t<decltype(inst)>;
-        if constexpr (std::is_same_v<T, L3::ReturnT>) {
-          new_function_instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
-          new_function_instructions.push_back(Return{});
-        } else if constexpr (std::is_same_v<T, L3::AopL3>) {
-          bool right_is_dest = std::visit([&](auto &d) -> bool {
-            using DT = std::decay_t<decltype(d)>;
-            if constexpr (std::is_same_v<DT, var>)
-              return std::holds_alternative<var>(inst.right) && std::get<var>(inst.right).name == d.name;
-            else if constexpr (std::is_same_v<DT, r>)
-              return std::holds_alternative<r>(inst.right) && std::get<r>(inst.right) == d;
-            return false;
-          }, inst.dest);
-          if (right_is_dest && inst.op == aop::sub) {
-            // dest = left - right, but right == dest
-            // generate a temporary variable... because the operation is non commutative
-            var tmp{"__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
-            new_function_instructions.push_back(Assign{w{tmp}, t_to_s(inst.left)});
-            new_function_instructions.push_back(AopInst{w{tmp}, inst.op, inst.right});
-            new_function_instructions.push_back(Assign{inst.dest, s{tmp}});
-          } else if (right_is_dest) {
-            new_function_instructions.push_back(Assign{inst.dest, w_to_s(inst.dest)});
-            new_function_instructions.push_back(AopInst{inst.dest, inst.op, inst.left});
-          } else {
-            new_function_instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
-            new_function_instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
-          }
-        } else if constexpr (std::is_same_v<T, L3::LabelInst>) {  // for all instructions that have labels or have a label in their variant, rename labels according to function scope
-          new_function_instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
-        } else if constexpr (std::is_same_v<T, L3::brlabel>) {
-          new_function_instructions.push_back(Goto{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
-        } else if constexpr (std::is_same_v<T, brtlabel>) {
-          label renamed_lbl = check_map_and_rename_label(label_map, inst.lbl, lbl_counter);
-          new_function_instructions.push_back(Cjump{inst.cond, cmp::eq, t{N{1}}, renamed_lbl});
-        } else if constexpr (std::is_same_v<T, StoreL3>) { // if the src contains a label, then check_map and rename label, else thread the same src
-          if (std::holds_alternative<label>(inst.src)) {
-            label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
-            new_function_instructions.push_back(MemWrite{w{inst.dest}, 0, s{renamed}});
-          } else {
-            new_function_instructions.push_back(MemWrite{w{inst.dest}, 0, inst.src});
-          }
-        } else if constexpr (std::is_same_v<T, LoadL3>) {
-          new_function_instructions.push_back(MemRead{w{inst.dest}, w{inst.src}, 0});
-        } else if constexpr (std::is_same_v<T, Compare>) {
-          if (inst.op == cmp::gt)
-            new_function_instructions.push_back(Compare{inst.dest, inst.right, cmp::lt, inst.left});
-          else if (inst.op == cmp::gte)
-            new_function_instructions.push_back(Compare{inst.dest, inst.right, cmp::le, inst.left});
-          else
-            new_function_instructions.push_back(inst);
-        } else if constexpr (std::is_same_v<T, Assign>) {
-          // if the src contains a label, then check_map and rename label, else thread the same src
-          if (std::holds_alternative<label>(inst.src)) {
-            label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
-            new_function_instructions.push_back(Assign{inst.dest, s{renamed}});
-          }
-          else {
-          new_function_instructions.push_back(inst);                                                                                                                         
-      } 
-        } else if constexpr (std::is_same_v<T, CallL3>) {
-          auto arg_insts = regs_to_args(inst.args);
-          new_function_instructions.insert(new_function_instructions.end(), arg_insts.begin(), arg_insts.end());
-          bool is_user_call = std::holds_alternative<u>(inst.callee);
-          if (is_user_call) {
-            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-            new_function_instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-            emit_call(new_function_instructions, inst.callee, (int64_t)inst.args.size());
-            new_function_instructions.push_back(LabelInst{ret_label});
-          } else {
-            call_counter++;
-            emit_call(new_function_instructions, inst.callee, (int64_t)inst.args.size());
-          }
-        } else if constexpr (std::is_same_v<T, CallAssignL3>) {
-          auto arg_insts = regs_to_args(inst.callexpr.args);
-          new_function_instructions.insert(new_function_instructions.end(), arg_insts.begin(), arg_insts.end());
-          bool is_user_call = std::holds_alternative<u>(inst.callexpr.callee);
-          if (is_user_call) {
-            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-            new_function_instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-            emit_call(new_function_instructions, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
-            new_function_instructions.push_back(LabelInst{ret_label});
-          } else {
-            call_counter++;
-            emit_call(new_function_instructions, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
-          }
-          new_function_instructions.push_back(Assign{w{inst.dest}, s{r::rax}});
-        }else {
-            new_function_instructions.push_back(inst);
-          } },
-               instr);
-  }
-  return new_function_instructions;
+  std::vector<i> out;
+  for (auto &tree_context : tree_contexts)
+    for (auto &tree : tree_context)
+      tile_node(tree, out, lbl_counter, temp_counter, label_map, call_counter);
+  return out;
 };
 
 fl2 fl3_to_fl2(fl3 &f, std::unordered_map<label, label> &label_map, int &lbl_counter) {
