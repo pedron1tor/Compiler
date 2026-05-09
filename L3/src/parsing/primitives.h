@@ -174,6 +174,8 @@ inline Op toOp(aop operation) {
     return Op::Shl;
   case aop::rshift:
     return Op::Shr;
+  default:
+    __builtin_unreachable();
   }
 }
 
@@ -189,6 +191,8 @@ inline Op toCmpOp(cmp operation) {
     return Op::Ge;
   case cmp::eq:
     return Op::Eq;
+  default:
+    __builtin_unreachable();
   }
 }
 
