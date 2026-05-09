@@ -1,15 +1,11 @@
 #include "L3.h"
 #include "parser.h"
+#include "parsing/primitives.h"
 #include <fstream>
 #include <unordered_map>
 
 namespace L3 {
-s t_to_s(t &t_item) {
-  return std::visit([](auto &v) -> s { return s{v}; }, t_item);
-}
-s w_to_s(w &w_item) {
-  return std::visit([](auto &v) -> s { return s{v}; }, w_item);
-}
+
 std::vector<i> // this function when we first go into the scope of an l2 function.
 args_to_regs(std::vector<var> &variables) {
   // allocate the variables to the registers first, then if still remaining allocate stack space.
@@ -100,37 +96,6 @@ std::vector<context> identify_contexts(std::vector<i> &instructions) {
     contexts.push_back(std::move(context_obj));
   return contexts;
 };
-Op toOp(aop operation) {
-  switch (operation) {
-  case aop::add:
-    return Op::Add;
-  case aop::sub:
-    return Op::Sub;
-  case aop::mul:
-    return Op::Mul;
-  case aop::and_:
-    return Op::And;
-  case aop::lshift:
-    return Op::Shl;
-  case aop::rshift:
-    return Op::Shr;
-  }
-}
-
-Op toCmpOp(cmp operation) {
-  switch (operation) {
-  case cmp::lt:
-    return Op::Lt;
-  case cmp::gt:
-    return Op::Gt;
-  case cmp::le:
-    return Op::Le;
-  case cmp::gte:
-    return Op::Ge;
-  case cmp::eq:
-    return Op::Eq;
-  }
-}
 
 std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> &contexts) {
   std::vector<std::vector<Tree>> tree_contexts;
@@ -216,55 +181,6 @@ std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_
   return std::move(tree_contexts);
 };
 
-t s_to_t(const s &sv) {
-  return std::visit([](auto &x) -> t {
-    using X = std::decay_t<decltype(x)>;
-    if constexpr (std::is_same_v<X, r>)
-      return t{x};
-    else if constexpr (std::is_same_v<X, N>)
-      return t{x};
-    else if constexpr (std::is_same_v<X, var>)
-      return t{x};
-    else {
-      __builtin_unreachable();
-    }
-  },
-                    sv);
-}
-
-w s_to_w(const s &sv) {
-  return std::visit([](auto &x) -> w {
-    using X = std::decay_t<decltype(x)>;
-    if constexpr (std::is_same_v<X, r>)
-      return w{x};
-    else if constexpr (std::is_same_v<X, var>)
-      return w{x};
-    else {
-      __builtin_unreachable();
-    }
-  },
-                    sv);
-}
-
-aop op_to_aop(Op op) {
-  switch (op) {
-  case Op::Add:
-    return aop::add;
-  case Op::Sub:
-    return aop::sub;
-  case Op::Mul:
-    return aop::mul;
-  case Op::And:
-    return aop::and_;
-  case Op::Shl:
-    return aop::lshift;
-  case Op::Shr:
-    return aop::rshift;
-  default:
-    __builtin_unreachable();
-  }
-}
-
 s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter,
             std::unordered_map<label, label> &label_map, int &call_counter) {
 
@@ -273,10 +189,8 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                         [](Leaf &l) -> s {
                           return l.value;
                         },
-
                         [&](std::unique_ptr<Inner> &node) -> s {
                           switch (node->op) {
-
                           case Op::Assign: {
                             s src = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
                             if (std::holds_alternative<label>(src))
@@ -284,13 +198,11 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             out.push_back(Assign{w{node->dest}, src});
                             return s{node->dest};
                           }
-
                           case Op::Load: {
                             s base = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
                             out.push_back(MemRead{w{node->dest}, s_to_w(base), 0});
                             return s{node->dest};
                           }
-
                           case Op::Store: {
                             s addr = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
                             s val = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
@@ -302,7 +214,6 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             }
                             return s{var{}};
                           }
-
                           case Op::Add:
                           case Op::Sub:
                           case Op::Mul:
@@ -328,7 +239,6 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             }
                             return s{node->dest};
                           }
-
                           case Op::Lt:
                           case Op::Le:
                           case Op::Eq: {
@@ -339,21 +249,18 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             out.push_back(Compare{w{node->dest}, s_to_t(lv), op_val, s_to_t(rv)});
                             return s{node->dest};
                           }
-
                           case Op::Gt: {
                             s lv = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
                             s rv = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
                             out.push_back(Compare{w{node->dest}, s_to_t(rv), cmp::lt, s_to_t(lv)});
                             return s{node->dest};
                           }
-
                           case Op::Ge: {
                             s lv = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
                             s rv = tile_node(node->right, out, lbl_counter, temp_counter, label_map, call_counter);
                             out.push_back(Compare{w{node->dest}, s_to_t(rv), cmp::le, s_to_t(lv)});
                             return s{node->dest};
                           }
-
                           case Op::Return: {
                             bool has_val = !std::holds_alternative<Leaf>(node->left) ||
                                            !(std::holds_alternative<var>(std::get<Leaf>(node->left).value) &&
@@ -366,19 +273,16 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             out.push_back(Return{});
                             return s{var{}};
                           }
-
                           case Op::Label: {
                             label lbl = std::get<label>(std::get<Leaf>(node->left).value);
                             out.push_back(LabelInst{check_map_and_rename_label(label_map, lbl, lbl_counter)});
                             return s{var{}};
                           }
-
                           case Op::Br: {
                             label lbl = std::get<label>(std::get<Leaf>(node->left).value);
                             out.push_back(Goto{check_map_and_rename_label(label_map, lbl, lbl_counter)});
                             return s{var{}};
                           }
-
                           case Op::BrCond: {
                             s cond = tile_node(node->left, out, lbl_counter, temp_counter, label_map, call_counter);
                             label lbl = std::get<label>(std::get<Leaf>(node->right).value);
@@ -386,7 +290,6 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             out.push_back(Cjump{s_to_t(cond), cmp::eq, t{N{1}}, renamed});
                             return s{var{}};
                           }
-
                           default:
                             __builtin_unreachable();
                           }
