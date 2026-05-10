@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "parsing/primitives.h"
 #include "tiles.h"
+#include <functional>
 #include <fstream>
 #include <unordered_map>
 
