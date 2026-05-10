@@ -244,7 +244,22 @@ inline aop op_to_aop(Op op) {
     __builtin_unreachable();
   }
 }
-
+inline cmp op_to_cmp(Op cmp_op) {
+  switch (cmp_op) {
+  case Op::Lt:
+    return cmp::lt;
+  case Op::Le:
+    return cmp::le;
+  case Op::Eq:
+    return cmp::eq;
+  case Op::Gt:
+    return cmp::lt;
+  case Op::Ge:
+    return cmp::le;
+  default:
+    __builtin_unreachable();
+  }
+}
 inline std::string
 r_to_str(r reg) {
   switch (reg) {
