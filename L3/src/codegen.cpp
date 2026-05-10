@@ -291,7 +291,7 @@ bool is_memory_instruction(Tree &T2) {
 };
 
 std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_contexts) {
-  std::vector<std::vector<Tree>> merged;
+  std::vector<std::vector<Tree>> merged(tree_contexts.size());
   for (int tree_context_idx = 0; tree_context_idx < tree_contexts.size(); tree_context_idx++) {
     std::vector<Tree> &tree_context = tree_contexts[tree_context_idx];
     std::vector<Tree> context_output;
