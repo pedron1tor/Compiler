@@ -350,6 +350,7 @@ std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_
 
         *loc = std::move(context_output[t2_idx]);              // perform the merge by putting t2 in the location where the variable is used.
         context_output.erase(context_output.begin() + t2_idx); // remove T2 from context output if merge is successful
+        break;
       }
       context_output.push_back(std::move(T1));
     };
