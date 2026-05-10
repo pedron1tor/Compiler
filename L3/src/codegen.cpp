@@ -220,13 +220,12 @@ std::vector<var> collect_used_vars(Tree &tree) {
 };
 
 // rest of context does not use the variable.
-bool uses_zero(std::vector<Tree> &rest_context, const var &variable_of_interest) {
-  int total_uses = 0;
-  for (const auto &tree : rest_context) {
-    total_uses += count_uses(tree, variable_of_interest);
-  }
-  return total_uses == 0;
-};
+bool uses_zero(std::vector<Tree>::iterator begin, std::vector<Tree>::iterator end, const var &v) {
+  for (auto it = begin; it != end; ++it)
+    if (count_uses(*it, v) > 0)
+      return false;
+  return true;
+}
 
 // read as T1 uses %var once?
 static Tree *find_single_use(Tree &tree, const var &v) {
@@ -276,17 +275,89 @@ bool tree_dest(Tree &T2, var &variable_of_interest) {
   __builtin_unreachable();
 }
 
+bool is_memory_instruction(Tree &T2) {
+  return std::visit(overloaded{
+                        [](const std::unique_ptr<Inner> &node) {
+                          return node->op == Op::Load || node->op == Op::Store;
+                        },
+                        [](const std::unique_ptr<CallNode> &node) {
+                          return false;
+                        },
+                        [](const Leaf &) {
+                          return false;
+                        }},
+                    T2);
+};
+
 std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_contexts) {
   std::vector<std::vector<Tree>> merged;
   for (int tree_context_idx = 0; tree_context_idx < tree_contexts.size(); tree_context_idx++) {
     std::vector<Tree> &tree_context = tree_contexts[tree_context_idx];
-    for (auto &tree : tree_context) {
-      Tree T1 = std::move(tree);
+    std::vector<Tree> context_output;
+    for (int t1_idx = 0; t1_idx < (int)tree_context.size(); t1_idx++) {
+      Tree T1 = std::move(tree_context[t1_idx]);
       for (const var &v : collect_used_vars(T1)) {
+        int t2_idx = -1;
+        var def;
+        // iterate through the trees in reverse order to find where did a tree define the variable it used.
+        for (int j = (int)context_output.size() - 1; j >= 0; j--) {
+          if (tree_dest(context_output[j], def) && def == v && !is_memory_instruction(context_output[j])) {
+            t2_idx = j; // break loop if found
+            break;
+          }
+        }
+        if (t2_idx == -1)
+          continue; // MERGE CONFLICT !
+
+        Tree *loc = find_single_use(T1, v);
+        if (!loc) // check if T1 indeed uses it just one time
+          continue;
+
+        // no uses of %v between T2 and T1 and no memory operations
+        bool v_unused_between_t2_and_t1 = true;
+        bool no_mem_ops_between_t2_and_t1 = true;
+        for (int j = t2_idx + 1; j < (int)context_output.size(); j++) {
+          if (count_uses(context_output[j], v) > 0) {
+            v_unused_between_t2_and_t1 = false;
+            break;
+          }
+          if (is_memory_instruction(context_output[j])) {
+            no_mem_ops_between_t2_and_t1 = false;
+            break;
+          }
+        }
+
+        if (!v_unused_between_t2_and_t1 || !no_mem_ops_between_t2_and_t1)
+          continue; // MERGE CONFLICT !
+
+        // check for no uses of v after T1 inside of the context
+        if (!uses_zero(tree_context.begin() + t1_idx + 1, tree_context.end(), v))
+          continue; // MERGE CONFLICT !!
+
+        // check that there are no redefinitions of T2's used variables in between the t1 and t2.
+        bool no_redefs = true;
+        for (const var &u : collect_used_vars(context_output[t2_idx]))
+          for (int j = t2_idx + 1; j < (int)context_output.size(); j++) {
+            var d;
+            if (tree_dest(context_output[j], d) && d == u) {
+              no_redefs = false;
+              break;
+            }
+          }
+        if (!no_redefs)
+          continue; // MERGE CONFLICT!
+
+        *loc = std::move(context_output[t2_idx]);              // perform the merge by putting t2 in the location where the variable is used.
+        context_output.erase(context_output.begin() + t2_idx); // remove T2 from context output if merge is successful
       }
-    }
+      context_output.push_back(std::move(T1));
+    };
+    merged[tree_context_idx].insert(
+        merged[tree_context_idx].end(),
+        std::make_move_iterator(context_output.begin()),
+        std::make_move_iterator(context_output.end()));
   }
-  return std::move(tree_contexts);
+  return std::move(merged);
 };
 
 s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter,
