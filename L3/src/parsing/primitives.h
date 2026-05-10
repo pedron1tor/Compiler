@@ -407,6 +407,19 @@ inline std::string call_args_to_str(std::vector<t> &args) {
   return result + ")";
 }
 
+template <typename V>
+bool is_var(const V &val, const var &v) {
+  return std::visit([&](const auto &x) -> bool {
+    // if the value in the instruction is a variable, compare against variable of interest
+    using X = std::decay_t<decltype(x)>;
+    if constexpr (std::is_same_v<X, var>)
+      return x == v;
+    else
+      return false;
+  },
+                    val);
+};
+
 /*
  * Templates
  */
