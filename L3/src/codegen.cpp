@@ -254,26 +254,25 @@ static Tree *find_single_use(Tree &tree, const var &v) {
 }
 // read as doest tree have dest?
 bool tree_dest(Tree &T2, var &variable_of_interest) {
-  std::visit(overloaded{
-                 [](const std::unique_ptr<Inner> &node) {
-                   if (node->dest.has_value()) {
-                     var variable_of_interest = node->dest.value();
-                     return true;
-                   }
-                   return false;
-                 },
-                 [](const std::unique_ptr<CallNode> &node) {
-                   if (node->dest.has_value()) {
-                     var variable_of_interest = node->dest.value();
-                     return true;
-                   };
-                   return false;
-                 },
-                 [](const Leaf &) {
-                   return false;
-                 }},
-             T2);
-  __builtin_unreachable();
+  return std::visit(overloaded{
+                        [&](const std::unique_ptr<Inner> &node) {
+                          if (node->dest.has_value()) {
+                            variable_of_interest = node->dest.value();
+                            return true;
+                          }
+                          return false;
+                        },
+                        [&](const std::unique_ptr<CallNode> &node) {
+                          if (node->dest.has_value()) {
+                            variable_of_interest = node->dest.value();
+                            return true;
+                          }
+                          return false;
+                        },
+                        [](const Leaf &) {
+                          return false;
+                        }},
+                    T2);
 }
 
 bool is_memory_instruction(Tree &T2) {
