@@ -3,6 +3,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -351,7 +352,7 @@ enum class Op { Add,
 
 struct Inner {
   Op op;
-  var dest;
+  std::optional<var> dest;
   Tree left;
   Tree right;
 };
@@ -360,6 +361,13 @@ struct CallNode {
   std::optional<var> dest;
   callee_type callee;
   std::vector<s> args;
+};
+struct TileCtx {
+  std::vector<i> &out;
+  int &lbl_counter;
+  int &temp_counter;
+  std::unordered_map<label, label> &label_map;
+  int &call_counter;
 };
 
 } // namespace L3
