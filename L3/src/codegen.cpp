@@ -178,14 +178,120 @@ std::vector<std::vector<Tree>> transform_contexts_to_trees(std::vector<context> 
   return tree_contexts;
 };
 
-std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_contexts) {
+static int count_uses(const Tree &tree, const var &v) {
+  return std::visit(overloaded{
+                        [&](const Leaf &l) -> int {
+                          return is_var(l.value, v) ? 1 : 0;
+                        },
+                        [&](const std::unique_ptr<Inner> &node) -> int {
+                          return count_uses(node->left, v) + count_uses(node->right, v);
+                        },
+                        [&](const std::unique_ptr<CallNode> &node) -> int {
+                          int count = 0;
+                          for (const auto &arg : node->args)
+                            if (is_var(arg, v))
+                              count++;
+                          return count;
+                        }},
+                    tree);
+}
+void collect_var(const Tree &tree, std::vector<var> &acc_vector) {
+  std::visit(overloaded{
+                 [&](const Leaf &l) {
+                   if (auto *v = std::get_if<var>(&l.value))
+                     acc_vector.push_back(*v);
+                 },
+                 [&](const std::unique_ptr<Inner> &node) {
+                   collect_var(node->left, acc_vector);
+                   collect_var(node->right, acc_vector);
+                 },
+                 [&](const std::unique_ptr<CallNode> &node) {
+                   for (const auto &arg : node->args)
+                     if (auto *v = std::get_if<var>(&arg))
+                       acc_vector.push_back(*v);
+                 }},
+             tree);
+}
 
+std::vector<var> collect_used_vars(Tree &tree) {
+  std::vector<var> collected_vars;
+  collect_var(tree, collected_vars);
+  return collected_vars;
+};
+
+// rest of context does not use the variable.
+bool uses_zero(std::vector<Tree> &rest_context, const var &variable_of_interest) {
+  int total_uses = 0;
+  for (const auto &tree : rest_context) {
+    total_uses += count_uses(tree, variable_of_interest);
+  }
+  return total_uses == 0;
+};
+
+// read as T1 uses %var once?
+static Tree *find_single_use(Tree &tree, const var &v) {
+  Tree *found = nullptr;
+  int count = 0;
+
+  std::function<void(Tree &)> traverse = [&](Tree &t) {
+    std::visit(overloaded{
+                   [&](Leaf &l) {
+                     if (is_var(l.value, v)) {
+                       count++;
+                       found = &t;
+                     }
+                   },
+                   [&](std::unique_ptr<Inner> &node) {
+                     traverse(node->left);
+                     traverse(node->right);
+                   },
+                   [&](std::unique_ptr<CallNode> &) {}},
+               t);
+  };
+
+  traverse(tree);
+  return count == 1 ? found : nullptr;
+}
+// read as doest tree have dest?
+bool tree_dest(Tree &T2, var &variable_of_interest) {
+  std::visit(overloaded{
+                 [](const std::unique_ptr<Inner> &node) {
+                   if (node->dest.has_value()) {
+                     var variable_of_interest = node->dest.value();
+                     return true;
+                   }
+                   return false;
+                 },
+                 [](const std::unique_ptr<CallNode> &node) {
+                   if (node->dest.has_value()) {
+                     var variable_of_interest = node->dest.value();
+                     return true;
+                   };
+                   return false;
+                 },
+                 [](const Leaf &) {
+                   return false;
+                 }},
+             T2);
+  __builtin_unreachable();
+}
+
+std::vector<std::vector<Tree>> merge_trees(std::vector<std::vector<Tree>> &tree_contexts) {
+  std::vector<std::vector<Tree>> merged;
+  for (int tree_context_idx = 0; tree_context_idx < tree_contexts.size(); tree_context_idx++) {
+    std::vector<Tree> &tree_context = tree_contexts[tree_context_idx];
+    for (auto &tree : tree_context) {
+      Tree T1 = std::move(tree);
+      for (const var &v : collect_used_vars(T1)) {
+      }
+    }
+  }
   return std::move(tree_contexts);
 };
 
 s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter,
             std::unordered_map<label, label> &label_map, int &call_counter) {
-
+  TileCtx context_obj{out, lbl_counter, temp_counter, label_map, call_counter};
   return std::visit(overloaded{
 
                         [](Leaf &l) -> s {
@@ -194,13 +300,19 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                         [&](std::unique_ptr<Inner> &node) -> s {
                           switch (node->op) {
                           case Op::Assign: {
-                            return atomic_assign_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_assign_tile(node, context_obj);
                           }
                           case Op::Load: {
-                            return atomic_load_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            auto r = match_large_tile(Op::Load, node, context_obj);
+                            if (r)
+                              return *r;
+                            return atomic_load_tile(node, context_obj);
                           }
                           case Op::Store: {
-                            return atomic_store_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            auto r = match_large_tile(Op::Store, node, context_obj);
+                            if (r)
+                              return *r;
+                            return atomic_store_tile(node, context_obj);
                           }
                           case Op::Add:
                           case Op::Sub:
@@ -208,34 +320,40 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                           case Op::And:
                           case Op::Shl:
                           case Op::Shr: {
-                            return atomic_Aop_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            auto r = match_large_tile(node->op, node, context_obj);
+                            if (r)
+                              return *r;
+                            return atomic_Aop_tile(node, context_obj);
                           }
                           case Op::Lt:
                           case Op::Le:
                           case Op::Eq: {
-                            return atomic_CmpOp_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_CmpOp_tile(node, context_obj);
                           }
                           case Op::Gt: {
                             std::swap(node->left, node->right);
                             node->op = Op::Lt;
-                            return atomic_CmpOp_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_CmpOp_tile(node, context_obj);
                           }
                           case Op::Ge: {
                             std::swap(node->left, node->right);
                             node->op = Op::Le;
-                            return atomic_CmpOp_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_CmpOp_tile(node, context_obj);
                           }
                           case Op::Return: {
-                            return atomic_return_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_return_tile(node, context_obj);
                           }
                           case Op::Label: {
-                            return atomic_label_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_label_tile(node, context_obj);
                           }
                           case Op::Br: {
-                            return atomic_br_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            return atomic_br_tile(node, context_obj);
                           }
                           case Op::BrCond: {
-                            return atomic_cond_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                            auto r = match_large_tile(Op::BrCond, node, context_obj);
+                            if (r)
+                              return *r;
+                            return atomic_cond_tile(node, context_obj);
                           }
                           default:
                             __builtin_unreachable();
@@ -243,7 +361,7 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                         },
 
                         [&](std::unique_ptr<CallNode> &node) -> s {
-                          return atomic_call_tile(node, out, lbl_counter, temp_counter, label_map, call_counter);
+                          return atomic_call_tile(node, context_obj);
                         }},
                     tree);
 }

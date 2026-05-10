@@ -434,16 +434,6 @@ bool is_var(const V &val, const var &v) {
   },
                     val);
 };
-template <typename V>
-bool is_var_type(const V &val) {
-  return std::visit([&](const auto &x) -> bool {
-    // if the value in the instruction is a variable, compare against variable of interest
-    using X = std::decay_t<decltype(x)>;
-    if constexpr (std::is_same_v<X, var>)
-      return true else return false;
-  },
-                    val);
-};
 
 /*
  * Templates
