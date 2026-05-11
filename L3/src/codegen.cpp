@@ -375,15 +375,15 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             return atomic_assign_tile(node, context_obj);
                           }
                           case Op::Load: {
-                            // auto r = match_large_tile(Op::Load, node, context_obj);
-                            // if (r)
-                            // return *r;
+                            auto r = match_large_tile(Op::Load, node, context_obj);
+                            if (r)
+                              return *r;
                             return atomic_load_tile(node, context_obj);
                           }
                           case Op::Store: {
-                            // auto r = match_large_tile(Op::Store, node, context_obj);
-                            // if (r)
-                            // return *r;
+                            auto r = match_large_tile(Op::Store, node, context_obj);
+                            if (r)
+                              return *r;
                             return atomic_store_tile(node, context_obj);
                           }
                           case Op::Add:
@@ -392,9 +392,9 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                           case Op::And:
                           case Op::Shl:
                           case Op::Shr: {
-                            // auto r = match_large_tile(node->op, node, context_obj);
-                            // if (r)
-                            // return *r;
+                            auto r = match_large_tile(node->op, node, context_obj);
+                            if (r)
+                              return *r;
                             return atomic_Aop_tile(node, context_obj);
                           }
                           case Op::Lt:
@@ -422,9 +422,9 @@ s tile_node(Tree &tree, std::vector<i> &out, int &lbl_counter, int &temp_counter
                             return atomic_br_tile(node, context_obj);
                           }
                           case Op::BrCond: {
-                            // auto r = match_large_tile(Op::BrCond, node, context_obj);
-                            // if (r)
-                            // return *r;
+                            auto r = match_large_tile(Op::BrCond, node, context_obj);
+                            if (r)
+                              return *r;
                             return atomic_cond_tile(node, context_obj);
                           }
                           default:
