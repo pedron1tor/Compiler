@@ -283,51 +283,51 @@ std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &
   case Op::And:
   case Op::Shl:
   case Op::Shr: {
-    bool left_is_dest = is_leaf_var(node->left, node->dest.value());
-    bool right_is_dest = is_leaf_var(node->right, node->dest.value());
+    // bool left_is_dest = is_leaf_var(node->left, node->dest.value());
+    // bool right_is_dest = is_leaf_var(node->right, node->dest.value());
 
-    if (op == Op::Add && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
-      return increment_tile(node, ctx);
+    // if (op == Op::Add && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
+    //   return increment_tile(node, ctx);
 
-    if (op == Op::Sub && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
-      return decrement_tile(node, ctx);
+    // if (op == Op::Sub && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
+    //   return decrement_tile(node, ctx);
 
-    if (op == Op::Mul && left_is_dest && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
-      return mul_by_pow2_self_tile(node, ctx);
+    // if (op == Op::Mul && left_is_dest && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
+    //   return mul_by_pow2_self_tile(node, ctx);
 
-    if (op == Op::Mul && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
-      return mul_by_pow2_tile(node, ctx);
+    // if (op == Op::Mul && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
+    //   return mul_by_pow2_tile(node, ctx);
 
-    if (op == Op::Add) {
-      auto is_valid_mul_child = [](const Tree &t) -> bool {
-        const Inner *inner = as_inner(t);
-        if (!inner || inner->op != Op::Mul)
-          return false;
-        auto has_valid_scale = [](const Tree &nt) -> bool {
-          if (!is_leaf_N(nt))
-            return false;
-          int64_t v = get_leaf_N_value(nt);
-          return v == 1 || v == 2 || v == 4 || v == 8;
-        };
-        return has_valid_scale(inner->right) || has_valid_scale(inner->left);
-      };
-      if (is_valid_mul_child(node->right) || is_valid_mul_child(node->left))
-        return at_addr_tile(node, ctx);
-    }
+    // if (op == Op::Add) {
+    //   auto is_valid_mul_child = [](const Tree &t) -> bool {
+    //     const Inner *inner = as_inner(t);
+    //     if (!inner || inner->op != Op::Mul)
+    //       return false;
+    //     auto has_valid_scale = [](const Tree &nt) -> bool {
+    //       if (!is_leaf_N(nt))
+    //         return false;
+    //       int64_t v = get_leaf_N_value(nt);
+    //       return v == 1 || v == 2 || v == 4 || v == 8;
+    //     };
+    //     return has_valid_scale(inner->right) || has_valid_scale(inner->left);
+    //   };
+    //   if (is_valid_mul_child(node->right) || is_valid_mul_child(node->left))
+    //     return at_addr_tile(node, ctx);
+    // }
 
-    if ((op == Op::Add || op == Op::Sub) && left_is_dest) {
-      if (Inner *ri = as_inner(node->right); ri && ri->op == Op::Load) {
-        if (Inner *ai = as_inner(ri->left); ai && ai->op == Op::Add && const_offset(ai))
-          return add_sub_from_memory_offset_tile(node, ctx);
-        return add_sub_from_memory_tile(node, ctx);
-      }
-    }
+    // if ((op == Op::Add || op == Op::Sub) && left_is_dest) {
+    //   if (Inner *ri = as_inner(node->right); ri && ri->op == Op::Load) {
+    //     if (Inner *ai = as_inner(ri->left); ai && ai->op == Op::Add && const_offset(ai))
+    //       return add_sub_from_memory_offset_tile(node, ctx);
+    //     return add_sub_from_memory_tile(node, ctx);
+    //   }
+    // }
 
-    if (left_is_dest)
-      return self_op_tile(node, ctx);
+    // if (left_is_dest)
+    //   return self_op_tile(node, ctx);
 
-    if (right_is_dest && (op == Op::Add || op == Op::Mul || op == Op::And))
-      return self_op_commutative_tile(node, ctx);
+    // if (right_is_dest && (op == Op::Add || op == Op::Mul || op == Op::And))
+    //   return self_op_commutative_tile(node, ctx);
 
     return std::nullopt;
   }
