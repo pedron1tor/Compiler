@@ -217,12 +217,20 @@ s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   int64_t scale = get_leaf_N_value(n_tree);
   s base_val = tile_node(base_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
   s idx_val = tile_node(idx_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
-  // keep scaled-index intermediate variable for potential future-context use
-  if (mul_inner->dest.has_value()) {
+  bool self_inc = mul_inner->dest.has_value() && is_leaf_var(idx_tree, mul_inner->dest.value());
+  if (self_inc) {
+    // emit LoadAddr first so it sees the unscaled idx,
+    // update mul_inner->dest for future contexts.
+    ctx.out.push_back(LoadAddr{w{node->dest.value()}, s_to_w(base_val), s_to_w(idx_val), scale});
     ctx.out.push_back(Assign{w{mul_inner->dest.value()}, idx_val});
     ctx.out.push_back(AopInst{w{mul_inner->dest.value()}, aop::mul, s_to_t(s{N{scale}})});
+  } else {
+    if (mul_inner->dest.has_value()) {
+      ctx.out.push_back(Assign{w{mul_inner->dest.value()}, idx_val});
+      ctx.out.push_back(AopInst{w{mul_inner->dest.value()}, aop::mul, s_to_t(s{N{scale}})});
+    }
+    ctx.out.push_back(LoadAddr{w{node->dest.value()}, s_to_w(base_val), s_to_w(idx_val), scale});
   }
-  ctx.out.push_back(LoadAddr{w{node->dest.value()}, s_to_w(base_val), s_to_w(idx_val), scale});
   return s{node->dest.value()};
 }
 
