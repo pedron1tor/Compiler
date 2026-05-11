@@ -315,8 +315,13 @@ std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &
         };
         return has_valid_scale(inner->right) || has_valid_scale(inner->left);
       };
-      if (is_valid_mul_child(node->right) || is_valid_mul_child(node->left))
-        return at_addr_tile(node, ctx);
+      bool right_is_mul = is_valid_mul_child(node->right);
+      bool left_is_mul = is_valid_mul_child(node->left);
+      if (right_is_mul || left_is_mul) {
+        const Tree &base_ref = right_is_mul ? node->left : node->right;
+        if (!is_leaf_N(base_ref))
+          return at_addr_tile(node, ctx);
+      }
     }
 
     if (left_is_dest)
