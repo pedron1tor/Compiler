@@ -194,9 +194,21 @@ s mul_by_pow2_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   return s{node->dest.value()};
 }
 
-// var <- base + (idx * E)  =>  var @ base idx E
+// var <- base + (idx * E)   -~>  var @ base idx E
 s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   bool right_is_mul = as_inner(node->right) != nullptr;
+  auto is_mul_with_scale = [](Inner *p) -> bool {
+    if (!p || p->op != Op::Mul)
+      return false;
+    auto ok = [](const Tree &t) {
+      if (!is_leaf_N(t))
+        return false;
+      int64_t v = get_leaf_N_value(t);
+      return v == 1 || v == 2 || v == 4 || v == 8;
+    };
+    return ok(p->right) || ok(p->left);
+  };
+  bool right_is_mul = is_mul_with_scale(as_inner(node->right));
   Tree &mul_tree = right_is_mul ? node->right : node->left;
   Tree &base_tree = right_is_mul ? node->left : node->right;
   Inner *mul_inner = as_inner(mul_tree);
@@ -206,11 +218,16 @@ s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   int64_t scale = get_leaf_N_value(n_tree);
   s base_val = tile_node(base_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
   s idx_val = tile_node(idx_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
+  // keep scaled-index intermediate variable for potential future-context use
+  if (mul_inner->dest.has_value()) {
+    ctx.out.push_back(Assign{w{mul_inner->dest.value()}, idx_val});
+    ctx.out.push_back(AopInst{w{mul_inner->dest.value()}, aop::mul, s_to_t(s{N{scale}})});
+  }
   ctx.out.push_back(LoadAddr{w{node->dest.value()}, s_to_w(base_val), s_to_w(idx_val), scale});
   return s{node->dest.value()};
 }
 
-// var <- t1 cmp t2; br var :lbl  =>  cjump t1 cmp t2 :lbl
+// var <- t1 cmp t2; br var :lbl   -~>  cjump t1 cmp t2 :lbl
 s cjump_fusion_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   Inner *cmp_inner = as_inner(node->left);
   Op cmp_op = cmp_inner->op;
@@ -224,7 +241,7 @@ s cjump_fusion_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   return s{var{}};
 }
 
-// tmp <- var + C; dst <- load tmp  =>  dst <- mem var C
+// tmp <- var + C; dst <- load tmp   -~>  dst <- mem var C
 s load_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   Inner *add_inner = as_inner(node->left);
   bool n_is_right = is_leaf_N(add_inner->right);
@@ -239,7 +256,7 @@ s load_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   return s{node->dest.value()};
 }
 
-// tmp <- var + C; store tmp <- s  =>  mem var C <- s
+// tmp <- var + C; store tmp <- s   -~>  mem var C <- s
 s store_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   Inner *add_inner = as_inner(node->left);
   bool n_is_right = is_leaf_N(add_inner->right);
@@ -255,26 +272,6 @@ s store_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   return s{var{}};
 }
 
-// tmp <- load ptr; dst <- dst +/- tmp  =>  dst +/-= mem ptr 0
-s add_sub_from_memory_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  Inner *load_inner = as_inner(node->right);
-  s ptr = tile_node(load_inner->left, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
-  ctx.out.push_back(MemAopRead{w{node->dest.value()}, op_to_aop(node->op), s_to_w(ptr), 0});
-  return s{node->dest.value()};
-}
-
-// tmp2 <- ptr + C; tmp1 <- load tmp2; dst <- dst +/- tmp1  =>  dst +/-= mem ptr C
-s add_sub_from_memory_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  Inner *load_inner = as_inner(node->right);
-  Inner *add_inner = as_inner(load_inner->left);
-  bool n_is_right = is_leaf_N(add_inner->right);
-  Tree &ptr_tree = n_is_right ? add_inner->left : add_inner->right;
-  int64_t C = get_leaf_N_value(n_is_right ? add_inner->right : add_inner->left);
-  s ptr_val = tile_node(ptr_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
-  ctx.out.push_back(MemAopRead{w{node->dest.value()}, op_to_aop(node->op), s_to_w(ptr_val), C});
-  return s{node->dest.value()};
-}
-
 std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &ctx) {
   switch (op) {
   case Op::Add:
@@ -283,51 +280,43 @@ std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &
   case Op::And:
   case Op::Shl:
   case Op::Shr: {
-    // bool left_is_dest = is_leaf_var(node->left, node->dest.value());
-    // bool right_is_dest = is_leaf_var(node->right, node->dest.value());
+    bool left_is_dest = is_leaf_var(node->left, node->dest.value());
+    bool right_is_dest = is_leaf_var(node->right, node->dest.value());
 
-    // if (op == Op::Add && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
-    //   return increment_tile(node, ctx);
+    if (op == Op::Add && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
+      return increment_tile(node, ctx);
 
-    // if (op == Op::Sub && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
-    //   return decrement_tile(node, ctx);
+    if (op == Op::Sub && left_is_dest && is_leaf_N(node->right) && get_leaf_N_value(node->right) == 1)
+      return decrement_tile(node, ctx);
 
-    // if (op == Op::Mul && left_is_dest && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
-    //   return mul_by_pow2_self_tile(node, ctx);
+    if (op == Op::Mul && left_is_dest && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
+      return mul_by_pow2_self_tile(node, ctx);
 
-    // if (op == Op::Mul && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
-    //   return mul_by_pow2_tile(node, ctx);
+    if (op == Op::Mul && is_leaf_N(node->right) && log2_pow2(get_leaf_N_value(node->right)) >= 0)
+      return mul_by_pow2_tile(node, ctx);
 
-    // if (op == Op::Add) {
-    //   auto is_valid_mul_child = [](const Tree &t) -> bool {
-    //     const Inner *inner = as_inner(t);
-    //     if (!inner || inner->op != Op::Mul)
-    //       return false;
-    //     auto has_valid_scale = [](const Tree &nt) -> bool {
-    //       if (!is_leaf_N(nt))
-    //         return false;
-    //       int64_t v = get_leaf_N_value(nt);
-    //       return v == 1 || v == 2 || v == 4 || v == 8;
-    //     };
-    //     return has_valid_scale(inner->right) || has_valid_scale(inner->left);
-    //   };
-    //   if (is_valid_mul_child(node->right) || is_valid_mul_child(node->left))
-    //     return at_addr_tile(node, ctx);
-    // }
+    if (op == Op::Add) {
+      auto is_valid_mul_child = [](const Tree &t) -> bool {
+        const Inner *inner = as_inner(t);
+        if (!inner || inner->op != Op::Mul)
+          return false;
+        auto has_valid_scale = [](const Tree &nt) -> bool {
+          if (!is_leaf_N(nt))
+            return false;
+          int64_t v = get_leaf_N_value(nt);
+          return v == 1 || v == 2 || v == 4 || v == 8;
+        };
+        return has_valid_scale(inner->right) || has_valid_scale(inner->left);
+      };
+      if (is_valid_mul_child(node->right) || is_valid_mul_child(node->left))
+        return at_addr_tile(node, ctx);
+    }
 
-    // if ((op == Op::Add || op == Op::Sub) && left_is_dest) {
-    //   if (Inner *ri = as_inner(node->right); ri && ri->op == Op::Load) {
-    //     if (Inner *ai = as_inner(ri->left); ai && ai->op == Op::Add && const_offset(ai))
-    //       return add_sub_from_memory_offset_tile(node, ctx);
-    //     return add_sub_from_memory_tile(node, ctx);
-    //   }
-    // }
+    if (left_is_dest)
+      return self_op_tile(node, ctx);
 
-    // if (left_is_dest)
-    //   return self_op_tile(node, ctx);
-
-    // if (right_is_dest && (op == Op::Add || op == Op::Mul || op == Op::And))
-    //   return self_op_commutative_tile(node, ctx);
+    if (right_is_dest && (op == Op::Add || op == Op::Mul || op == Op::And))
+      return self_op_commutative_tile(node, ctx);
 
     return std::nullopt;
   }

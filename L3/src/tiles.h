@@ -37,8 +37,6 @@ s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx);
 s cjump_fusion_tile(std::unique_ptr<Inner> &node, TileCtx &ctx);
 s load_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx);
 s store_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx);
-s add_sub_from_memory_tile(std::unique_ptr<Inner> &node, TileCtx &ctx);
-s add_sub_from_memory_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx);
 std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &ctx);
 
 } // namespace L3
