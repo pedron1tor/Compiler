@@ -231,6 +231,10 @@ s load_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   Tree &base_tree = n_is_right ? add_inner->left : add_inner->right;
   int64_t C = get_leaf_N_value(n_is_right ? add_inner->right : add_inner->left);
   s base_val = tile_node(base_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
+  if (add_inner->dest.has_value()) {
+    ctx.out.push_back(Assign{w{add_inner->dest.value()}, base_val});
+    ctx.out.push_back(AopInst{w{add_inner->dest.value()}, aop::add, s_to_t(s{N{C}})});
+  }
   ctx.out.push_back(MemRead{w{node->dest.value()}, s_to_w(base_val), C});
   return s{node->dest.value()};
 }
@@ -242,6 +246,10 @@ s store_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
   Tree &base_tree = n_is_right ? add_inner->left : add_inner->right;
   int64_t C = get_leaf_N_value(n_is_right ? add_inner->right : add_inner->left);
   s base_val = tile_node(base_tree, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
+  if (add_inner->dest.has_value()) {
+    ctx.out.push_back(Assign{w{add_inner->dest.value()}, base_val});
+    ctx.out.push_back(AopInst{w{add_inner->dest.value()}, aop::add, s_to_t(s{N{C}})});
+  }
   s val = rename_if_label(tile_node(node->right, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter), ctx);
   ctx.out.push_back(MemWrite{s_to_w(base_val), C, val});
   return s{var{}};
@@ -324,12 +332,20 @@ std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &
     return std::nullopt;
   }
   case Op::Load: {
-    if (Inner *ai = as_inner(node->left); ai && ai->op == Op::Add && const_offset(ai))
+    if (Inner *ai = as_inner(node->left); ai && ai->op == Op::Add && const_offset(ai)) {
+      bool n_is_right = is_leaf_N(ai->right);
+      Tree &base_tree = n_is_right ? ai->left : ai->right;
+      if (ai->dest.has_value() && is_leaf_var(base_tree, ai->dest.value()))
+        return std::nullopt;
       return load_with_offset_tile(node, ctx);
     return std::nullopt;
   }
   case Op::Store: {
-    if (Inner *ai = as_inner(node->left); ai && ai->op == Op::Add && const_offset(ai))
+    if (Inner *ai = as_inner(node->left); ai && ai->op == Op::Add && const_offset(ai)) {
+      bool n_is_right = is_leaf_N(ai->right);
+      Tree &base_tree = n_is_right ? ai->left : ai->right;
+      if (ai->dest.has_value() && is_leaf_var(base_tree, ai->dest.value()))
+        return std::nullopt;
       return store_with_offset_tile(node, ctx);
     return std::nullopt;
   }
