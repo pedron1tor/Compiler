@@ -196,7 +196,6 @@ s mul_by_pow2_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 
 // var <- base + (idx * E)   -~>  var @ base idx E
 s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  bool right_is_mul = as_inner(node->right) != nullptr;
   auto is_mul_with_scale = [](Inner *p) -> bool {
     if (!p || p->op != Op::Mul)
       return false;
