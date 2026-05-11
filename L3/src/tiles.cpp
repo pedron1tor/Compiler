@@ -338,6 +338,7 @@ std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &
       if (ai->dest.has_value() && is_leaf_var(base_tree, ai->dest.value()))
         return std::nullopt;
       return load_with_offset_tile(node, ctx);
+    }
     return std::nullopt;
   }
   case Op::Store: {
@@ -347,6 +348,7 @@ std::optional<s> match_large_tile(Op op, std::unique_ptr<Inner> &node, TileCtx &
       if (ai->dest.has_value() && is_leaf_var(base_tree, ai->dest.value()))
         return std::nullopt;
       return store_with_offset_tile(node, ctx);
+    }
     return std::nullopt;
   }
   case Op::BrCond: {
