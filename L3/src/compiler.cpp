@@ -13,7 +13,6 @@
 #include <vector>
 #include "parser.h"
 #include "codegen.h"
-#include "tiles.h"
 #include <utils.h>
 
 void print_help(char *progName)
@@ -80,6 +79,5 @@ int main(int argc, char **argv)
     L3::generate_code(p);
   }
 
-  L3::write_tile_stats();
   return 0;
 }

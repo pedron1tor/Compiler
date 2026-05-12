@@ -1,16 +1,7 @@
 #include "tiles.h"
 #include "parsing/primitives.h"
-#include <fstream>
 
 namespace L3 {
-
-static std::unordered_map<std::string, int> g_tile_counts;
-
-void write_tile_stats() {
-  std::ofstream f("./tile_stats.txt", std::ios::app);
-  for (auto &[name, count] : g_tile_counts)
-    f << name << " " << count << "\n";
-}
 /*
 Atomic tiles!! For only one L3 instruction
 */
@@ -164,14 +155,12 @@ static std::optional<int64_t> const_offset(Inner *node) {
 Large tiles!! For more than one L3 instruction
 */
 s self_op_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["self_op_tile"];
   s rv = tile_node(node->right, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
   ctx.out.push_back(AopInst{w{node->dest.value()}, op_to_aop(node->op), s_to_t(rv)});
   return s{node->dest.value()};
 }
 
 s self_op_commutative_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["self_op_commutative_tile"];
   s lv = tile_node(node->left, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
   ctx.out.push_back(AopInst{w{node->dest.value()}, op_to_aop(node->op), s_to_t(lv)});
   return s{node->dest.value()};
@@ -179,14 +168,12 @@ s self_op_commutative_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 
 // dest <- dest + 1  -~> dest++
 s increment_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["increment_tile"];
   ctx.out.push_back(Increment{w{node->dest.value()}});
   return s{node->dest.value()};
 }
 
 // dest <- dest + 1  -~> dest--
 s decrement_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["decrement_tile"];
   ctx.out.push_back(Decrement{w{node->dest.value()}});
   return s{node->dest.value()};
 }
@@ -194,14 +181,12 @@ s decrement_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 // multiplication by a power of 2... just do a lshift operation
 // dest <- dest * 2^k
 s mul_by_pow2_self_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["mul_by_pow2_self_tile"];
   int64_t k = log2_pow2(get_leaf_N_value(node->right));
   ctx.out.push_back(SopNum{w{node->dest.value()}, sop::lshift, N{k}});
   return s{node->dest.value()};
 }
 // case when the assigned variable and the operand variable are not the same
 s mul_by_pow2_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["mul_by_pow2_tile"];
   s lv = tile_node(node->left, ctx.out, ctx.lbl_counter, ctx.temp_counter, ctx.label_map, ctx.call_counter);
   int64_t k = log2_pow2(get_leaf_N_value(node->right));
   ctx.out.push_back(Assign{w{node->dest.value()}, lv});
@@ -211,7 +196,6 @@ s mul_by_pow2_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 
 // var <- base + (idx * E)   -~>  var @ base idx E
 s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["at_addr_tile"];
   auto is_mul_with_scale = [](Inner *p) -> bool {
     if (!p || p->op != Op::Mul)
       return false;
@@ -252,7 +236,6 @@ s at_addr_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 
 // var <- t1 cmp t2; br var :lbl   -~>  cjump t1 cmp t2 :lbl
 s cjump_fusion_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["cjump_fusion_tile"];
   Inner *cmp_inner = as_inner(node->left);
   Op cmp_op = cmp_inner->op;
   bool flip = (cmp_op == Op::Gt || cmp_op == Op::Ge);
@@ -267,7 +250,6 @@ s cjump_fusion_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 
 // tmp <- var + C; dst <- load tmp   -~>  dst <- mem var C
 s load_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["load_with_offset_tile"];
   Inner *add_inner = as_inner(node->left);
   bool n_is_right = is_leaf_N(add_inner->right);
   Tree &base_tree = n_is_right ? add_inner->left : add_inner->right;
@@ -283,7 +265,6 @@ s load_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
 
 // tmp <- var + C; store tmp <- s   -~>  mem var C <- s
 s store_with_offset_tile(std::unique_ptr<Inner> &node, TileCtx &ctx) {
-  ++g_tile_counts["store_with_offset_tile"];
   Inner *add_inner = as_inner(node->left);
   bool n_is_right = is_leaf_N(add_inner->right);
   Tree &base_tree = n_is_right ? add_inner->left : add_inner->right;
