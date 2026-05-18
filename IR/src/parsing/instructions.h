@@ -1,6 +1,6 @@
 #pragma once
 
-#include <L3.h>
+#include <IR.h>
 #include <parser.h>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
@@ -12,7 +12,7 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L3
+namespace IR
 {
 
   // w <- s
@@ -115,34 +115,34 @@ namespace L3
   struct parse_load_src : parse_variable
   {
   };
-  struct parse_load_l3 : pegtl::seq<parse_load_dest, parse_spaces, parse_arrow, parse_spaces, parse_load, parse_spaces, parse_load_src>
+  struct parse_load_IR : pegtl::seq<parse_load_dest, parse_spaces, parse_arrow, parse_spaces, parse_load, parse_spaces, parse_load_src>
   {
   };
   // store %var <- s
   struct parse_store_dest : parse_variable
   {
   };
-  struct parse_store_l3 : pegtl::seq<parse_store, parse_spaces, parse_store_dest, parse_spaces, parse_arrow, parse_spaces, parse_s>
+  struct parse_store_IR : pegtl::seq<parse_store, parse_spaces, parse_store_dest, parse_spaces, parse_arrow, parse_spaces, parse_s>
   {
   };
   // w <- t aop t
-  struct parse_arith_l3_op : parse_aop
+  struct parse_arith_IR_op : parse_aop
   {
   };
-  struct parse_arith_l3 : pegtl::seq<
+  struct parse_arith_IR : pegtl::seq<
                               pegtl::at<pegtl::seq<parse_w, parse_spaces, parse_arrow, parse_spaces, parse_t, parse_spaces, parse_aop>>,
                               parse_w,
                               parse_spaces, parse_arrow, parse_spaces,
                               parse_t,
                               parse_spaces,
-                              parse_arith_l3_op,
+                              parse_arith_IR_op,
                               parse_spaces,
                               parse_t>
   {
   };
 
   struct parse_instructions : pegtl::seq<parse_seps,
-                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assign_cmp, parse_arith_l3, parse_load_l3, parse_store_l3, parse_assignment>, parse_seps>>>
+                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assign_cmp, parse_arith_IR, parse_load_IR, parse_store_IR, parse_assignment>, parse_seps>>>
   {
   };
 
@@ -174,7 +174,7 @@ namespace L3
   };
 
   template <>
-  struct action<parse_arith_l3_op>
+  struct action<parse_arith_IR_op>
   {
     template <typename Input>
     static void apply(const Input &in, GlobalAccumulator &acc)
@@ -354,7 +354,7 @@ namespace L3
       acc.parsed_callee.pop_back();
       auto args = std::vector<t>(acc.parsed_call_args.begin(), acc.parsed_call_args.end());
       acc.parsed_call_args.clear();
-      acc.program.functions.back().instructions.push_back(i{CallL3{callee, args}});
+      acc.program.functions.back().instructions.push_back(i{CallIR{callee, args}});
     }
   };
 
@@ -370,7 +370,7 @@ namespace L3
       acc.parsed_call_args.clear();
       auto dest = std::get<var>(acc.parsed_items_w.back());
       acc.parsed_items_w.pop_back();
-      acc.program.functions.back().instructions.push_back(i{CallAssignL3{dest, CallL3{callee, args}}});
+      acc.program.functions.back().instructions.push_back(i{CallAssignIR{dest, CallIR{callee, args}}});
     }
   };
   template <>
@@ -407,7 +407,7 @@ namespace L3
     }
   };
   template <>
-  struct action<parse_arith_l3>
+  struct action<parse_arith_IR>
   {
     template <typename Input>
     static void apply(const Input &, GlobalAccumulator &acc)
@@ -420,7 +420,7 @@ namespace L3
       acc.parsed_items_t.pop_back();
       auto dest = acc.parsed_items_w.back();
       acc.parsed_items_w.pop_back();
-      acc.program.functions.back().instructions.push_back(i{AopL3{dest, left, op, right}});
+      acc.program.functions.back().instructions.push_back(i{AopIR{dest, left, op, right}});
     }
   };
   template <>
@@ -442,7 +442,7 @@ namespace L3
     }
   };
   template <>
-  struct action<parse_load_l3>
+  struct action<parse_load_IR>
   {
     template <typename Input>
     static void apply(const Input &, GlobalAccumulator &acc)
@@ -451,7 +451,7 @@ namespace L3
       acc.parsed_items_w.pop_back();
       auto dest = std::get<var>(acc.parsed_items_w.back());
       acc.parsed_items_w.pop_back();
-      acc.program.functions.back().instructions.push_back(i{LoadL3{dest, src}});
+      acc.program.functions.back().instructions.push_back(i{LoadIR{dest, src}});
     }
   };
   template <>
@@ -464,7 +464,7 @@ namespace L3
     }
   };
   template <>
-  struct action<parse_store_l3>
+  struct action<parse_store_IR>
   {
     template <typename Input>
     static void apply(const Input &, GlobalAccumulator &acc)
@@ -473,7 +473,7 @@ namespace L3
       acc.parsed_items.pop_back();
       auto dest = std::get<var>(acc.parsed_items_w.back());
       acc.parsed_items_w.pop_back();
-      acc.program.functions.back().instructions.push_back(i{StoreL3{dest, src}});
+      acc.program.functions.back().instructions.push_back(i{StoreIR{dest, src}});
     }
   };
-} // namespace L3
+} // namespace IR

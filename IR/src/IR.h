@@ -7,7 +7,7 @@
 #include <variant>
 #include <vector>
 
-namespace L3 {
+namespace IR {
 
 // w, a, sx, x :: =
 enum class r {
@@ -201,7 +201,7 @@ struct StackArg {
   w dest;
   N num;
 }; // w <- stack-arg M
-struct AopL3 {
+struct AopIR {
   w dest;
   t left;
   aop op;
@@ -209,13 +209,13 @@ struct AopL3 {
 }; // w <- t + t
 using callee_type = std::variant<u, CallPrint, CallInput, CallAllocate,
                                  CallTupleError, CallTensorError>;
-struct CallL3 {
+struct CallIR {
   callee_type callee;
   std::vector<t> args;
 };
-struct CallAssignL3 {
+struct CallAssignIR {
   var dest;
-  CallL3 callexpr;
+  CallIR callexpr;
 };
 struct brlabel {
   label lbl;
@@ -224,11 +224,11 @@ struct brtlabel {
   t cond;
   label lbl;
 };
-struct StoreL3 {
+struct StoreIR {
   var dest;
   s src;
 }; // store %var <- s
-struct LoadL3 {
+struct LoadIR {
   var dest;
   var src;
 }; // %dest <- load %src
@@ -240,8 +240,8 @@ using i = std::variant<
     Return, ReturnT, Call, CallPrint, CallInput,
     CallAllocate, CallTupleError, CallTensorError,
     Increment, Decrement, LoadAddr, StackArg,
-    AopL3, CallL3, CallAssignL3,
-    StoreL3, LoadL3, brlabel, brtlabel>;
+    AopIR, CallIR, CallAssignIR,
+    StoreIR, LoadIR, brlabel, brtlabel>;
 
 // fl2 ::= (l N N i+)
 struct f {
@@ -255,8 +255,8 @@ struct fl2 {
   int64_t num_args;
   std::vector<i> instructions;
 };
-// fl3::= define l ( vars ) { i+ }
-struct fl3 {
+// fIR::= define l ( vars ) { i+ }
+struct fIR {
   l name;
   std::vector<var> vars;
   std::vector<i> instructions;
@@ -285,8 +285,8 @@ struct pl2 {
   l entry_point; // @name
   std::vector<fl2> functions;
 };
-struct pl3 {
-  std::vector<fl3> functions;
+struct pIR {
+  std::vector<fIR> functions;
 };
 
 struct liveness {
@@ -370,10 +370,10 @@ struct TileCtx {
   int &call_counter;
 };
 
-} // namespace L3
+} // namespace IR
 template <>
-struct std::hash<L3::label> {
-  size_t operator()(const L3::label &l) const {
+struct std::hash<IR::label> {
+  size_t operator()(const IR::label &l) const {
     return std::hash<std::string>{}(l.name);
   }
 };

@@ -17,7 +17,7 @@
 #include <tao/pegtl/contrib/raw_string.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
 
-#include <L3.h>
+#include <IR.h>
 #include <parser.h>
 
 #include "parsing/instructions.h"
@@ -27,130 +27,158 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace L3 {
-
-/*
- * Grammar rules definitions from now on.
- */
-
-struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name> {
-};
-struct parse_vars_var : parse_variable {
-};
-struct parse_vars : pegtl::seq<
-                        pegtl::one<'('>,
-                        parse_seps,
-                        pegtl::opt<pegtl::seq<
-                            parse_vars_var,
-                            pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_vars_var>>>>,
-                        parse_seps,
-                        pegtl::one<')'>> {
-};
-struct parse_function_rule : pegtl::seq<parse_seps,
-                                        parse_define,
-                                        parse_seps,
-                                        parse_function_name,
-                                        parse_seps,
-                                        parse_vars,
-                                        parse_seps,
-                                        pegtl::one<'{'>,
-                                        parse_instructions,
-                                        parse_seps,
-                                        pegtl::one<'}'>> {
-};
-struct parse_spill_arg_1 : parse_variable {
-};
-struct parse_spill_arg_2 : parse_variable {
-};
-struct parse_function_rule_spill : pegtl::seq<parse_function_rule, parse_seps, parse_spill_arg_1, parse_seps, parse_spill_arg_2> {
-};
-struct parse_functions_rule : pegtl::seq<
-                                  pegtl::plus<parse_function_rule>> {
-};
-struct parse_entry_point_rule : pegtl::seq<
-                                    parse_seps,
-                                    parse_functions_rule,
-                                    parse_seps> {
-};
-
-struct grammar : pegtl::seq<
-                     parse_entry_point_rule, pegtl::eof> {
-};
-
-/*
- * templates
- */
-template <>
-struct action<parse_function_name> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-
-    fl3 newF;
-    newF.name.name = in.string();
-    acc.program.functions.push_back(newF);
-  }
-};
-
-template <>
-struct action<parse_vars_var> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.program.functions.back().vars.push_back(var{remove_perc(in.string())});
-  }
-};
-
-template <>
-struct action<parse_spill_arg_1> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
-  }
-};
-template <>
-struct action<parse_spill_arg_2> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
-  }
-};
-pl3 parse_file(char *filename) {
-  /*
-   * Check the grammar for some possible issues.
-   */
-  if (pegtl::analyze<grammar>() != 0) {
-    std::cerr << "There are problems with the grammar" << std::endl;
-    exit(1);
-  }
+namespace IR
+{
 
   /*
-   * Parse.
+   * Grammar rules definitions from now on.
    */
-  file_input<> fileInput(filename);
-  // run to debug program...
-  // pegtl::standard_trace<grammar>(fileInput);
-  GlobalAccumulator state;
-  parse<grammar, action>(fileInput, state);
-  return state.program;
-}
 
-void print_functionl3(fl3 &fn) {
-  std::cout << "define " << fn.name.name;
-  // print variables
-  std::cout << " (";
-  bool first = true;
-  for (var &variable : fn.vars) {
-    if (first) {
-      first = false;
-    } else {
-      std::cout << ", ";
+  struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name>
+  {
+  };
+  struct parse_vars_var : parse_variable
+  {
+  };
+  struct parse_vars : pegtl::seq<
+                          pegtl::one<'('>,
+                          parse_seps,
+                          pegtl::opt<pegtl::seq<
+                              parse_vars_var,
+                              pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_vars_var>>>>,
+                          parse_seps,
+                          pegtl::one<')'>>
+  {
+  };
+  struct parse_function_rule : pegtl::seq<parse_seps,
+                                          parse_define,
+                                          parse_seps,
+                                          parse_function_name,
+                                          parse_seps,
+                                          parse_vars,
+                                          parse_seps,
+                                          pegtl::one<'{'>,
+                                          parse_instructions,
+                                          parse_seps,
+                                          pegtl::one<'}'>>
+  {
+  };
+  struct parse_spill_arg_1 : parse_variable
+  {
+  };
+  struct parse_spill_arg_2 : parse_variable
+  {
+  };
+  struct parse_function_rule_spill : pegtl::seq<parse_function_rule, parse_seps, parse_spill_arg_1, parse_seps, parse_spill_arg_2>
+  {
+  };
+  struct parse_functions_rule : pegtl::seq<
+                                    pegtl::plus<parse_function_rule>>
+  {
+  };
+  struct parse_entry_point_rule : pegtl::seq<
+                                      parse_seps,
+                                      parse_functions_rule,
+                                      parse_seps>
+  {
+  };
+
+  struct grammar : pegtl::seq<
+                       parse_entry_point_rule, pegtl::eof>
+  {
+  };
+
+  /*
+   * templates
+   */
+  template <>
+  struct action<parse_function_name>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+
+      fIR newF;
+      newF.name.name = in.string();
+      acc.program.functions.push_back(newF);
     }
-    std::cout << add_perc(variable.name);
+  };
+
+  template <>
+  struct action<parse_vars_var>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.program.functions.back().vars.push_back(var{remove_perc(in.string())});
+    }
+  };
+
+  template <>
+  struct action<parse_spill_arg_1>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
+    }
+  };
+  template <>
+  struct action<parse_spill_arg_2>
+  {
+    template <typename Input>
+    static void apply(const Input &in, GlobalAccumulator &acc)
+    {
+      acc.parsed_spill_args.push_back(var{remove_perc(in.string())});
+    }
+  };
+  pIR parse_file(char *filename)
+  {
+    /*
+     * Check the grammar for some possible issues.
+     */
+    if (pegtl::analyze<grammar>() != 0)
+    {
+      std::cerr << "There are problems with the grammar" << std::endl;
+      exit(1);
+    }
+
+    /*
+     * Parse.
+     */
+    file_input<> fileInput(filename);
+    // run to debug program...
+    // pegtl::standard_trace<grammar>(fileInput);
+    GlobalAccumulator state;
+    parse<grammar, action>(fileInput, state);
+    return state.program;
   }
-  std::cout << ")";
-  std::cout << "{\n";
-  for (auto &instr : fn.instructions) {
-    std::cout << "\t";
-    std::visit([&](auto &ins) {
+
+  void print_functionIR(fIR &fn)
+  {
+    std::cout << "define " << fn.name.name;
+    // print variables
+    std::cout << " (";
+    bool first = true;
+    for (var &variable : fn.vars)
+    {
+      if (first)
+      {
+        first = false;
+      }
+      else
+      {
+        std::cout << ", ";
+      }
+      std::cout << add_perc(variable.name);
+    }
+    std::cout << ")";
+    std::cout << "{\n";
+    for (auto &instr : fn.instructions)
+    {
+      std::cout << "\t";
+      std::visit([&](auto &ins)
+                 {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
         std::cout << "return";
@@ -170,33 +198,36 @@ void print_functionl3(fl3 &fn) {
         std::cout << w_to_str(ins.dest) << " <- " << "stack-arg " << std::to_string(ins.num.value);
       else if constexpr (std::is_same_v<T, LoadAddr>)
         std::cout << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale;
-      else if constexpr (std::is_same_v<T, AopL3>)
+      else if constexpr (std::is_same_v<T, AopIR>)
         std::cout << w_to_str(ins.dest) << " <- " << t_to_str(ins.left) << " " << aop_to_str(ins.op) << " " << t_to_str(ins.right);
-      else if constexpr (std::is_same_v<T, StoreL3>)
+      else if constexpr (std::is_same_v<T, StoreIR>)
         std::cout << "store " << add_perc(ins.dest.name) << " <- " << s_to_str(ins.src);
-      else if constexpr (std::is_same_v<T, LoadL3>)
+      else if constexpr (std::is_same_v<T, LoadIR>)
         std::cout << add_perc(ins.dest.name) << " <- load " << add_perc(ins.src.name);
       else if constexpr (std::is_same_v<T, brlabel>)
         std::cout << "br " << ins.lbl.name;
       else if constexpr (std::is_same_v<T, brtlabel>)
         std::cout << "br " << t_to_str(ins.cond) << " " << ins.lbl.name;
-      else if constexpr (std::is_same_v<T, CallL3>)
+      else if constexpr (std::is_same_v<T, CallIR>)
         std::cout << "call " << callee_to_str(ins.callee) << call_args_to_str(ins.args);
-      else if constexpr (std::is_same_v<T, CallAssignL3>)
+      else if constexpr (std::is_same_v<T, CallAssignIR>)
         std::cout << add_perc(ins.dest.name) << " <- call " << callee_to_str(ins.callexpr.callee) << call_args_to_str(ins.callexpr.args); },
-               instr);
-    std::cout << "\n";
-  }
-  std::cout << "}\n";
-};
-void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile) {
-  std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
-  std::ostream &out = *outp;
-  out << "(" << fn.name.name << "\n";
-  out << "\t" << fn.num_args << "\n";
-  for (auto &instr : fn.instructions) {
-    out << "\t";
-    std::visit([&](auto &ins) {
+                 instr);
+      std::cout << "\n";
+    }
+    std::cout << "}\n";
+  };
+  void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile)
+  {
+    std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
+    std::ostream &out = *outp;
+    out << "(" << fn.name.name << "\n";
+    out << "\t" << fn.num_args << "\n";
+    for (auto &instr : fn.instructions)
+    {
+      out << "\t";
+      std::visit([&](auto &ins)
+                 {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
         out << "return";
@@ -254,19 +285,22 @@ void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile) {
                   << " " << ins.num_args.value;
       else if constexpr (std::is_same_v<T, LoadAddr>)
         out << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale; },
-               instr);
-    out << "\n";
-  }
-  out << ")\n";
-};
-void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile) {
-  std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
-  std::ostream &out = *outp;
-  out << "(" << fn.name.name << "\n";
-  out << "    " << fn.num_args << " " << fn.num_locals << "\n";
-  for (auto &instr : fn.instructions) {
-    out << "\t";
-    std::visit([&](auto &ins) {
+                 instr);
+      out << "\n";
+    }
+    out << ")\n";
+  };
+  void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile)
+  {
+    std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
+    std::ostream &out = *outp;
+    out << "(" << fn.name.name << "\n";
+    out << "    " << fn.num_args << " " << fn.num_locals << "\n";
+    for (auto &instr : fn.instructions)
+    {
+      out << "\t";
+      std::visit([&](auto &ins)
+                 {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, Return>)
         out << "return";
@@ -324,14 +358,16 @@ void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile) {
             << " " << ins.num_args.value;
       else if constexpr (std::is_same_v<T, LoadAddr>)
         out << w_to_str(ins.dest) << " @ " << w_to_str(ins.base) << " " << w_to_str(ins.index) << " " << ins.scale; },
-               instr);
-    out << "\n";
-  }
-  out << ")\n";
-};
-void print_source_program(pl3 program) {
-  for (auto &fn : program.functions) {
-    print_functionl3(fn);
+                 instr);
+      out << "\n";
+    }
+    out << ")\n";
   };
-};
-} // namespace L3
+  void print_source_program(pIR program)
+  {
+    for (auto &fn : program.functions)
+    {
+      print_functionIR(fn);
+    };
+  };
+} // namespace IR
