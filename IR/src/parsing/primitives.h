@@ -17,18 +17,15 @@ namespace IR
   struct GlobalAccumulator
   {
     pIR program;
-    std::vector<s> parsed_items;
-    std::vector<t> parsed_items_t;
-    std::vector<aop> parsed_ops;
-    std::vector<sop> parsed_sops;
-    std::vector<cmp> parsed_cmps;
-    std::vector<N> parsed_offset;
-    std::vector<label> parsed_labels;
-    std::vector<u> parsed_items_u;
-    std::vector<w> parsed_items_w;
-    std::vector<var> parsed_spill_args;
-    std::vector<callee_type> parsed_callee;
-    std::vector<t> parsed_call_args;
+    std::vector<L3::s> parsed_items;
+    std::vector<L3::t> parsed_items_t;
+    std::vector<op> parsed_ops;
+    std::vector<L3::N> parsed_offset;
+    std::vector<L3::label> parsed_labels;
+    std::vector<L3::u> parsed_items_u;
+    std::vector<L3::var> parsed_spill_args;
+    std::vector<L3::callee_type> parsed_callee;
+    std::vector<L3::t> parsed_call_args;
   };
 
   struct parse_number : pegtl::seq<pegtl::sor<
@@ -198,59 +195,59 @@ namespace IR
     return '%' + str;
   }
   // to/translation functions
-  inline s t_to_s(t &t_item)
+  inline L3::s t_to_s(L3::t &t_item)
   {
-    return std::visit([](auto &v) -> s
+    return std::visit([](auto &v) -> L3::s
                       { return s{v}; }, t_item);
   }
-  inline s w_to_s(w &w_item)
+  inline L3::s w_to_s(L3::w &w_item)
   {
-    return std::visit([](auto &v) -> s
+    return std::visit([](auto &v) -> L3::s
                       { return s{v}; }, w_item);
   }
-  inline Op toOp(aop operation)
+  inline L3::Op toOp(L3::aop operation)
   {
     switch (operation)
     {
-    case aop::add:
-      return Op::Add;
-    case aop::sub:
-      return Op::Sub;
-    case aop::mul:
-      return Op::Mul;
-    case aop::and_:
-      return Op::And;
-    case aop::lshift:
-      return Op::Shl;
-    case aop::rshift:
-      return Op::Shr;
+    case L3::aop::add:
+      return L3::Op::Add;
+    case L3::aop::sub:
+      return L3::Op::Sub;
+    case L3::aop::mul:
+      return L3::Op::Mul;
+    case L3::aop::and_:
+      return L3::Op::And;
+    case L3::aop::lshift:
+      return L3::Op::Shl;
+    case L3::aop::rshift:
+      return L3::Op::Shr;
     default:
       __builtin_unreachable();
     }
   }
 
-  inline Op toCmpOp(cmp operation)
+  inline L3::Op toCmpOp(L3::cmp operation)
   {
     switch (operation)
     {
-    case cmp::lt:
-      return Op::Lt;
-    case cmp::gt:
-      return Op::Gt;
-    case cmp::le:
-      return Op::Le;
-    case cmp::gte:
-      return Op::Ge;
-    case cmp::eq:
-      return Op::Eq;
+    case L3::cmp::lt:
+      return L3::Op::Lt;
+    case L3::cmp::gt:
+      return L3::Op::Gt;
+    case L3::cmp::le:
+      return L3::Op::Le;
+    case L3::cmp::gte:
+      return L3::Op::Ge;
+    case L3::cmp::eq:
+      return L3::Op::Eq;
     default:
       __builtin_unreachable();
     }
   }
 
-  inline t s_to_t(const s &sv)
+  inline L3::t s_to_t(const L3::s &sv)
   {
-    return std::visit([](auto &x) -> t
+    return std::visit([](auto &x) -> L3::t
                       {
     using X = std::decay_t<decltype(x)>;
     if constexpr (std::is_same_v<X, r>)
@@ -265,9 +262,9 @@ namespace IR
                       sv);
   }
 
-  inline w s_to_w(const s &sv)
+  inline L3::w s_to_w(const L3::s &sv)
   {
-    return std::visit([](auto &x) -> w
+    return std::visit([](auto &x) -> L3::w
                       {
     using X = std::decay_t<decltype(x)>;
     if constexpr (std::is_same_v<X, r>)
@@ -280,85 +277,85 @@ namespace IR
                       sv);
   }
 
-  inline aop op_to_aop(Op op)
+  inline L3::aop op_to_aop(L3::Op op)
   {
     switch (op)
     {
-    case Op::Add:
-      return aop::add;
-    case Op::Sub:
-      return aop::sub;
-    case Op::Mul:
-      return aop::mul;
-    case Op::And:
-      return aop::and_;
-    case Op::Shl:
-      return aop::lshift;
-    case Op::Shr:
-      return aop::rshift;
+    case L3::Op::Add:
+      return L3::aop::add;
+    case L3::Op::Sub:
+      return L3::aop::sub;
+    case L3::Op::Mul:
+      return L3::aop::mul;
+    case L3::Op::And:
+      return L3::aop::and_;
+    case L3::Op::Shl:
+      return L3::aop::lshift;
+    case L3::Op::Shr:
+      return L3::aop::rshift;
     default:
       __builtin_unreachable();
     }
   }
-  inline cmp op_to_cmp(Op cmp_op)
+  inline L3::cmp op_to_cmp(L3::Op cmp_op)
   {
     switch (cmp_op)
     {
-    case Op::Lt:
-      return cmp::lt;
-    case Op::Le:
-      return cmp::le;
-    case Op::Eq:
-      return cmp::eq;
-    case Op::Gt:
-      return cmp::lt;
-    case Op::Ge:
-      return cmp::le;
+    case L3::Op::Lt:
+      return L3::cmp::lt;
+    case L3::Op::Le:
+      return L3::cmp::le;
+    case L3::Op::Eq:
+      return L3::cmp::eq;
+    case L3::Op::Gt:
+      return L3::cmp::lt;
+    case L3::Op::Ge:
+      return L3::cmp::le;
     default:
       __builtin_unreachable();
     }
   }
   inline std::string
-  r_to_str(r reg)
+  r_to_str(L3::r reg)
   {
     switch (reg)
     {
-    case r::rax:
+    case L3::r::rax:
       return "rax";
-    case r::rbx:
+    case L3::r::rbx:
       return "rbx";
-    case r::rbp:
+    case L3::r::rbp:
       return "rbp";
-    case r::r10:
+    case L3::r::r10:
       return "r10";
-    case r::r11:
+    case L3::r::r11:
       return "r11";
-    case r::r12:
+    case L3::r::r12:
       return "r12";
-    case r::r13:
+    case L3::r::r13:
       return "r13";
-    case r::r14:
+    case L3::r::r14:
       return "r14";
-    case r::r15:
+    case L3::r::r15:
       return "r15";
-    case r::rdi:
+    case L3::r::rdi:
       return "rdi";
-    case r::rsi:
+    case L3::r::rsi:
       return "rsi";
-    case r::rdx:
+    case L3::r::rdx:
       return "rdx";
-    case r::r8:
+    case L3::r::r8:
       return "r8";
-    case r::r9:
+    case L3::r::r9:
       return "r9";
-    case r::rcx:
+    case L3::r::rcx:
       return "rcx";
-    case r::rsp:
+    case L3::r::rsp:
       return "rsp";
     }
     __builtin_unreachable();
   };
-  inline std::string t_to_str(t val)
+  inline std::string t_to_str(L3::t val)
   {
     return std::visit([](auto &v) -> std::string
                       {
@@ -371,7 +368,7 @@ namespace IR
       return std::to_string(v.value); },
                       val);
   }
-  inline std::string s_to_str(s val)
+  inline std::string s_to_str(L3::s val)
   {
     return std::visit([](auto &v) -> std::string
                       {
@@ -386,7 +383,7 @@ namespace IR
       return v.name; },
                       val);
   }
-  inline std::string w_to_str(w val)
+  inline std::string w_to_str(L3::w val)
   {
     return std::visit([](auto &v) -> std::string
                       {
@@ -399,74 +396,74 @@ namespace IR
       return v.name; },
                       val);
   }
-  inline std::string aop_to_str(aop op)
+  inline std::string aop_to_str(L3::aop op)
   {
     switch (op)
     {
-    case aop::add:
+    case L3::aop::add:
       return "+";
-    case aop::sub:
+    case L3::aop::sub:
       return "-";
-    case aop::mul:
+    case L3::aop::mul:
       return "*";
-    case aop::and_:
+    case L3::aop::and_:
       return "&";
-    case aop::lshift:
+    case L3::aop::lshift:
       return "<<";
-    case aop::rshift:
+    case L3::aop::rshift:
       return ">>";
     }
     __builtin_unreachable();
   }
-  inline std::string aop_to_str_l2(aop op)
+  inline std::string aop_to_str_l2(L3::aop op)
   {
     switch (op)
     {
-    case aop::add:
+    case L3::aop::add:
       return "+=";
-    case aop::sub:
+    case L3::aop::sub:
       return "-=";
-    case aop::mul:
+    case L3::aop::mul:
       return "*=";
-    case aop::and_:
+    case L3::aop::and_:
       return "&=";
-    case aop::lshift:
+    case L3::aop::lshift:
       return "<<=";
-    case aop::rshift:
+    case L3::aop::rshift:
       return ">>=";
     }
     __builtin_unreachable();
   }
-  inline std::string sop_to_str(sop op)
+  inline std::string sop_to_str(L3::sop op)
   {
     switch (op)
     {
-    case sop::lshift:
+    case L3::sop::lshift:
       return "<<=";
-    case sop::rshift:
+    case L3::sop::rshift:
       return ">>=";
     }
     __builtin_unreachable();
   }
-  inline std::string cmp_to_str(cmp op)
+  inline std::string cmp_to_str(L3::cmp op)
   {
     switch (op)
     {
-    case cmp::lt:
+    case L3::cmp::lt:
       return "<";
-    case cmp::gt:
+    case L3::cmp::gt:
       return ">";
-    case cmp::le:
+    case L3::cmp::le:
       return "<=";
-    case cmp::eq:
+    case L3::cmp::eq:
       return "=";
-    case cmp::gte:
+    case L3::cmp::gte:
       return ">=";
     }
     __builtin_unreachable();
   }
 
-  inline std::string callee_to_str(callee_type &callee)
+  inline std::string callee_to_str(L3::callee_type &callee)
   {
     return std::visit([](auto &c) -> std::string
                       {
@@ -483,7 +480,7 @@ namespace IR
         else return v.name;
       }, c); }, callee);
   }
-  inline std::string call_args_to_str(std::vector<t> &args)
+  inline std::string call_args_to_str(std::vector<L3::t> &args)
   {
     std::string result = "(";
     bool first = true;
@@ -504,7 +501,7 @@ namespace IR
   }
 
   template <typename V>
-  bool is_var(const V &val, const var &v)
+  bool is_var(const V &val, const L3::var &v)
   {
     return std::visit([&](const auto &x) -> bool
                       {

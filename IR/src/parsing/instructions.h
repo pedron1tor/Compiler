@@ -62,9 +62,7 @@ namespace IR
   struct parse_call_input : parse_input
   {
   };
-  struct parse_call_allocate : parse_allocate
-  {
-  };
+
   struct parse_call_tuple_error : parse_tuple_error
   {
   };
@@ -79,7 +77,7 @@ namespace IR
   {
   };
   struct parse_callee : pegtl::sor<
-                            parse_call_print, parse_call_input, parse_call_allocate,
+                            parse_call_print, parse_call_input,
                             parse_call_tuple_error, parse_call_tensor_error, parse_callee_u>
   {
   };
@@ -108,23 +106,6 @@ namespace IR
   struct parse_brtlabel_inst : pegtl::seq<parse_br, parse_spaces, parse_t, parse_spaces, parse_br_target>
   {
   };
-  // %dest <- load %src
-  struct parse_load_dest : parse_variable
-  {
-  };
-  struct parse_load_src : parse_variable
-  {
-  };
-  struct parse_load_IR : pegtl::seq<parse_load_dest, parse_spaces, parse_arrow, parse_spaces, parse_load, parse_spaces, parse_load_src>
-  {
-  };
-  // store %var <- s
-  struct parse_store_dest : parse_variable
-  {
-  };
-  struct parse_store_IR : pegtl::seq<parse_store, parse_spaces, parse_store_dest, parse_spaces, parse_arrow, parse_spaces, parse_s>
-  {
-  };
   // w <- t aop t
   struct parse_arith_IR_op : parse_aop
   {
@@ -142,7 +123,7 @@ namespace IR
   };
 
   struct parse_instructions : pegtl::seq<parse_seps,
-                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_allocate, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assign_cmp, parse_arith_IR, parse_load_IR, parse_store_IR, parse_assignment>, parse_seps>>>
+                                         pegtl::plus<pegtl::seq<parse_spaces, pegtl::sor<parse_assign_call_callee, parse_call_callee, parse_brtlabel_inst, parse_brlabel_inst, parse_return_t, parse_return_inst, parse_call_print, parse_call_input, parse_call_tuple_error, parse_call_tensor_error, parse_label_inst, parse_assign_cmp, parse_arith_IR, parse_assignment>, parse_seps>>>
   {
   };
 
@@ -297,15 +278,7 @@ namespace IR
       acc.parsed_callee.push_back(CallInput{});
     }
   };
-  template <>
-  struct action<parse_call_allocate>
-  {
-    template <typename Input>
-    static void apply(const Input &, GlobalAccumulator &acc)
-    {
-      acc.parsed_callee.push_back(CallAllocate{});
-    }
-  };
+
   template <>
   struct action<parse_call_tuple_error>
   {
@@ -423,57 +396,5 @@ namespace IR
       acc.program.functions.back().instructions.push_back(i{AopIR{dest, left, op, right}});
     }
   };
-  template <>
-  struct action<parse_load_dest>
-  {
-    template <typename Input>
-    static void apply(const Input &in, GlobalAccumulator &acc)
-    {
-      acc.parsed_items_w.push_back(w{var{remove_perc(in.string())}});
-    }
-  };
-  template <>
-  struct action<parse_load_src>
-  {
-    template <typename Input>
-    static void apply(const Input &in, GlobalAccumulator &acc)
-    {
-      acc.parsed_items_w.push_back(w{var{remove_perc(in.string())}});
-    }
-  };
-  template <>
-  struct action<parse_load_IR>
-  {
-    template <typename Input>
-    static void apply(const Input &, GlobalAccumulator &acc)
-    {
-      auto src = std::get<var>(acc.parsed_items_w.back());
-      acc.parsed_items_w.pop_back();
-      auto dest = std::get<var>(acc.parsed_items_w.back());
-      acc.parsed_items_w.pop_back();
-      acc.program.functions.back().instructions.push_back(i{LoadIR{dest, src}});
-    }
-  };
-  template <>
-  struct action<parse_store_dest>
-  {
-    template <typename Input>
-    static void apply(const Input &in, GlobalAccumulator &acc)
-    {
-      acc.parsed_items_w.push_back(w{var{remove_perc(in.string())}});
-    }
-  };
-  template <>
-  struct action<parse_store_IR>
-  {
-    template <typename Input>
-    static void apply(const Input &, GlobalAccumulator &acc)
-    {
-      auto src = acc.parsed_items.back();
-      acc.parsed_items.pop_back();
-      auto dest = std::get<var>(acc.parsed_items_w.back());
-      acc.parsed_items_w.pop_back();
-      acc.program.functions.back().instructions.push_back(i{StoreIR{dest, src}});
-    }
-  };
+
 } // namespace IR
