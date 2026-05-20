@@ -33,16 +33,13 @@ namespace IR
   struct parse_s_num_val : parse_number
   {
   };
-  struct parse_s_label_val : parse_label
-  {
-  };
   struct parse_s_fname_val : pegtl::seq<pegtl::one<'@'>, parse_name>
   {
   };
   struct parse_s_var : parse_variable
   {
   };
-  struct parse_s : pegtl::sor<parse_s_label_val, parse_s_fname_val, parse_s_num_val, parse_s_var>
+  struct parse_s : pegtl::sor<parse_s_fname_val, parse_s_num_val, parse_s_var>
   {
   };
   // parse w
@@ -96,15 +93,6 @@ namespace IR
     }
   };
   template <>
-  struct action<parse_s_label_val>
-  {
-    template <typename Input>
-    static void apply(const Input &in, GlobalAccumulator &acc)
-    {
-      acc.parsed_items.push_back(s{label{in.string()}});
-    }
-  };
-  template <>
   struct action<parse_s_fname_val>
   {
     template <typename Input>
@@ -138,10 +126,8 @@ namespace IR
     template <typename Input>
     static void apply(const Input &in, GlobalAccumulator &acc)
     {
-      auto val = acc.parsed_items_w.back();
-      acc.parsed_items_w.pop_back();
-      std::visit([&](auto &v)
-                 { acc.parsed_items_u.push_back(u{v}); }, val);
+      acc.parsed_items_u.push_back(L3::u{acc.parsed_vars.back()});
+      acc.parsed_vars.pop_back();
     }
   };
   template <>
@@ -150,7 +136,7 @@ namespace IR
     template <typename Input>
     static void apply(const Input &in, GlobalAccumulator &acc)
     {
-      acc.parsed_items_w.push_back(w{var{remove_perc(in.string())}});
+      acc.parsed_vars.push_back(L3::var{remove_perc(in.string())});
     }
   };
 
