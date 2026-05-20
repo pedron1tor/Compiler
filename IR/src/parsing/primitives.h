@@ -19,11 +19,11 @@ namespace IR
     pIR program;
     std::vector<L3::s> parsed_items;
     std::vector<L3::t> parsed_items_t;
+    std::vector<L3::var> parsed_vars;
     std::vector<op> parsed_ops;
     std::vector<L3::N> parsed_offset;
     std::vector<L3::label> parsed_labels;
     std::vector<L3::u> parsed_items_u;
-    std::vector<L3::var> parsed_spill_args;
     std::vector<L3::callee_type> parsed_callee;
     std::vector<L3::t> parsed_call_args;
   };
@@ -459,6 +459,36 @@ namespace IR
       return "=";
     case L3::cmp::gte:
       return ">=";
+    }
+    __builtin_unreachable();
+  }
+
+  inline std::string op_to_str(op operation)
+  {
+    switch (operation)
+    {
+    case op::add:
+      return "+";
+    case op::sub:
+      return "-";
+    case op::mul:
+      return "*";
+    case op::and_:
+      return "&";
+    case op::lshift:
+      return "<<";
+    case op::rshift:
+      return ">>";
+    case op::lt:
+      return "<";
+    case op::gt:
+      return ">";
+    case op::le:
+      return "<=";
+    case op::gte:
+      return ">=";
+    case op::eq:
+      return "=";
     }
     __builtin_unreachable();
   }
