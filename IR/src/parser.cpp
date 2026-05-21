@@ -302,9 +302,9 @@ void print_functionl2(L3::fl2 &fn, bool generator, std::ofstream *outputFile) {
       else if constexpr (std::is_same_v<T, L3::Call>)
         out << "call " << std::visit([&](auto &v) -> std::string {
           using U = std::decay_t<decltype(v)>;
-          if constexpr (std::is_same_v<U, r>)
+          if constexpr (std::is_same_v<U, L3::r>)
             return r_to_str(v);
-          else if (std::is_same_v<U, var>)
+          else if (std::is_same_v<U, L3::var>)
             return add_perc(v.name);
           else
             return v.name;
@@ -372,9 +372,9 @@ void print_functionl1(L3::fl1 &fn, bool generator, std::ofstream *outputFile) {
       else if constexpr (std::is_same_v<T, L3::Call>)
         out << "call " << std::visit([&](auto &v) -> std::string {
           using U = std::decay_t<decltype(v)>;
-          if constexpr (std::is_same_v<U, r>)
+          if constexpr (std::is_same_v<U, L3::r>)
             return r_to_str(v);
-          else if (std::is_same_v<U, var>)
+          else if (std::is_same_v<U, L3::var>)
             return add_perc(v.name);
           else
             return v.name;

@@ -183,10 +183,10 @@ inline std::string add_perc(std::string str) {
 }
 // to/translation functions
 inline L3::s t_to_s(L3::t &t_item) {
-  return std::visit([](auto &v) -> L3::s { return s{v}; }, t_item);
+  return std::visit([](auto &v) -> L3::s { return L3::s{v}; }, t_item);
 }
 inline L3::s w_to_s(L3::w &w_item) {
-  return std::visit([](auto &v) -> L3::s { return s{v}; }, w_item);
+  return std::visit([](auto &v) -> L3::s { return L3::s{v}; }, w_item);
 }
 inline L3::Op toOp(L3::aop operation) {
   switch (operation) {
@@ -227,12 +227,12 @@ inline L3::Op toCmpOp(L3::cmp operation) {
 inline L3::t s_to_t(const L3::s &sv) {
   return std::visit([](auto &x) -> L3::t {
     using X = std::decay_t<decltype(x)>;
-    if constexpr (std::is_same_v<X, r>)
-      return t{x};
-    else if constexpr (std::is_same_v<X, N>)
-      return t{x};
-    else if constexpr (std::is_same_v<X, var>)
-      return t{x};
+    if constexpr (std::is_same_v<X, L3::r>)
+      return L3::t{x};
+    else if constexpr (std::is_same_v<X, L3::N>)
+      return L3::t{x};
+    else if constexpr (std::is_same_v<X, L3::var>)
+      return L3::t{x};
     else {
       __builtin_unreachable();
     } },
@@ -242,10 +242,10 @@ inline L3::t s_to_t(const L3::s &sv) {
 inline L3::w s_to_w(const L3::s &sv) {
   return std::visit([](auto &x) -> L3::w {
     using X = std::decay_t<decltype(x)>;
-    if constexpr (std::is_same_v<X, r>)
-      return w{x};
-    else if constexpr (std::is_same_v<X, var>)
-      return w{x};
+    if constexpr (std::is_same_v<X, L3::r>)
+      return L3::w{x};
+    else if constexpr (std::is_same_v<X, L3::var>)
+      return L3::w{x};
     else {
       __builtin_unreachable();
     } },
@@ -327,9 +327,9 @@ r_to_str(L3::r reg) {
 inline std::string t_to_str(L3::t val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, r>)
+    if constexpr (std::is_same_v<T, L3::r>)
       return r_to_str(v);
-    else if constexpr (std::is_same_v<T, var>)
+    else if constexpr (std::is_same_v<T, L3::var>)
       return add_perc(v.name);
     else
       return std::to_string(v.value); },
@@ -338,11 +338,11 @@ inline std::string t_to_str(L3::t val) {
 inline std::string s_to_str(L3::s val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, r>)
+    if constexpr (std::is_same_v<T, L3::r>)
       return r_to_str(v);
-    else if constexpr (std::is_same_v<T, N>)
+    else if constexpr (std::is_same_v<T, L3::N>)
       return std::to_string(v.value);
-    else if constexpr (std::is_same_v<T, var>)
+    else if constexpr (std::is_same_v<T, L3::var>)
       return add_perc(v.name);
     else
       return v.name; },
@@ -351,9 +351,9 @@ inline std::string s_to_str(L3::s val) {
 inline std::string w_to_str(L3::w val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, r>)
+    if constexpr (std::is_same_v<T, L3::r>)
       return r_to_str(v);
-    else if constexpr (std::is_same_v<T, var>)
+    else if constexpr (std::is_same_v<T, L3::var>)
       return add_perc(v.name);
     else
       return v.name; },
@@ -444,20 +444,45 @@ inline std::string op_to_str(op operation) {
     return "=";
   }
   __builtin_unreachable();
+};
+inline op str_to_op(std::string operation) {
+  if (operation == "+")
+    return op::add;
+  else if (operation == "-")
+    return op::sub;
+  else if (operation == "*")
+    return op::mul;
+  else if (operation == "&")
+    return op::and_;
+  else if (operation == "<<")
+    return op::lshift;
+  else if (operation == ">>")
+    return op::rshift;
+  else if (operation == "<")
+    return op::lt;
+  else if (operation == ">")
+    return op::gt;
+  else if (operation == "<=")
+    return op::le;
+  else if (operation == ">=")
+    return op::gte;
+  else if (operation == "=")
+    return op::eq;
+  __builtin_unreachable();
 }
 
 inline std::string callee_to_str(L3::callee_type &callee) {
   return std::visit([](auto &c) -> std::string {
       using C = std::decay_t<decltype(c)>;
-      if constexpr (std::is_same_v<C, CallPrint>) return "print";
-      else if constexpr (std::is_same_v<C, CallInput>) return "input";
-      else if constexpr (std::is_same_v<C, CallAllocate>) return "allocate";
-      else if constexpr (std::is_same_v<C, CallTupleError>) return "tuple-error";
-      else if constexpr (std::is_same_v<C, CallTensorError>) return "tensor-error";
+      if constexpr (std::is_same_v<C, L3::CallPrint>) return "print";
+      else if constexpr (std::is_same_v<C, L3::CallInput>) return "input";
+      else if constexpr (std::is_same_v<C, L3::CallAllocate>) return "allocate";
+      else if constexpr (std::is_same_v<C, L3::CallTupleError>) return "tuple-error";
+      else if constexpr (std::is_same_v<C, L3::CallTensorError>) return "tensor-error";
       else return std::visit([](auto &v) -> std::string {
         using V = std::decay_t<decltype(v)>;
-        if constexpr (std::is_same_v<V, r>) return r_to_str(v);
-        else if constexpr (std::is_same_v<V, var>) return add_perc(v.name);
+        if constexpr (std::is_same_v<V, L3::r>) return r_to_str(v);
+        else if constexpr (std::is_same_v<V, L3::var>) return add_perc(v.name);
         else return v.name;
       }, c); }, callee);
 }
@@ -481,7 +506,7 @@ bool is_var(const V &val, const L3::var &v) {
   return std::visit([&](const auto &x) -> bool {
     // if the value in the instruction is a variable, compare against variable of interest
     using X = std::decay_t<decltype(x)>;
-    if constexpr (std::is_same_v<X, var>)
+    if constexpr (std::is_same_v<X, L3::var>)
       return x == v;
     else
       return false; },
@@ -499,8 +524,8 @@ template <>
 struct action<parse_type_int64> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    int len_brackets = in.string().size() - 5 // remove the int64 prefix
-                       int dim = (len) / 2;   // count the pairs of brackets
+    int len_brackets = in.string().size() - 5; // remove the int64 prefix
+    int dim = (len_brackets) / 2;              // count the pairs of brackets
     acc.parsed_types.push_back(type{t_int64{dim}});
   }
 };
