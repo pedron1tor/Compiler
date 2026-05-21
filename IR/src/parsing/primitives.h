@@ -348,6 +348,36 @@ inline std::string s_to_str(L3::s val) {
       return v.name; },
                     val);
 }
+inline std::string type_to_str(type function_type) {
+  return std::visit([](auto &v) -> std::string {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, t_void>)
+      return "void ";
+    else if constexpr (std::is_same_v<T, t_tuple>)
+      return "tuple ";
+    else if constexpr (std::is_same_v<T, t_int64>) {
+      std::string repeated = "";
+      for(int i = 0; i < v.dim; ++i) {
+          repeated += "[]";
+      };
+      return "int64" + repeated + " ";
+}
+    else
+      return "failure "; },
+                    function_type);
+};
+
+inline std::string dims_to_str(std::vector<L3::t> dims) {
+  std::string repeated = "";
+  bool first = true;
+  for (int i = 0; i < dims.size(); i++) {
+    if (!first)
+      repeated += ", ";
+    first = false;
+    repeated += t_to_str(dims[i]);
+  };
+  return repeated;
+};
 inline std::string w_to_str(L3::w val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;

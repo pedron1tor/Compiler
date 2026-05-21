@@ -126,7 +126,7 @@ pIR parse_file(char *filename) {
 }
 
 void print_functionIR(fIR &fn) {
-  std::cout << "define " << fn.name.name << " (";
+  std::cout << "define " << type_to_str(fn.f_type) << fn.name.name << " (";
   bool first = true;
   for (auto &tv : fn.parameters.input_variables) {
     if (!first)
@@ -164,11 +164,11 @@ void print_functionIR(fIR &fn) {
           else if constexpr (std::is_same_v<T, Length>)
             std::cout << add_perc(ins.dest.name) << " <- length " << add_perc(ins.src.name);
           else if constexpr (std::is_same_v<T, NewArray>)
-            std::cout << add_perc(ins.dest.name) << " <- new Array(...)";
+            std::cout << add_perc(ins.dest.name) << " <- new Array(" << dims_to_str(ins.dims) << ")";
           else if constexpr (std::is_same_v<T, NewTuple>)
             std::cout << add_perc(ins.dest.name) << " <- new Tuple(...)";
           else if constexpr (std::is_same_v<T, TypeVar>)
-            std::cout << add_perc(ins.var_declared.name); },
+            std::cout << type_to_str(ins.var_type) << add_perc(ins.var_declared.name); },
                  instr);
       std::cout << "\n";
     }
