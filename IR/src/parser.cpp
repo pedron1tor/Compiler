@@ -136,6 +136,7 @@ void print_functionIR(fIR &fn) {
   }
   std::cout << ") {\n";
   for (auto &block : fn.blocks) {
+    std::cout << "\t";
     std::cout << block.lbl.name << "\n";
     for (auto &instr : block.instructions) {
       std::cout << "\t";
@@ -158,15 +159,15 @@ void print_functionIR(fIR &fn) {
           else if constexpr (std::is_same_v<T, L3::CallTensorError>)
             std::cout << "call tensor-error()";
           else if constexpr (std::is_same_v<T, ArrayRead>)
-            std::cout << add_perc(ins.dest.name) << " <- " << add_perc(ins.src.name) << "[...]";
+            std::cout << add_perc(ins.dest.name) << " <- " << add_perc(ins.src.name) << indices_to_str(ins.indices);
           else if constexpr (std::is_same_v<T, ArrayWrite>)
-            std::cout << add_perc(ins.dest.name) << "[...] <- ...";
+            std::cout << add_perc(ins.dest.name) << indices_to_str(ins.indices) <<  " <- " << s_to_str(ins.src) ;
           else if constexpr (std::is_same_v<T, Length>)
             std::cout << add_perc(ins.dest.name) << " <- length " << add_perc(ins.src.name);
           else if constexpr (std::is_same_v<T, NewArray>)
             std::cout << add_perc(ins.dest.name) << " <- new Array(" << dims_to_str(ins.dims) << ")";
           else if constexpr (std::is_same_v<T, NewTuple>)
-            std::cout << add_perc(ins.dest.name) << " <- new Tuple(...)";
+            std::cout << add_perc(ins.dest.name) << " <- new Tuple(" << t_to_str(ins.size)<< ")";
           else if constexpr (std::is_same_v<T, TypeVar>)
             std::cout << type_to_str(ins.var_type) << add_perc(ins.var_declared.name); },
                  instr);

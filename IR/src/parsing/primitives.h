@@ -378,6 +378,7 @@ inline std::string dims_to_str(std::vector<L3::t> dims) {
   };
   return repeated;
 };
+
 inline std::string w_to_str(L3::w val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
@@ -500,6 +501,15 @@ inline op str_to_op(std::string operation) {
     return op::eq;
   __builtin_unreachable();
 }
+inline std::string indices_to_str(std::vector<L3::t> indices) {
+  std::string repeated = "";
+  for (int i = 0; i < indices.size(); i++) {
+    repeated += "[";
+    repeated += t_to_str(indices[i]);
+    repeated += "]";
+  };
+  return repeated;
+};
 
 inline std::string callee_to_str(L3::callee_type &callee) {
   return std::visit([](auto &c) -> std::string {
