@@ -3,9 +3,11 @@
 #include "parsing/primitives.h"
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <optional>
 #include <set>
 #include <unordered_map>
+#include <utils.h>
 
 namespace IR {
 
@@ -85,25 +87,23 @@ pIR linearize_CFG(pIR &original_program) {
   pIR linearized_p;
   for (auto &fn : original_program.functions) {
     std::set<bb> f_bb(fn.blocks.begin(), fn.blocks.end()); // get all the basic blocks of the function
-    int idx_into_vec;
-    std::vector<trace> traces; // define a list of traces for the function
-    if (!f_bb.empty()) {
-
-      do {
-        trace tr;
-        bb first_bb = *f_bb.begin();
-        f_bb.erase(first_bb);
-        trace_bb bb = bb_to_trace_bb(first_bb); // initialize a trace basic block with mark set to false
-        while (!bb.mark) {
-          bb.mark = true;
-          tr.blocks.push_back(bb);
-          std::vector<L3::label> succs = successors(bb);
-          bb = select_next(f_bb, bb, succs);
-        }
-
-        traces.push_back(tr);
-      } while (0 < f_bb.size());
-    };
+    std::vector<trace> traces;                             // define a list of traces for the function
+    for (auto &orig_block : fn.blocks) {
+      auto it = f_bb.find(orig_block);
+      if (it == f_bb.end())
+        continue;
+      trace tr;
+      bb first_bb = *it;
+      f_bb.erase(it);
+      trace_bb tbb = bb_to_trace_bb(first_bb); // initialize a trace basic block with mark set to false
+      while (!tbb.mark) {
+        tbb.mark = true;
+        tr.blocks.push_back(tbb);
+        std::vector<L3::label> succs = successors(tbb);
+        tbb = select_next(f_bb, tbb, succs);
+      }
+      traces.push_back(tr);
+    }
     linearized_p.functions.push_back(fIR{fn.f_type, fn.name, fn.parameters, traces_to_bbs(traces)});
   };
   return linearized_p;
