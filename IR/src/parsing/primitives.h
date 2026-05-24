@@ -557,6 +557,34 @@ inline std::vector<bb> traces_to_bbs(std::vector<trace> &traces) {
   return bbs;
 };
 
+inline L3::i BinOp_to_l3op(IR::BinOp &b) {
+  L3::w dest{b.dest};
+  switch (b.operation) {
+  case op::add:
+    return L3::AopL3{dest, b.left, L3::aop::add, b.right};
+  case op::sub:
+    return L3::AopL3{dest, b.left, L3::aop::sub, b.right};
+  case op::mul:
+    return L3::AopL3{dest, b.left, L3::aop::mul, b.right};
+  case op::and_:
+    return L3::AopL3{dest, b.left, L3::aop::and_, b.right};
+  case op::lshift:
+    return L3::AopL3{dest, b.left, L3::aop::lshift, b.right};
+  case op::rshift:
+    return L3::AopL3{dest, b.left, L3::aop::rshift, b.right};
+  case op::lt:
+    return L3::Compare{dest, b.left, L3::cmp::lt, b.right};
+  case op::gt:
+    return L3::Compare{dest, b.left, L3::cmp::gt, b.right};
+  case op::le:
+    return L3::Compare{dest, b.left, L3::cmp::le, b.right};
+  case op::gte:
+    return L3::Compare{dest, b.left, L3::cmp::gte, b.right};
+  default:
+    return L3::Compare{dest, b.left, L3::cmp::eq, b.right};
+  }
+}
+
 template <typename V>
 bool is_var(const V &val, const L3::var &v) {
   return std::visit([&](const auto &x) -> bool {
