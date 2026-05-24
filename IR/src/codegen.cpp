@@ -11,7 +11,145 @@
 
 namespace IR {
 
+static L3::var compute_elem_addr(L3::var arr, std::vector<L3::t> &indices,
+                                 std::vector<L3::i> &out,
+                                 std::function<L3::var()> &fresh_var) {
+  int n = indices.size();
+
+  // ADDR_M <- A + 16 / M_ <- load ADDR_M / M <- M_ >> 1
+  //      ADDR_N <- A + 24 / N_ <- load ADDR_N / N <- N_ >> 1
+  std::vector<L3::var> dims;
+  for (int i = 1; i < n; i++) { // for all dimensions
+    L3::var dim_addr = fresh_var(), dim_enc = fresh_var(), dim_raw = fresh_var();
+    out.push_back(L3::AopL3{L3::w{dim_addr}, L3::t{arr}, L3::aop::add, L3::t{L3::N{(int64_t)(i + 1) * 8}}}); // calculate address
+    out.push_back(L3::LoadL3{dim_enc, dim_addr});                                                            // load the encoded dimension
+    out.push_back(L3::AopL3{L3::w{dim_raw}, L3::t{dim_enc}, L3::aop::rshift, L3::t{L3::N{1}}});              // decode
+    dims.push_back(dim_raw);
+  }
+
+  // newVar1 <- (i * N)
+  // newVar2 <- (k * M * N)
+  // newVar3 <- (k*M*N
+  // index <- (k*M*N) + (i*N) + j
+  L3::var idx_var = fresh_var();
+  out.push_back(L3::Assign{L3::w{idx_var}, L3::s{L3::N{0}}});
+  if (n > 1) {
+    L3::var stride = dims[n - 2];
+    for (int j = n - 2; j >= 0; j--) {
+      L3::var contrib = fresh_var(), new_lin = fresh_var();
+      out.push_back(L3::AopL3{L3::w{contrib}, indices[j], L3::aop::mul, L3::t{stride}});
+      out.push_back(L3::AopL3{L3::w{new_lin}, L3::t{idx_var}, L3::aop::add, L3::t{contrib}});
+      idx_var = new_lin;
+      if (j > 0) {
+        L3::var new_stride = fresh_var();
+        out.push_back(L3::AopL3{L3::w{new_stride}, L3::t{dims[j - 1]}, L3::aop::mul, L3::t{stride}});
+        stride = new_stride;
+      }
+    }
+  }
+
+  // add inner idx
+  // index <- newVar3 + j
+  L3::var flat = fresh_var();
+  out.push_back(L3::AopL3{L3::w{flat}, L3::t{idx_var}, L3::aop::add, indices[n - 1]});
+
+  //   Matrix M x N:
+  // Offset for all: B = 8 + (2 * 8)
+  L3::var byte_off = fresh_var();
+  out.push_back(L3::AopL3{L3::w{byte_off}, L3::t{flat}, L3::aop::mul, L3::t{L3::N{8}}});
+  out.push_back(L3::AopL3{L3::w{byte_off}, L3::t{byte_off}, L3::aop::add,
+                          L3::t{L3::N{(int64_t)(n + 1) * 8}}});
+
+  L3::var addr = fresh_var();
+  out.push_back(L3::AopL3{L3::w{addr}, L3::t{arr}, L3::aop::add, L3::t{byte_off}});
+  return addr;
+}
+std::vector<L3::i> NewArray_to_l3(IR::NewArray &na, std::function<L3::var()> &fresh_var) {
+  std::vector<L3::i> out;
+  int n = na.dims.size();
+
+  // decode by right shifting by 1...
+  L3::var prod = fresh_var();
+  out.push_back(L3::Assign{L3::w{prod}, L3::s{L3::N{1}}});
+  for (auto &dim : na.dims) {
+    L3::var dec = fresh_var();
+    L3::var new_prod = fresh_var();
+    out.push_back(L3::AopL3{L3::w{dec}, dim, L3::aop::rshift, L3::t{L3::N{1}}});      // assign the decoded value to dec fresh var
+    out.push_back(L3::AopL3{L3::w{new_prod}, L3::t{prod}, L3::aop::mul, L3::t{dec}}); // multiply times prod
+    prod = new_prod;
+  }
+
+  // encode(product + n)
+  L3::var enc = fresh_var();
+  out.push_back(L3::AopL3{L3::w{enc}, L3::t{prod}, L3::aop::add, L3::t{L3::N{n}}});
+  out.push_back(L3::AopL3{L3::w{enc}, L3::t{enc}, L3::aop::lshift, L3::t{L3::N{1}}});
+  out.push_back(L3::AopL3{L3::w{enc}, L3::t{enc}, L3::aop::add, L3::t{L3::N{1}}});
+
+  // %a <- call allocate(%v0, 1)
+  out.push_back(L3::CallAssignL3{na.dest,
+                                 L3::CallL3{L3::CallAllocate{}, {L3::t{enc}, L3::t{L3::N{1}}}}});
+  // store all of the dimensions
+  // %v2 <- %a + 8
+  // store %v2 <- %p1 ...
+  for (int i = 0; i < n; i++) {
+    L3::var ai = fresh_var();
+    out.push_back(L3::AopL3{L3::w{ai}, L3::t{na.dest}, L3::aop::add,
+                            L3::t{L3::N{(int64_t)(i + 1) * 8}}});
+    out.push_back(L3::StoreL3{ai, t_to_s(na.dims[i])});
+  }
+  return out;
+}
+
+std::vector<L3::i> Length_to_l3(IR::Length &len, std::function<L3::var()> &fresh_var) {
+  std::vector<L3::i> out;
+  if (!len.dim) {
+    // %l1 <- %l1 << 1
+    // %l1 <- %l1 + 1
+    out.push_back(L3::LoadL3{len.dest, len.src});
+    out.push_back(L3::AopL3{L3::w{len.dest}, L3::t{len.dest}, L3::aop::lshift, L3::t{L3::N{1}}});
+    out.push_back(L3::AopL3{L3::w{len.dest}, L3::t{len.dest}, L3::aop::add, L3::t{L3::N{1}}});
+    return out;
+  }
+  L3::var addr = fresh_var();
+  // cond the dimension is a number do static rule offset = (k+1)*8
+  if (std::holds_alternative<L3::N>(*len.dim)) {
+    int64_t k = std::get<L3::N>(*len.dim).value;
+    out.push_back(L3::AopL3{L3::w{addr}, L3::t{len.src}, L3::aop::add,
+                            L3::t{L3::N{(k + 1) * 8}}});
+  } else {
+    // O.W offset = dim*8 + 8
+    L3::var off = fresh_var();
+    out.push_back(L3::AopL3{L3::w{off}, *len.dim, L3::aop::mul, L3::t{L3::N{8}}});
+    out.push_back(L3::AopL3{L3::w{off}, L3::t{off}, L3::aop::add, L3::t{L3::N{8}}});
+    out.push_back(L3::AopL3{L3::w{addr}, L3::t{len.src}, L3::aop::add, L3::t{off}});
+  }
+  out.push_back(L3::LoadL3{len.dest, addr});
+  return out;
+}
+
+std::vector<L3::i> ArrayRead_to_l3(IR::ArrayRead &ar, std::function<L3::var()> &fresh_var) {
+  std::vector<L3::i> out;
+  L3::var addr = compute_elem_addr(ar.src, ar.indices, out, fresh_var);
+  out.push_back(L3::LoadL3{ar.dest, addr});
+  return out;
+}
+
+std::vector<L3::i> ArrayWrite_to_l3(IR::ArrayWrite &aw, std::function<L3::var()> &fresh_var) {
+  std::vector<L3::i> out;
+  L3::var addr = compute_elem_addr(aw.dest, aw.indices, out, fresh_var);
+  out.push_back(L3::StoreL3{addr, aw.src});
+  return out;
+}
+L3::i NewTuple_to_l3(IR::NewTuple &nt) {
+  // %t <- call allocate(7, 1)
+  return L3::CallAssignL3{nt.dest,
+                          L3::CallL3{L3::CallAllocate{}, {nt.size, L3::t{L3::N{1}}}}};
+}
+
 L3::fl3 fIR_to_fl3(fIR &f) {
+  int temp_counter = 0;
+  std::function<L3::var()> fresh_var = [&]() { return L3::var{"__IR_tmp_" + std::to_string(temp_counter++)}; }; // closure passed to the helper functions
+
   L3::fl3 new_function;
   new_function.name = f.name;
   for (auto &tv : f.parameters.input_variables) // unwrap the variable names from the type tuples
@@ -41,8 +179,21 @@ L3::fl3 fIR_to_fl3(fIR &f) {
         else if constexpr (std::is_same_v<T, BinOp>) {
           new_function.instructions.push_back(BinOp_to_l3op(inst));
         } else if constexpr (std::is_same_v<T, TypeVar>) {
+        } else if constexpr (std::is_same_v<T, ArrayRead>) {
+          auto res = ArrayRead_to_l3(inst, fresh_var); // finally some functional programming haha. Functions as first class citizens let's goo
+          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
+        } else if constexpr (std::is_same_v<T, ArrayWrite>) {
+          auto res = ArrayWrite_to_l3(inst, fresh_var);
+          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
+        } else if constexpr (std::is_same_v<T, Length>) {
+          auto res = Length_to_l3(inst, fresh_var);
+          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
+        } else if constexpr (std::is_same_v<T, NewArray>) {
+          auto res = NewArray_to_l3(inst, fresh_var);
+          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
+        } else if constexpr (std::is_same_v<T, NewTuple>) {
+          new_function.instructions.push_back(NewTuple_to_l3(inst));
         }
-        // TODO ArrayRead, ArrayWrite, Length, NewArray, NewTuple
       },
                  instr);
     }
