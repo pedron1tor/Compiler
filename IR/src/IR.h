@@ -109,6 +109,7 @@ struct bb {
   L3::label lbl;
   std::vector<i> instructions;
   te terminal;
+  bool operator<(const bb &other) const { return lbl.name < other.lbl.name; }
 };
 
 // pars ::= type var (, type var)* | ε
