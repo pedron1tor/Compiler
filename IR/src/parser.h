@@ -1,13 +1,13 @@
 // parser.h
 #pragma once
-#include "L3.h"
+#include "IR.h"
+#include <fstream>
 
-namespace L3 {
-pl3 parse_file(char *filename);
-f parse_function(char *filename);
-f_spilled parse_function_spill(char *filename);
-void print_source_program(pl3 program);
-void print_functionl3(f &fn);
-void print_functionl1(fl1 &fn, bool generator, std::ofstream *outputFile = nullptr);
-void print_functionl2(fl2 &fn, bool generator, std::ofstream *outputFile = nullptr);
-} // namespace L3
+namespace IR {
+pIR parse_file(char *filename);
+void print_source_program(pIR program);
+void print_functionIR(fIR &fn, bool generator, std::ofstream *outputFile = nullptr);
+void print_functionl3(L3::fl3 &fn, bool generator, std::ofstream *outputFile = nullptr);
+void print_functionl1(L3::fl1 &fn, bool generator, std::ofstream *outputFile = nullptr);
+void print_functionl2(L3::fl2 &fn, bool generator, std::ofstream *outputFile = nullptr);
+} // namespace IR
