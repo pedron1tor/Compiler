@@ -3,6 +3,8 @@
 #include "parsing/primitives.h"
 #include <fstream>
 #include <functional>
+#include <optional>
+#include <set>
 #include <unordered_map>
 
 namespace IR {
@@ -475,34 +477,39 @@ std::vector<L3::label> successors(trace_bb &trace_basic_block) {
   return successors_list;
 };
 
-bb find_label(std::set<bb> &f_bb, L3::label &successor) {
-  for (const auto &b : f_bb) {
-    if (b.lbl == successor)
-      return b;
+static std::optional<bb> find_label(std::set<bb> &f_bb, const L3::label &target) {
+  for (auto it = f_bb.begin(); it != f_bb.end(); ++it) {
+    if (it->lbl == target) {
+      bb result = *it;
+      f_bb.erase(it);
+      return result;
+    }
   }
-};
+  return std::nullopt;
+}
+
 trace_bb select_next(std::set<bb> &f_bb, trace_bb &prev_bb, std::vector<L3::label> &succs) {
   // case where there is only one successor, you just skip the terminal instruction, O.W. optimize for less branches
   trace_bb selected_bb;
-  if (!f_bb.empty()) {
+  selected_bb.mark = true;
 
-    if (succs.size() == 1) {
-      // skip the br condition
-      bb matching_bb = find_label(f_bb, succs[0]);
-      f_bb.erase(matching_bb);
-      trace_bb bb = bb_to_trace_bb(matching_bb);
-    } else if (succs.size() == 0) {
-      selected_bb.mark = true; // if there are no successors, end loop
+  // if there are no successors, end loop
+  // if the remaining bbs are empty, return an item with mark true, to end the loop
+  if (f_bb.empty() || succs.size() == 0)
+    return selected_bb;
 
-    } else {
-      // optimize for less branches
-      // identify a cycle and then if there is an explicit branch at the end of the graph, looping to a higher node, then put that node above the other branching node.
-        }
-
+  if (succs.size() == 1) {
+    // skip the br condition
+    if (auto match = find_label(f_bb, succs[0]))
+      selected_bb = bb_to_trace_bb(*match);
   } else {
-    // if the remaining bbs are empty, return an item with mark true, to end the loop
-    selected_bb.mark = true;
+    // prefer the else bb of the conditional branch, because that way we can make this a conditional jump and if false it falls through
+    if (auto match = find_label(f_bb, succs[1]))
+      selected_bb = bb_to_trace_bb(*match);
+    else if (auto match = find_label(f_bb, succs[0]))
+      selected_bb = bb_to_trace_bb(*match);
   }
+
   return selected_bb;
 };
 
