@@ -190,23 +190,6 @@ void print_functionIR(fIR &fn) {
   std::cout << "}\n";
 };
 
-L3::i BinOp_to_l3op(IR::BinOp &b) {
-  L3::w dest{b.dest};
-  switch (b.operation) {
-  case op::add:    return L3::AopL3{dest, b.left, L3::aop::add,    b.right};
-  case op::sub:    return L3::AopL3{dest, b.left, L3::aop::sub,    b.right};
-  case op::mul:    return L3::AopL3{dest, b.left, L3::aop::mul,    b.right};
-  case op::and_:   return L3::AopL3{dest, b.left, L3::aop::and_,   b.right};
-  case op::lshift: return L3::AopL3{dest, b.left, L3::aop::lshift, b.right};
-  case op::rshift: return L3::AopL3{dest, b.left, L3::aop::rshift, b.right};
-  case op::lt:     return L3::Compare{dest, b.left, L3::cmp::lt,  b.right};
-  case op::gt:     return L3::Compare{dest, b.left, L3::cmp::gt,  b.right};
-  case op::le:     return L3::Compare{dest, b.left, L3::cmp::le,  b.right};
-  case op::gte:    return L3::Compare{dest, b.left, L3::cmp::gte, b.right};
-  default:         return L3::Compare{dest, b.left, L3::cmp::eq,  b.right};
-  }
-}
-
 void print_functionl3(L3::fl3 &fn, bool generator, std::ofstream *outputFile) {
   std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
   std::ostream &out = *outp;
