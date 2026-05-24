@@ -13,7 +13,8 @@ namespace IR {
 
 static L3::var compute_elem_addr(L3::var arr, std::vector<L3::t> &indices,
                                  std::vector<L3::i> &out,
-                                 std::function<L3::var()> &fresh_var) {
+                                 std::function<L3::var()> &fresh_var,
+                                 bool is_tuple = false) {
   int n = indices.size();
 
   // ADDR_M <- A + 16 / M_ <- load ADDR_M / M <- M_ >> 1
@@ -55,10 +56,12 @@ static L3::var compute_elem_addr(L3::var arr, std::vector<L3::t> &indices,
 
   //   Matrix M x N:
   // Offset for all: B = 8 + (2 * 8)
+  // cond tuples, base offset is 8 instead of (n+1)*8
+  int64_t header_bytes = is_tuple ? 8 : (int64_t)(n + 1) * 8;
   L3::var byte_off = fresh_var();
   out.push_back(L3::AopL3{L3::w{byte_off}, L3::t{flat}, L3::aop::mul, L3::t{L3::N{8}}});
   out.push_back(L3::AopL3{L3::w{byte_off}, L3::t{byte_off}, L3::aop::add,
-                          L3::t{L3::N{(int64_t)(n + 1) * 8}}});
+                          L3::t{L3::N{header_bytes}}});
 
   L3::var addr = fresh_var();
   out.push_back(L3::AopL3{L3::w{addr}, L3::t{arr}, L3::aop::add, L3::t{byte_off}});
@@ -127,16 +130,20 @@ std::vector<L3::i> Length_to_l3(IR::Length &len, std::function<L3::var()> &fresh
   return out;
 }
 
-std::vector<L3::i> ArrayRead_to_l3(IR::ArrayRead &ar, std::function<L3::var()> &fresh_var) {
+std::vector<L3::i> ArrayRead_to_l3(IR::ArrayRead &ar, std::function<L3::var()> &fresh_var,
+                                   std::unordered_map<std::string, IR::type> &type_map) {
   std::vector<L3::i> out;
-  L3::var addr = compute_elem_addr(ar.src, ar.indices, out, fresh_var);
+  bool is_tuple = type_map.count(ar.src.name) && std::holds_alternative<IR::t_tuple>(type_map.at(ar.src.name));
+  L3::var addr = compute_elem_addr(ar.src, ar.indices, out, fresh_var, is_tuple);
   out.push_back(L3::LoadL3{ar.dest, addr});
   return out;
 }
 
-std::vector<L3::i> ArrayWrite_to_l3(IR::ArrayWrite &aw, std::function<L3::var()> &fresh_var) {
+std::vector<L3::i> ArrayWrite_to_l3(IR::ArrayWrite &aw, std::function<L3::var()> &fresh_var,
+                                    std::unordered_map<std::string, IR::type> &type_map) {
   std::vector<L3::i> out;
-  L3::var addr = compute_elem_addr(aw.dest, aw.indices, out, fresh_var);
+  bool is_tuple = type_map.count(aw.dest.name) && std::holds_alternative<IR::t_tuple>(type_map.at(aw.dest.name));
+  L3::var addr = compute_elem_addr(aw.dest, aw.indices, out, fresh_var, is_tuple);
   out.push_back(L3::StoreL3{addr, aw.src});
   return out;
 }
@@ -154,6 +161,14 @@ L3::fl3 fIR_to_fl3(fIR &f) {
   new_function.name = f.name;
   for (auto &tv : f.parameters.input_variables) // unwrap the variable names from the type tuples
     new_function.vars.push_back(tv.var_declared);
+
+  std::unordered_map<std::string, IR::type> type_map;
+  for (auto &param : f.parameters.input_variables)
+    type_map[param.var_declared.name] = param.var_type;
+  for (auto &block : f.blocks)
+    for (auto &instr : block.instructions)
+      if (auto *tv = std::get_if<TypeVar>(&instr))
+        type_map[tv->var_declared.name] = tv->var_type;
 
   for (int block_idx = 0; block_idx < f.blocks.size(); block_idx++) {
     auto &block = f.blocks[block_idx];
@@ -180,10 +195,10 @@ L3::fl3 fIR_to_fl3(fIR &f) {
           new_function.instructions.push_back(BinOp_to_l3op(inst));
         } else if constexpr (std::is_same_v<T, TypeVar>) {
         } else if constexpr (std::is_same_v<T, ArrayRead>) {
-          auto res = ArrayRead_to_l3(inst, fresh_var); // finally some functional programming haha. Functions as first class citizens let's goo
+          auto res = ArrayRead_to_l3(inst, fresh_var, type_map); // finally some functional programming haha. Functions as first class citizens let's goo
           new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
         } else if constexpr (std::is_same_v<T, ArrayWrite>) {
-          auto res = ArrayWrite_to_l3(inst, fresh_var);
+          auto res = ArrayWrite_to_l3(inst, fresh_var, type_map);
           new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
         } else if constexpr (std::is_same_v<T, Length>) {
           auto res = Length_to_l3(inst, fresh_var);
