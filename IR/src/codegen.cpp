@@ -439,7 +439,7 @@ namespace IR {
 //   return out;
 // };
 
-// fl2 fIR_to_fl2(fIR &f, std::unordered_map<label, label> &label_map, int &lbl_counter) {
+// L3::fl3 fIR_to_fl2(fIR &f, std::unordered_map<label, label> &label_map, int &lbl_counter) {
 //   fl2 new_function;
 //   new_function.name = f.name;
 //   new_function.num_args = f.vars.size();
@@ -458,23 +458,101 @@ namespace IR {
 //   new_function.instructions.insert(new_function.instructions.end(), tiled.begin(), tiled.end());
 //   return new_function;
 // }
+// function to get the labels that the terminal instruction of a basic function can lead to
+std::vector<L3::label> successors(trace_bb &trace_basic_block) {
+  std::vector<L3::label> successors_list;
+  std::visit([&](auto &terminal_inst) {
+    using T = std::decay_t<decltype(terminal_inst)>;
+    if constexpr (std::is_same_v<T, L3::Goto>)
+      successors_list.push_back(terminal_inst.target);
+    else if constexpr (std::is_same_v<T, BrCond>) {
+      successors_list.push_back(terminal_inst.true_label);
+      successors_list.push_back(terminal_inst.false_label);
+    } else { // nothing happens O.W.
+    };
+  },
+             trace_basic_block.terminal);
+  return successors_list;
+};
 
-// pl2 pIR_to_pl2(pIR &p) {
-//   std::string entry_point = "@main";
-//   std::vector<fl2> function_list;
+bb find_label(std::set<bb> &f_bb, L3::label &successor) {
+  for (const auto &b : f_bb) {
+    if (b.lbl == successor)
+      return b;
+  }
+};
+trace_bb select_next(std::set<bb> &f_bb, trace_bb &prev_bb, std::vector<L3::label> &succs) {
+  // case where there is only one successor, you just skip the terminal instruction, O.W. optimize for less branches
+  trace_bb selected_bb;
+  if (!f_bb.empty()) {
+
+    if (succs.size() == 1) {
+      // skip the br condition
+      bb matching_bb = find_label(f_bb, succs[0]);
+      f_bb.erase(matching_bb);
+      trace_bb bb = bb_to_trace_bb(matching_bb);
+    } else if (succs.size() == 0) {
+      selected_bb.mark = true; // if there are no successors, end loop
+
+    } else {
+      // optimize for less branches
+      // identify a cycle and then if there is an explicit branch at the end of the graph, looping to a higher node, then put that node above the other branching node.
+        }
+
+  } else {
+    // if the remaining bbs are empty, return an item with mark true, to end the loop
+    selected_bb.mark = true;
+  }
+  return selected_bb;
+};
+
+pIR linearize_CFG(pIR &original_program) {
+  pIR linearized_p;
+  for (auto &fn : original_program.functions) {
+    std::set<bb> f_bb(fn.blocks.begin(), fn.blocks.end()); // get all the basic blocks of the function
+    int idx_into_vec;
+    std::vector<trace> traces; // define a list of traces for the function
+    if (!f_bb.empty()) {
+
+      do {
+        trace tr;
+        bb first_bb = *f_bb.begin();
+        f_bb.erase(first_bb);
+        trace_bb bb = bb_to_trace_bb(first_bb); // initialize a trace basic block with mark set to false
+        while (!bb.mark) {
+          bb.mark = true;
+          tr.blocks.push_back(bb);
+          std::vector<L3::label> succs = successors(bb);
+          bb = select_next(f_bb, bb, succs);
+        }
+
+        traces.push_back(tr);
+      } while (0 < f_bb.size());
+    };
+    linearized_p.functions.push_back(fIR{fn.f_type, fn.name, fn.parameters, traces_to_bbs(traces)});
+  };
+  return linearized_p;
+};
+// L3::p pIR_to_pL3(pIR &p) {
+//   std::string entry_point = "@main"; // main entry point
+//   std::vector<L3::fl3> function_list;
 //   int glob_lbl_counter = 0;
 //   // hash map, IR-labels -> l2-labels
 //   std::unordered_map<L3::label, L3::label> label_map;
 //   for (auto &fn : p.functions) {
-//     function_list.push_back(fIR_to_fl2(fn, label_map, glob_lbl_counter));
+//     function_list.push_back(fIR_to_fl3(fn, label_map, glob_lbl_counter));
 //     glob_lbl_counter++;
 //   }
 //   return pl2{
 //       entry_point, function_list};
 // };
+
 void generate_code(pIR &p) {
-  // pl2 transformed_p;
-  // transformed_p = pIR_to_pl2(p);
+  pIR linearized_p;
+  // linearize CFG
+  linearized_p = linearize_CFG(p);
+  // L3::p transformed_p;
+  // transformed_p = pIR_to_pL3(linearized_p);
   // std::ofstream outputFile;
   // outputFile.open("prog.L2");
 

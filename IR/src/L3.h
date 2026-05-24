@@ -75,7 +75,7 @@ using t = std::variant<r, N, var>;
 using s = std::variant<r, N, label, l, var>;
 // u ::= w | l
 using u = std::variant<r, l, var>;
-// callee, caller and arg register sets
+// callee, caller and arg registersets
 inline std::vector<w> callee_saved_registers = {
     r::r12,
     r::r13,

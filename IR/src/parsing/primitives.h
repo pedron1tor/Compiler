@@ -540,6 +540,22 @@ inline std::string call_args_to_str(std::vector<L3::t> &args) {
   }
   return result + ")";
 }
+inline trace_bb bb_to_trace_bb(bb &basic_block) {
+  return trace_bb{basic_block.lbl, basic_block.instructions, basic_block.terminal, false};
+};
+
+inline bb trace_bb_to_bb(trace_bb &trace_basic_block) {
+  return bb{trace_basic_block.lbl, trace_basic_block.instructions, trace_basic_block.terminal};
+};
+inline std::vector<bb> traces_to_bbs(std::vector<trace> &traces) {
+  std::vector<bb> bbs;
+  for (trace trace_obj : traces) {
+    for (trace_bb trace_basic_block : trace_obj.blocks) {
+      bbs.push_back(trace_bb_to_bb(trace_basic_block));
+    };
+  };
+  return bbs;
+};
 
 template <typename V>
 bool is_var(const V &val, const L3::var &v) {
