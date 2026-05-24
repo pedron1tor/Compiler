@@ -14,100 +14,57 @@ namespace IR {
 L3::fl3 fIR_to_fl3(fIR &f) {
   L3::fl3 new_function;
   new_function.name = f.name;
-  for (auto &block : f.blocks) {
+  for (auto &tv : f.parameters.input_variables) // unwrap the variable names from the type tuples
+    new_function.vars.push_back(tv.var_declared);
+
+  for (int block_idx = 0; block_idx < f.blocks.size(); block_idx++) {
+    auto &block = f.blocks[block_idx];
+    new_function.instructions.push_back(L3::LabelInst{block.lbl});
+    // pattern match the instructions first
     for (auto &instr : block.instructions) {
       std::visit([&](auto &inst) {
         using T = std::decay_t<decltype(inst)>;
-        if constexpr (std::is_same_v<T, L3::ReturnT>) {
-          new_function.instructions.push_back(Assign{r::rax, t_to_s(inst.return_thing)});
-          new_function.instructions.push_back(Return{});
-        } else if constexpr (std::is_same_v<T, L3::AopL3>) {
-          bool right_is_dest = std::visit([&](auto &d) -> bool {
-            using DT = std::decay_t<decltype(d)>;
-            if constexpr (std::is_same_v<DT, var>)
-              return std::holds_alternative<var>(inst.right) && std::get<var>(inst.right).name == d.name;
-            else if constexpr (std::is_same_v<DT, r>)
-              return std::holds_alternative<r>(inst.right) && std::get<r>(inst.right) == d;
-            return false;
-          }, inst.dest);
-          if (right_is_dest && inst.op == aop::sub) {
-            // dest = left - right, but right == dest
-            // generate a temporary variable... because the operation is non commutative
-            var tmp{"__sub_tmp_" + std::to_string(lbl_counter) + "_" + std::to_string(temp_counter++)};
-            new_function.instructions.push_back(Assign{w{tmp}, t_to_s(inst.left)});
-            new_function.instructions.push_back(AopInst{w{tmp}, inst.op, inst.right});
-            new_function.instructions.push_back(Assign{inst.dest, s{tmp}});
-          } else if (right_is_dest) {
-            new_function.instructions.push_back(Assign{inst.dest, w_to_s(inst.dest)});
-            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.left});
-          } else {
-            new_function.instructions.push_back(Assign{inst.dest, t_to_s(inst.left)});
-            new_function.instructions.push_back(AopInst{inst.dest, inst.op, inst.right});
-          }
-        } else if constexpr (std::is_same_v<T, L3::LabelInst>) {  // for all instructions that have labels or have a label in their variant, rename labels according to function scope
-          new_function.instructions.push_back(LabelInst{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
-        } else if constexpr (std::is_same_v<T, L3::brlabel>) {
-          new_function.instructions.push_back(Goto{check_map_and_rename_label(label_map, inst.lbl, lbl_counter)});
-        } else if constexpr (std::is_same_v<T, brtlabel>) {
-          label renamed_lbl = check_map_and_rename_label(label_map, inst.lbl, lbl_counter);
-          new_function.instructions.push_back(Cjump{inst.cond, cmp::eq, t{N{1}}, renamed_lbl});
-        } else if constexpr (std::is_same_v<T, StoreL3>) { // if the src contains a label, then check_map and rename label, else thread the same src
-          if (std::holds_alternative<label>(inst.src)) {
-            label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
-            new_function.instructions.push_back(MemWrite{w{inst.dest}, 0, s{renamed}});
-          } else {
-            new_function.instructions.push_back(MemWrite{w{inst.dest}, 0, inst.src});
-          }
-        } else if constexpr (std::is_same_v<T, LoadL3>) {
-          new_function.instructions.push_back(MemRead{w{inst.dest}, w{inst.src}, 0});
-        } else if constexpr (std::is_same_v<T, Compare>) {
-          if (inst.op == cmp::gt)
-            new_function.instructions.push_back(Compare{inst.dest, inst.right, cmp::lt, inst.left});
-          else if (inst.op == cmp::gte)
-            new_function.instructions.push_back(Compare{inst.dest, inst.right, cmp::le, inst.left});
-          else
-            new_function.instructions.push_back(inst);
-        } else if constexpr (std::is_same_v<T, Assign>) {
-          // if the src contains a label, then check_map and rename label, else thread the same src
-          if (std::holds_alternative<label>(inst.src)) {
-            label renamed = check_map_and_rename_label(label_map, std::get<label>(inst.src), lbl_counter);
-            new_function.instructions.push_back(Assign{inst.dest, s{renamed}});
-          }
-          else {
-          new_function.instructions.push_back(inst);                                                                                                                         
-      } 
-        } else if constexpr (std::is_same_v<T, CallL3>) {
-          auto arg_insts = regs_to_args(inst.args);
-          new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
-          bool is_user_call = std::holds_alternative<u>(inst.callee);
-          if (is_user_call) {
-            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-            new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-            emit_call(new_function, inst.callee, (int64_t)inst.args.size());
-            new_function.instructions.push_back(LabelInst{ret_label});
-          } else {
-            call_counter++;
-            emit_call(new_function, inst.callee, (int64_t)inst.args.size());
-          }
-        } else if constexpr (std::is_same_v<T, CallAssignL3>) {
-          auto arg_insts = regs_to_args(inst.callexpr.args);
-          new_function.instructions.insert(new_function.instructions.end(), arg_insts.begin(), arg_insts.end());
-          bool is_user_call = std::holds_alternative<u>(inst.callexpr.callee);
-          if (is_user_call) {
-            label ret_label{":ret_" + std::to_string(lbl_counter) + "_" + std::to_string(call_counter++)};
-            new_function.instructions.push_back(MemWrite{w{r::rsp}, -8, s{ret_label}});
-            emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
-            new_function.instructions.push_back(LabelInst{ret_label});
-          } else {
-            call_counter++;
-            emit_call(new_function, inst.callexpr.callee, (int64_t)inst.callexpr.args.size());
-          }
-          new_function.instructions.push_back(Assign{w{inst.dest}, s{r::rax}});
-        }else {
-            new_function.instructions.push_back(inst);
-          } },
+        if constexpr (std::is_same_v<T, L3::Assign>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, L3::CallL3>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, L3::CallPrint>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, L3::CallInput>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, L3::CallTupleError>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, L3::CallTensorError>)
+          new_function.instructions.push_back(inst);
+        else if constexpr (std::is_same_v<T, BinOp>) {
+          new_function.instructions.push_back(BinOp_to_l3op(inst));
+        } else if constexpr (std::is_same_v<T, TypeVar>) {
+        }
+        // TODO ArrayRead, ArrayWrite, Length, NewArray, NewTuple
+      },
                  instr);
-    };
+    }
+    // pattern match the terminal instructions after, depending on whether it can fallthrough to the next bb
+    bool has_next = (block_idx + 1 < f.blocks.size());
+    std::visit([&](auto &terminal_inst) {
+      using T = std::decay_t<decltype(terminal_inst)>;
+      if constexpr (std::is_same_v<T, L3::Return>)
+        new_function.instructions.push_back(terminal_inst);
+      else if constexpr (std::is_same_v<T, L3::ReturnT>)
+        new_function.instructions.push_back(terminal_inst); // push returns as they are
+      else if constexpr (std::is_same_v<T, L3::Goto>) {
+        if (!has_next || !(f.blocks[block_idx + 1].lbl == terminal_inst.target)) // if it doesnt't have a basic block after, or the next basic block does not match the target
+          new_function.instructions.push_back(L3::brlabel{terminal_inst.target});
+      } else if constexpr (std::is_same_v<T, BrCond>) {
+        new_function.instructions.push_back(L3::brtlabel{terminal_inst.cond, terminal_inst.true_label}); // only push the first branch unless the next block matches the else label of the cond
+        bool else_next = has_next && f.blocks[block_idx + 1].lbl == terminal_inst.false_label;
+        if (!else_next)
+          new_function.instructions.push_back(L3::brlabel{terminal_inst.false_label});
+      }
+    },
+               block.terminal);
   }
   return new_function;
 }
