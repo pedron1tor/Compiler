@@ -64,9 +64,9 @@ using i = std::variant<
     L3::LabelInst,
     L3::brlabel,
     LA::BrCond,
-    L3::Return, LA::ReturnT, ArrayRead, ArrayWrite, Length,
-    LA::ArrayRead, LA::CallAssignArbitrary,
-    LA::NewArray, LA::NewTuple,
+    L3::Return, LA::ReturnT, LA::ArrayRead, LA::ArrayWrite, LA::Length,
+    LA::CallAssignArbitrary,
+    LA::NewArray, LA::NewTuple
     >;
 
 // fLA ::= T name (pars) { i+ }
