@@ -2,62 +2,71 @@
 #include "IR.h"
 
 namespace LA {
+using t = std::variant<L3::N, std::string>;
 struct TypeVar {
   IR::type var_type;
   std::string var_declared;
 };
 struct Assign {
   std::string dest;
-  L3::t src;
+  LA::t src;
 };
 struct BinOp {
   std::string dest;
-  L3::t left;
+  LA::t left;
   IR::op operation;
-  L3::t right;
+  LA::t right;
 };
 struct ArrayRead {
   std::string dest;
   std::string src;
-  std::vector<L3::t> indices;
+  std::vector<LA::t> indices;
 };
 struct ArrayWrite {
   std::string dest;
-  std::vector<L3::t>
+  std::vector<LA::t>
       indices;
   L3::var src;
 };
 struct Length {
   std::string dest;
   std::string src;
-  std::optional<L3::t> dim;
+  std::optional<LA::t> dim;
 };
 struct NewArray {
   std::string dest;
-  std::vector<L3::t> dims;
+  std::vector<LA::t> dims;
 };
 struct NewTuple {
   std::string dest;
-  L3::t size;
+  LA::t size;
 };
 struct CallArbitrary {
   std::string callee;
-  std::vector<L3::t> args;
+  std::vector<LA::t> args;
 };
 struct CallAssignArbitrary {
   std::string dest;
   CallArbitrary callexpr;
 };
+struct BrCond {
+  LA::t cond;
+  std::string true_label;
+  std::string false_label;
+};
+struct ReturnT {
+  LA::t return_thing;
+};
 using i = std::variant<
-    TypeVar,
-    Assign,
-    BinOp,
+    LA::TypeVar,
+    LA::Assign,
+    LA::BinOp,
     L3::LabelInst,
     L3::brlabel,
-    IR::BrCond,
-    L3::Return, L3::ReturnT, ArrayRead, ArrayWrite, Length,
-    CallArbitrary, CallAssignArbitrary,
-    NewArray, NewTuple,
+    LA::BrCond,
+    L3::Return, LA::ReturnT, ArrayRead, ArrayWrite, Length,
+    LA::ArrayRead, LA::CallAssignArbitrary,
+    LA::NewArray, LA::NewTuple,
     >;
 
 // fLA ::= T name (pars) { i+ }
@@ -65,11 +74,11 @@ struct fLA {
   IR::type f_type;
   std::string name;
   IR::pars parameters;
-  std::vector<i> instructions;
+  std::vector<LA::i> instructions;
 };
 
 struct pLA {
-  std::vector<fLA> functions;
+  std::vector<LA::fLA> functions;
 };
 
 } // namespace LA

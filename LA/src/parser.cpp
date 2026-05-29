@@ -146,18 +146,10 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
         out << ins.dest << " <- " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, LA::BinOp>)
         out << ins.dest << " <- " << t_to_str(ins.left) << " " << op_to_str(ins.operation) << " " << t_to_str(ins.right);
-      else if constexpr (std::is_same_v<T, L3::CallL3>)
-        out << "call " << callee_to_str(ins.callee) << call_args_to_str(ins.args);
-      else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
-        out <<  ins.dest.name << " <- call " << callee_to_str(ins.callexpr.callee) << call_args_to_str(ins.callexpr.args);
-      else if constexpr (std::is_same_v<T, L3::CallPrint>)
-        out << "call print()";
-      else if constexpr (std::is_same_v<T, L3::CallInput>)
-        out << "call input()";
-      else if constexpr (std::is_same_v<T, L3::CallTupleError>)
-        out << "call tuple-error()";
-      else if constexpr (std::is_same_v<T, L3::CallTensorError>)
-        out << "call tensor-error()";
+      else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
+        out << ins.callee << call_args_to_str(ins.args);
+      else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
+        out <<  ins.dest << " <- call " << ins.callexpr.callee << call_args_to_str(ins.callexpr.args);
       else if constexpr (std::is_same_v<T, LA::ArrayRead>)
         out << ins.dest << " <- " << ins.src << indices_to_str(ins.indices);
       else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
@@ -209,9 +201,9 @@ void print_functionIR(IR::fIR &fn, bool generator, std::ofstream *outputFile) {
           else if constexpr (std::is_same_v<T, IR::BinOp>)
             out << add_perc(ins.dest.name) << " <- " << L3t_to_str(ins.left) << " " << op_to_str(ins.operation) << " " << L3t_to_str(ins.right);
           else if constexpr (std::is_same_v<T, L3::CallL3>)
-            out << "call " << callee_to_str(ins.callee) << call_args_to_str(ins.args);
+            out << "call " << callee_to_str(ins.callee) << L3call_args_to_str(ins.args);
           else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
-            out << add_perc(ins.dest.name) << " <- call " << callee_to_str(ins.callexpr.callee) << call_args_to_str(ins.callexpr.args);
+            out << add_perc(ins.dest.name) << " <- call " << callee_to_str(ins.callexpr.callee) << L3call_args_to_str(ins.callexpr.args);
           else if constexpr (std::is_same_v<T, L3::CallPrint>)
             out << "call print()";
           else if constexpr (std::is_same_v<T, L3::CallInput>)
