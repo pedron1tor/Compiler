@@ -1,3 +1,6 @@
+#include "IR.h"
+#include "codegen.h"
+#include "parser.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -55,20 +58,20 @@ int main(int argc, char **argv) {
   /*
    * Parse the input file.
    */
-  // TODO
+  LA::pLA p = LA::parse_file(argv[optind]);
 
   /*
    * Print the program.
    */
   if (Utils::verbose) {
-    // TODO
+    LA::print_source_program(p);
   }
 
   /*
    * Generate the code.
    */
   if (enable_code_generator) {
-    // TODO
+    LA::generate_code(p);
   }
 
   return 0;
