@@ -69,7 +69,7 @@ struct fLA {
 };
 
 struct pLA {
-  std::vector<pLA> functions;
+  std::vector<fLA> functions;
 };
 
 } // namespace LA
