@@ -26,7 +26,7 @@ struct ArrayWrite {
   std::string dest;
   std::vector<LA::t>
       indices;
-  L3::var src;
+  LA::t src;
 };
 struct Length {
   std::string dest;
@@ -66,14 +66,16 @@ using i = std::variant<
     LA::BrCond,
     L3::Return, LA::ReturnT, LA::ArrayRead, LA::ArrayWrite, LA::Length,
     LA::CallAssignArbitrary,
-    LA::NewArray, LA::NewTuple
-    >;
-
+    LA::CallArbitrary,
+    LA::NewArray, LA::NewTuple>;
+struct pars {
+  std::vector<TypeVar> input_variables;
+};
 // fLA ::= T name (pars) { i+ }
 struct fLA {
   IR::type f_type;
   std::string name;
-  IR::pars parameters;
+  LA::pars parameters;
   std::vector<LA::i> instructions;
 };
 

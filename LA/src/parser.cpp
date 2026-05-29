@@ -33,7 +33,7 @@ namespace LA {
  * Grammar rules definitions from now on.
  */
 
-struct parse_function_name : pegtl::seq<pegtl::one<'@'>, parse_name> {
+struct parse_function_name : pegtl::seq<parse_name> {
 };
 // pars ::= type var | type var (, type var)* |
 struct parse_pars_type : parse_type {
@@ -81,8 +81,8 @@ template <>
 struct action<parse_function_name> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    fIR newF;
-    newF.name.name = in.string();
+    LA::fLA newF;
+    newF.name = in.string();
     newF.f_type = acc.parsed_types.back();
     acc.parsed_types.pop_back();
     acc.program.functions.push_back(newF);
@@ -103,7 +103,7 @@ struct action<parse_pars> {
     acc.parsed_vars.pop_back();
     auto var_type = acc.parsed_types.back();
     acc.parsed_types.pop_back();
-    acc.program.functions.back().parameters.input_variables.push_back(TypeVar{var_type, var_name});
+    acc.program.functions.back().parameters.input_variables.push_back(LA::TypeVar{var_type, var_name.name});
   }
 };
 
@@ -121,9 +121,9 @@ pLA parse_file(char *filename) {
    */
   file_input<> fileInput(filename);
   // run to debug program...
-  // pegtl::standard_trace<grammar>(fileInput);
+  pegtl::standard_trace<grammar>(fileInput);
   GlobalAccumulator state;
-  parse<grammar, action>(fileInput, state);
+  // parse<grammar, action>(fileInput, state);
   return state.program;
 }
 void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
@@ -135,7 +135,7 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
     if (!first)
       out << ", ";
     first = false;
-    out << tv.var_declared.name;
+    out << tv.var_declared;
   }
   out << ") {\n";
   for (auto &instr : fn.instructions) {
@@ -153,7 +153,7 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
       else if constexpr (std::is_same_v<T, LA::ArrayRead>)
         out << ins.dest << " <- " << ins.src << indices_to_str(ins.indices);
       else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
-        out <<  ins.dest << indices_to_str(ins.indices) << " <- " << s_to_str(ins.src);
+        out <<  ins.dest << indices_to_str(ins.indices) << " <- " << t_to_str(ins.src);
       else if constexpr (std::is_same_v<T, LA::Length>)
         out <<  ins.dest << " <- length " <<  ins.src;
       else if constexpr (std::is_same_v<T, LA::NewArray>)
@@ -167,8 +167,7 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
             << "return";
       else if constexpr (std::is_same_v<T, LA::ReturnT>)
         out<< "return " << t_to_str(ins.return_thing);
-      else if constexpr (std::is_same_v<T, L3::Goto>)
-        out<< "br " << te_inst.target.name;
+
       else if constexpr (std::is_same_v<T, LA::BrCond>)
         out<< "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label; },
                instr);
