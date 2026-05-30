@@ -303,8 +303,9 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
           std::vector<L3::var> identifiers;
           for (auto thing_to_decode : things_to_decode.value()) {
             L3::var var_identifier = gensym();
-            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, var_identifier}});             // all of the variables declared will be ints
-            block_instructions.push_back(IR::i{IR::BinOp{var_identifier, var_identifier, IR::op::rshift, L3::N{1}}}); // place the decoded value
+            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, var_identifier}});
+            block_instructions.push_back(IR::i{IR::BinOp{var_identifier, encode_t(thing_to_decode), IR::op::rshift, L3::N{1}}});
+            identifiers.push_back(var_identifier);
           }
           block_instructions.push_back(substitute(block.instructions[i], identifiers));
         }
@@ -313,9 +314,9 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
           // encode the variable
           block_instructions.push_back(IR::BinOp{
               variable_to_encode.value(), variable_to_encode.value(), IR::op::lshift, L3::N{1}});
+          block_instructions.push_back(IR::BinOp{
+              variable_to_encode.value(), variable_to_encode.value(), IR::op::add, L3::N{1}});
         };
-        block_instructions.push_back(IR::BinOp{
-            variable_to_encode.value(), variable_to_encode.value(), IR::op::add, L3::N{1}});
       }
       // decode BrCond condition and encode ReturnT value
       block.terminal = std::visit([&](auto &te) -> IR::te {
