@@ -100,7 +100,6 @@ void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::ve
     for (auto &typed_var : all_var_accumulator)
       prefix.push_back(IR::i{typed_var});
     for (auto &typed_var : all_var_accumulator) {
-      // use 0 for all types; value_encoding will encode int64 scalars to 1
       prefix.push_back(IR::i{L3::Assign{typed_var.var_declared, L3::N{0}}});
     }
     blocks[0].instructions.insert(blocks[0].instructions.begin(), prefix.begin(), prefix.end());
@@ -125,7 +124,7 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
   };
 
   auto gensym_var = [&counter]() -> L3::var {
-    return L3::var{":_arrayvar_" + std::to_string(counter++)};
+    return L3::var{"_arrayvar_" + std::to_string(counter++)};
   };
 
   bool startBB = true;
@@ -362,7 +361,7 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
   int counter = 0;
   // gensym helper to create labels for the blocks. L cpp for not having it builtin...
   auto gensym = [&counter]() -> L3::var {
-    return L3::var{":_label_encoding" + std::to_string(counter++)};
+    return L3::var{"_label_encoding" + std::to_string(counter++)};
   };
   std::vector<IR::fIR> new_function_list;
   for (auto &fn : function_list) {
