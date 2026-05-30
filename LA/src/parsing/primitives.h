@@ -606,7 +606,65 @@ inline L3::i BinOp_to_l3op(IR::BinOp &b) {
     return L3::Compare{dest, b.left, L3::cmp::eq, b.right};
   }
 }
+inline static L3::t la_t_to_l3_t(const LA::t &t) {
+  return std::visit([](const auto &v) -> L3::t {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return v;
+    else
+      return L3::var{v};
+  },
+                    t);
+}
 
+inline static L3::s la_s_to_l3_s(const LA::t &t) {
+  return std::visit([](const auto &v) -> L3::s {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return v;
+    else
+      return L3::var{v};
+  },
+                    t);
+}
+
+inline static std::vector<L3::t> la_t_vec_to_l3_t_vec(const std::vector<LA::t> &ts) {
+  std::vector<L3::t> r;
+  for (const auto &t : ts)
+    r.push_back(la_t_to_l3_t(t));
+  return r;
+}
+
+inline static L3::callee_type str_to_callee(const std::string &name, const std::set<std::string> &code_vars) {
+  if (name == "print")
+    return L3::CallPrint{};
+  if (name == "input")
+    return L3::CallInput{};
+  if (code_vars.count(name))
+    return L3::u{L3::var{name}};
+  if (!name.empty() && name[0] == '@')
+    return L3::u{L3::l{name}}; // the case for function calls
+  return L3::u{L3::l{"@" + name}};
+}
+
+inline IR::te LAterm_to_IRterm(LA::i &instr) {
+  return std::visit([&](auto &ins) -> IR::te {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::brlabel>)
+      return IR::te{L3::Goto{ins.lbl}};
+    else if constexpr (std::is_same_v<T, LA::BrCond>)
+      return IR::te{IR::BrCond{la_t_to_l3_t(ins.cond),
+                               L3::label{ins.true_label},
+                               L3::label{ins.false_label}}};
+    else if constexpr (std::is_same_v<T, L3::Return>)
+      return IR::te{L3::Return{}};
+    else if constexpr (std::is_same_v<T, LA::ReturnT>)
+      return IR::te{L3::ReturnT{la_t_to_l3_t(ins.return_thing)}};
+    else
+      return IR::te{L3::Return{}};
+  },
+                    instr);
+};
 template <typename V>
 bool is_var(const V &val, const L3::var &v) {
   return std::visit([&](const auto &x) -> bool {
