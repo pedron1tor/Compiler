@@ -2,5 +2,5 @@
 #include "LA.h"
 
 namespace LA {
-void generate_code(pLA &program);
+void generate_code(LA::pLA &program);
 }
