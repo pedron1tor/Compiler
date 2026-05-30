@@ -109,13 +109,18 @@ void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::ve
 IR::fIR fLA_to_fIR(LA::fLA &f) {
   // collect code variables to assert if function call is valid later, or not.
   std::set<std::string> code_vars;
-  for (auto &tv : f.parameters.input_variables)
+  std::unordered_map<std::string, IR::type> type_map;
+  for (auto &tv : f.parameters.input_variables) {
+    type_map[tv.var_declared] = tv.var_type;
     if (std::holds_alternative<IR::t_code>(tv.var_type))
       code_vars.insert(tv.var_declared);
+  }
   for (auto &instr : f.instructions)
-    if (auto *tv = std::get_if<LA::TypeVar>(&instr))
+    if (auto *tv = std::get_if<LA::TypeVar>(&instr)) {
+      type_map[tv->var_declared] = tv->var_type;
       if (std::holds_alternative<IR::t_code>(tv->var_type))
         code_vars.insert(tv->var_declared);
+    }
   std::vector<IR::TypeVar> all_var_accumulator;
   int counter = 0;
   // gensym helper to create labels for the blocks. L cpp for not having it builtin...
@@ -172,7 +177,9 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
     //  check i < 0
     IR::bb chk;
     chk.lbl = entry;
-    chk.instructions.push_back(IR::Length{len_var, L3::var{src_name}, std::optional<L3::t>{L3::t{L3::N{(int64_t)d}}}});
+    bool is_tuple = type_map.count(src_name) && std::holds_alternative<IR::t_tuple>(type_map[src_name]);
+    std::optional<L3::t> dim = is_tuple ? std::nullopt : std::optional<L3::t>{L3::t{L3::N{(int64_t)d}}};
+    chk.instructions.push_back(IR::Length{len_var, L3::var{src_name}, dim});
     chk.instructions.push_back(IR::BinOp{neg_cmp, idx, IR::op::lt, L3::t{L3::N{0}}});
     chk.terminal = IR::te{IR::BrCond{L3::t{neg_cmp}, error_lbl, upper_chk_lbl}};
     blocks.push_back(chk);
