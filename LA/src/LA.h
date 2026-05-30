@@ -21,12 +21,13 @@ struct ArrayRead {
   std::string dest;
   std::string src;
   std::vector<LA::t> indices;
+  int64_t line;
 };
 struct ArrayWrite {
   std::string dest;
-  std::vector<LA::t>
-      indices;
+  std::vector<LA::t> indices;
   LA::t src;
+  int64_t line;
 };
 struct Length {
   std::string dest;

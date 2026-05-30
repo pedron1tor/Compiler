@@ -323,14 +323,14 @@ struct action<parse_array_read_src> {
 template <>
 struct action<parse_array_read> {
   template <typename Input>
-  static void apply(const Input &, GlobalAccumulator &acc) {
+  static void apply(const Input &in, GlobalAccumulator &acc) {
     auto src = acc.parsed_names.back();
     acc.parsed_names.pop_back();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
-    acc.program.functions.back().instructions.push_back(i{ArrayRead{dest, src, indices}});
+    acc.program.functions.back().instructions.push_back(i{ArrayRead{dest, src, indices, (int64_t)in.position().line}});
   }
 };
 template <>
@@ -341,14 +341,14 @@ struct action<parse_array_write_dest> {
 template <>
 struct action<parse_array_write> {
   template <typename Input>
-  static void apply(const Input &, GlobalAccumulator &acc) {
+  static void apply(const Input &in, GlobalAccumulator &acc) {
     auto src = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
-    acc.program.functions.back().instructions.push_back(i{LA::ArrayWrite{dest, indices, src}});
+    acc.program.functions.back().instructions.push_back(i{LA::ArrayWrite{dest, indices, src, (int64_t)in.position().line}});
   }
 };
 
