@@ -330,7 +330,7 @@ struct action<parse_array_read> {
     acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
-    acc.program.functions.back().instructions.push_back(i{ArrayRead{dest, src, indices, in.position().line}});
+    acc.program.functions.back().instructions.push_back(i{ArrayRead{dest, src, indices, (int64_t)in.position().line}});
   }
 };
 template <>
@@ -348,7 +348,7 @@ struct action<parse_array_write> {
     acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
-    acc.program.functions.back().instructions.push_back(i{LA::ArrayWrite{dest, indices, src, in.position().line}});
+    acc.program.functions.back().instructions.push_back(i{LA::ArrayWrite{dest, indices, src, (int64_t)in.position().line}});
   }
 };
 
