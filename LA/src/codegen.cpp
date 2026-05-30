@@ -63,9 +63,14 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
 static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars) {
   return std::visit([&](auto &ins) -> IR::i {
     using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, LA::Assign>)
-      return L3::Assign{L3::w{L3::var{ins.dest}}, la_s_to_l3_s(ins.src)};
-    else if constexpr (std::is_same_v<T, LA::BinOp>)
+    if constexpr (std::is_same_v<T, LA::Assign>) {
+      L3::s src = la_s_to_l3_s(ins.src);
+      if (code_vars.count(ins.dest)) {
+        if (auto *v = std::get_if<L3::var>(&src); v && !code_vars.count(v->name))
+          src = L3::s{L3::l{"@" + v->name}};
+      }
+      return L3::Assign{L3::w{L3::var{ins.dest}}, src};
+    } else if constexpr (std::is_same_v<T, LA::BinOp>)
       return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
     else if constexpr (std::is_same_v<T, LA::ArrayRead>)
       return IR::ArrayRead{L3::var{ins.dest}, L3::var{ins.src}, la_t_vec_to_l3_t_vec(ins.indices)};

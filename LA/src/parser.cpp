@@ -192,7 +192,7 @@ void print_functionIR(IR::fIR &fn, bool generator, std::ofstream *outputFile) {
     if (!first)
       out << ", ";
     first = false;
-    out << add_perc(tv.var_declared.name);
+    out << type_to_str(tv.var_type) << add_perc(tv.var_declared.name);
   }
   out << ") {\n";
   for (auto &block : fn.blocks) {
@@ -222,8 +222,10 @@ void print_functionIR(IR::fIR &fn, bool generator, std::ofstream *outputFile) {
             out << add_perc(ins.dest.name) << " <- " << add_perc(ins.src.name) << L3indices_to_str(ins.indices);
           else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
             out << add_perc(ins.dest.name) << L3indices_to_str(ins.indices) <<  " <- " << s_to_str(ins.src) ;
-          else if constexpr (std::is_same_v<T, IR::Length>)
+          else if constexpr (std::is_same_v<T, IR::Length>) {
             out << add_perc(ins.dest.name) << " <- length " << add_perc(ins.src.name);
+            if (ins.dim.has_value()) out << " " << L3t_to_str(*ins.dim);
+          }
           else if constexpr (std::is_same_v<T, IR::NewArray>)
             out << add_perc(ins.dest.name) << " <- new Array(" << L3dims_to_str(ins.dims) << ")";
           else if constexpr (std::is_same_v<T, IR::NewTuple>)
