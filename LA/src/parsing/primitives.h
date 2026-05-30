@@ -16,7 +16,6 @@ tokens parsed
 struct GlobalAccumulator {
   pLA program;
   std::vector<LA::t> parsed_items_t;
-  std::vector<L3::var> parsed_vars;
   std::vector<IR::op> parsed_ops;
   std::vector<L3::label> parsed_labels;
   std::vector<LA::t> parsed_call_args;
@@ -43,7 +42,7 @@ struct parse_name : pegtl::seq<
                                 pegtl::one<'_'>,
                                 pegtl::digit>>> {
 };
-struct parse_variable : pegtl::seq<pegtl::one<'%'>, parse_name> {
+struct parse_variable : parse_name {
 };
 struct parse_label : pegtl::seq<pegtl::one<':'>, parse_name> {
 };

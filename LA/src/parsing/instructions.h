@@ -42,12 +42,11 @@ struct parse_call_tensor_error : parse_tensor_error {};
 struct parse_callee : parse_name {};
 
 // call callee ( args? )
-struct parse_call_callee : pegtl::seq<parse_call, parse_seps, parse_callee, parse_seps, parse_args> {};
+struct parse_call_callee : pegtl::seq<parse_callee, parse_seps, parse_args> {};
 struct parse_call_callee_dest : parse_variable {};
 // var <- call callee ( args? )
 struct parse_assign_call_callee : pegtl::seq<
-                                      parse_call_callee_dest, parse_spaces, parse_arrow, parse_spaces,
-                                      parse_call, parse_seps, parse_callee, parse_seps, parse_args> {};
+                                      parse_call_callee_dest, parse_spaces, parse_arrow, parse_spaces, parse_callee, parse_seps, parse_args> {};
 
 // array idxing
 struct parse_array_index_t : parse_t {};
@@ -126,7 +125,7 @@ struct parse_return_t : pegtl::seq<parse_return, parse_seps, parse_t> {};
 // label
 struct parse_label_inst : parse_label {
 };
-// non terminal instructions
+
 struct parse_i : pegtl::sor<
                      parse_assign_call_callee,
                      parse_call_callee,
@@ -135,24 +134,16 @@ struct parse_i : pegtl::sor<
                      parse_length_inst,
                      parse_new_array,
                      parse_new_tuple,
+                     parse_brcond_inst,
+                     parse_brlabel_inst,
+                     parse_return_t,
+                     parse_return_inst,
+                     parse_label_inst,
                      parse_binop,
                      parse_assignment,
                      parse_typevar_decl> {};
 
-// terminal instructions
-// te ::= br label | br t label label | return | return t
-struct parse_te : pegtl::sor<
-                      parse_brcond_inst, parse_brlabel_inst,
-                      parse_return_t, parse_return_inst> {};
-
-// bb ::= label i* te
-struct parse_bb : pegtl::seq<
-                      parse_seps, parse_label_inst,
-                      pegtl::star<pegtl::seq<parse_seps, parse_i>>,
-                      parse_seps, parse_te> {};
-
-// p ::= bb+
-struct parse_instructions : pegtl::plus<parse_i> {};
+struct parse_instructions : pegtl::star<pegtl::seq<parse_seps, parse_i>> {};
 
 /*
  * Actions
@@ -217,10 +208,10 @@ template <>
 struct action<parse_brcond_inst> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    auto false_lbl = acc.parsed_names.back();
-    acc.parsed_names.pop_back();
-    auto true_lbl = acc.parsed_names.back();
-    acc.parsed_names.pop_back();
+    auto false_lbl = acc.parsed_labels.back().name;
+    acc.parsed_labels.pop_back();
+    auto true_lbl = acc.parsed_labels.back().name;
+    acc.parsed_labels.pop_back();
     auto cond = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
     acc.program.functions.back().instructions.push_back(LA::BrCond{cond, true_lbl, false_lbl});
@@ -281,6 +272,11 @@ struct action<parse_call_callee_dest> {
   static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
+struct action<parse_callee> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
+};
+template <>
 struct action<parse_call_callee> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
@@ -317,12 +313,12 @@ struct action<parse_array_index_t> {
 template <>
 struct action<parse_array_read_dest> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_array_read_src> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_array_read> {
@@ -331,7 +327,7 @@ struct action<parse_array_read> {
     auto src = acc.parsed_names.back();
     acc.parsed_names.pop_back();
     auto dest = acc.parsed_names.back();
-    acc.parsed_vars.pop_back();
+    acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
     acc.program.functions.back().instructions.push_back(i{ArrayRead{dest, src, indices}});
@@ -340,7 +336,7 @@ struct action<parse_array_read> {
 template <>
 struct action<parse_array_write_dest> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_array_write> {
@@ -360,12 +356,12 @@ struct action<parse_array_write> {
 template <>
 struct action<parse_length_dest> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_length_src> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_length_with_dim> {
@@ -383,12 +379,12 @@ struct action<parse_length_with_dim> {
 template <>
 struct action<parse_length_no_dim_dest> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_length_no_dim_src> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_length_no_dim> {
@@ -406,7 +402,7 @@ struct action<parse_length_no_dim> {
 template <>
 struct action<parse_new_array_dest> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_new_array> {
@@ -422,7 +418,7 @@ struct action<parse_new_array> {
 template <>
 struct action<parse_new_tuple_dest> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_new_tuple> {
@@ -440,7 +436,7 @@ struct action<parse_new_tuple> {
 template <>
 struct action<parse_typevar_var> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 template <>
 struct action<parse_typevar_decl> {

@@ -92,18 +92,18 @@ struct action<parse_function_name> {
 template <>
 struct action<parse_pars_var> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_vars.push_back(L3::var{remove_perc(in.string())}); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
 };
 
 template <>
 struct action<parse_pars> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    auto var_name = acc.parsed_vars.back();
-    acc.parsed_vars.pop_back();
+    auto var_name = acc.parsed_names.back();
+    acc.parsed_names.pop_back();
     auto var_type = acc.parsed_types.back();
     acc.parsed_types.pop_back();
-    acc.program.functions.back().parameters.input_variables.push_back(LA::TypeVar{var_type, var_name.name});
+    acc.program.functions.back().parameters.input_variables.push_back(LA::TypeVar{var_type, var_name});
   }
 };
 
@@ -121,9 +121,9 @@ pLA parse_file(char *filename) {
    */
   file_input<> fileInput(filename);
   // run to debug program...
-  pegtl::standard_trace<grammar>(fileInput);
+  // pegtl::standard_trace<grammar>(fileInput);
   GlobalAccumulator state;
-  // parse<grammar, action>(fileInput, state);
+  parse<grammar, action>(fileInput, state);
   return state.program;
 }
 void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
@@ -135,7 +135,7 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
     if (!first)
       out << ", ";
     first = false;
-    out << tv.var_declared;
+    out << type_to_str(tv.var_type) << tv.var_declared;
   }
   out << ") {\n";
   for (auto &instr : fn.instructions) {
@@ -149,7 +149,7 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
       else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
         out << ins.callee << call_args_to_str(ins.args);
       else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
-        out <<  ins.dest << " <- call " << ins.callexpr.callee << call_args_to_str(ins.callexpr.args);
+        out <<  ins.dest << " <- " << ins.callexpr.callee << call_args_to_str(ins.callexpr.args);
       else if constexpr (std::is_same_v<T, LA::ArrayRead>)
         out << ins.dest << " <- " << ins.src << indices_to_str(ins.indices);
       else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
@@ -169,10 +169,15 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
         out<< "return " << t_to_str(ins.return_thing);
 
       else if constexpr (std::is_same_v<T, LA::BrCond>)
-        out<< "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label; },
+        out << "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label;
+      else if constexpr (std::is_same_v<T, L3::LabelInst>)
+        out << ins.lbl.name;
+      else if constexpr (std::is_same_v<T, L3::brlabel>)
+        out << "br " << ins.lbl.name; },
                instr);
+    out << "\n";
   };
-  out << "\n";
+
   out << "}\n";
 };
 

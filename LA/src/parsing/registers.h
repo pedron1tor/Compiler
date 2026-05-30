@@ -38,7 +38,7 @@ template <>
 struct action<parse_variable_t> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_items_t.push_back(LA::t{remove_perc(in.string())});
+    acc.parsed_items_t.push_back(LA::t{in.string()});
   }
 };
 

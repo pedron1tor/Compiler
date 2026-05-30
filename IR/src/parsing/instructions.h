@@ -461,8 +461,8 @@ struct action<parse_new_tuple> {
   static void apply(const Input &, GlobalAccumulator &acc) {
     auto size = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
-    auto dest = acc.parsed_vars.back();
-    acc.parsed_vars.pop_back();
+    auto dest = acc.parsed_names.back();
+    acc.parsed_names.pop_back();
     acc.program.functions.back().blocks.back().instructions.push_back(i{NewTuple{dest, size}});
   }
 };
