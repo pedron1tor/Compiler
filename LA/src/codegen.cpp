@@ -344,7 +344,7 @@ IR::i substitute(IR::i &inst, std::vector<L3::var> identifiers) {
     if constexpr (std::is_same_v<T, IR::BinOp>)
       return IR::BinOp{ins.dest, L3::t{identifiers[0]}, ins.operation, L3::t{identifiers[1]}};
     else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
-      return IR::ArrayWrite{ins.dest, map(identifiers, var_to_t), ins.src};
+      return IR::ArrayWrite{ins.dest, map(identifiers, var_to_t), encode_s(ins.src)};
     else if constexpr (std::is_same_v<T, IR::ArrayRead>)
       return IR::ArrayRead{ins.dest, ins.src, map(identifiers, var_to_t)};
     else if constexpr (std::is_same_v<T, IR::Length>)
@@ -371,28 +371,6 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
       std::vector<IR::i> block_instructions;
 
       for (int i = 0; i < bound; i++) {
-        block_instructions.push_back(std::visit([&](auto &ins) -> IR::i {
-          using T = std::decay_t<decltype(ins)>;
-          if constexpr (std::is_same_v<T, L3::Assign>)
-
-            return L3::Assign{ins.dest, encode_s(ins.src)};
-          else if constexpr (std::is_same_v<T, IR::BinOp>)
-            return IR::BinOp{ins.dest, encode_t(ins.left), ins.operation, encode_t(ins.right)};
-          else if constexpr (std::is_same_v<T, L3::CallAssignL3>) {
-            return L3::CallAssignL3{ins.dest, L3::CallL3{
-                                                  ins.callexpr.callee, map(ins.callexpr.args, encode_t)}};
-
-          } else if constexpr (std::is_same_v<T, L3::CallL3>) {
-            return L3::CallL3{
-                ins.callee, map(ins.args, encode_t)};
-          } else if constexpr (std::is_same_v<T, IR::NewArray>)
-            return IR::NewArray{ins.dest, map(ins.dims, encode_t)};
-          else if constexpr (std::is_same_v<T, IR::NewTuple>)
-            return IR::NewTuple{ins.dest, encode_t(ins.size)};
-          else
-            return ins;
-        },
-                                                block.instructions[i]));
         std::optional<std::vector<L3::t>> things_to_decode = toDecode(block.instructions[i]);
         if (things_to_decode.has_value()) {
           std::vector<L3::var> identifiers;
@@ -403,6 +381,22 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
             identifiers.push_back(var_identifier);
           }
           block_instructions.push_back(substitute(block.instructions[i], identifiers));
+        } else {
+          block_instructions.push_back(std::visit([&](auto &ins) -> IR::i {
+            using T = std::decay_t<decltype(ins)>;
+            if constexpr (std::is_same_v<T, L3::Assign>)
+              return L3::Assign{ins.dest, encode_s(ins.src)};
+            else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
+              return L3::CallAssignL3{ins.dest, L3::CallL3{ins.callexpr.callee, map(ins.callexpr.args, encode_t)}};
+            else if constexpr (std::is_same_v<T, L3::CallL3>)
+              return L3::CallL3{ins.callee, map(ins.args, encode_t)};
+            else if constexpr (std::is_same_v<T, IR::NewArray>)
+              return IR::NewArray{ins.dest, map(ins.dims, encode_t)};
+            else if constexpr (std::is_same_v<T, IR::NewTuple>)
+              return IR::NewTuple{ins.dest, encode_t(ins.size)};
+            else
+              return ins;
+          }, block.instructions[i]));
         }
         std::optional<L3::var> variable_to_encode = toEncode(block.instructions[i]);
         if (variable_to_encode.has_value()) {
