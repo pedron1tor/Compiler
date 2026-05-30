@@ -189,7 +189,7 @@ L3::N decode_N(L3::N num) {
 }
 
 L3::t encode_t(L3::t orig_value) {
-  return std::visit([&](auto &ins) {
+  return std::visit([&](auto &ins) -> L3::t {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, L3::N>)
       return encode_N(ins);
@@ -199,7 +199,7 @@ L3::t encode_t(L3::t orig_value) {
                     orig_value);
 };
 L3::s encode_s(L3::s orig_value) {
-  return std::visit([&](auto &ins) {
+  return std::visit([&](auto &ins) -> L3::s {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, L3::N>)
       return encode_N(ins);
@@ -218,7 +218,7 @@ auto map(const std::vector<T> &vec, F f) {
   return result;
 }
 std::optional<L3::var> toEncode(IR::i &inst) {
-  return std::visit([&](auto &ins) {
+  return std::visit([&](auto &ins) -> std::optional<L3::var> {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, IR::BinOp>)
       return ins.dest;
@@ -227,40 +227,39 @@ std::optional<L3::var> toEncode(IR::i &inst) {
   },
                     inst);
 };
-std::optional<std::vector<std::variant<L3::var, L3::t>>> toDecode(IR::i &inst) {
-  return std::visit([&](auto &ins) {
+std::optional<std::vector<L3::t>> toDecode(IR::i &inst) {
+  return std::visit([&](auto &ins) -> std::optional<std::vector<L3::t>> {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, IR::BinOp>)
-      return {ins.left, ins.right};
+      return std::vector<L3::t>{ins.left, ins.right};
     else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
       return ins.indices;
     else if constexpr (std::is_same_v<T, IR::ArrayRead>)
       return ins.indices;
     else if constexpr (std::is_same_v<T, IR::Length>)
-      return {ins.dim};
-    else if constexpr (std::is_same_v<T, IR::BrCond>) {
-      return {ins.cond};
-    } else
+      return ins.dim.has_value() ? std::optional<std::vector<L3::t>>{std::vector<L3::t>{*ins.dim}} : std::nullopt;
+    else if constexpr (std::is_same_v<T, IR::BrCond>)
+      return std::vector<L3::t>{ins.cond};
+    else
       return std::nullopt;
   },
                     inst);
 };
 
 IR::i substitute(IR::i &inst, std::vector<L3::var> identifiers) {
-  return std::visit([&](auto &ins) {
+  auto var_to_t = [](const L3::var &v) -> L3::t { return v; };
+  return std::visit([&](auto &ins) -> IR::i {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, IR::BinOp>)
       return IR::BinOp{ins.dest, L3::t{identifiers[0]}, ins.operation, L3::t{identifiers[1]}};
     else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
-      return IR::ArrayWrite{ins.dest, map(identifiers, L3::t{}), ins.src};
+      return IR::ArrayWrite{ins.dest, map(identifiers, var_to_t), ins.src};
     else if constexpr (std::is_same_v<T, IR::ArrayRead>)
-      return IR::ArrayRead{ins.dest, ins.src, map(identifiers, L3::t{})};
+      return IR::ArrayRead{ins.dest, ins.src, map(identifiers, var_to_t)};
     else if constexpr (std::is_same_v<T, IR::Length>)
-      return IR::Length{ins.dest, ins.src, L3::t{identifiers[0] > }};
-    else if constexpr (std::is_same_v<T, IR::BrCond>) {
-      return IR::BrCond{L3::t{identifiers[0]}, ins.true_label, ins.false_label};
-    } else
-      return std::nullopt;
+      return IR::Length{ins.dest, ins.src, L3::t{identifiers[0]}};
+    else
+      return ins;
   },
                     inst);
 };
@@ -280,19 +279,14 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
       int bound = block.instructions.size();
       std::vector<IR::i> block_instructions;
 
-      for (int i = 0; i++; i < bound) {
-        block_instructions.push_back(std::visit([&](auto &ins) {
+      for (int i = 0; i < bound; i++) {
+        block_instructions.push_back(std::visit([&](auto &ins) -> IR::i {
           using T = std::decay_t<decltype(ins)>;
           if constexpr (std::is_same_v<T, L3::Assign>)
 
             return L3::Assign{ins.dest, encode_s(ins.src)};
           else if constexpr (std::is_same_v<T, IR::BinOp>)
             return IR::BinOp{ins.dest, encode_t(ins.left), ins.operation, encode_t(ins.right)};
-          else if constexpr (std::is_same_v<T, IR::BrCond>)
-            return IR::BrCond{encode_t(ins.cond), ins.true_label, ins.false_label};
-          else if constexpr (std::is_same_v<T, L3::ReturnT>)
-            return L3::ReturnT{
-                encode_t(ins.return_thing)};
           else if constexpr (std::is_same_v<T, L3::CallAssignL3>) {
             return L3::CallAssignL3{ins.dest, L3::CallL3{
                                                   ins.callexpr.callee, map(ins.callexpr.args, encode_t)}};
@@ -304,15 +298,15 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
             return ins;
         },
                                                 block.instructions[i]));
-        std::optional<std::vector<std::variant<L3::var, L3::t>>> things_to_decode = toDecode(block.instructions[i]);
+        std::optional<std::vector<L3::t>> things_to_decode = toDecode(block.instructions[i]);
         if (things_to_decode.has_value()) {
           std::vector<L3::var> identifiers;
           for (auto thing_to_decode : things_to_decode.value()) {
             L3::var var_identifier = gensym();
-            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::t_int64, var_identifier}});                         // all of the variables declared will be ints
+            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, var_identifier}});             // all of the variables declared will be ints
             block_instructions.push_back(IR::i{IR::BinOp{var_identifier, var_identifier, IR::op::rshift, L3::N{1}}}); // place the decoded value
           }
-          block_instructions.push_back(substitute(block.instructions[i], identifiers))
+          block_instructions.push_back(substitute(block.instructions[i], identifiers));
         }
         std::optional<L3::var> variable_to_encode = toEncode(block.instructions[i]);
         if (variable_to_encode.has_value()) {
@@ -323,9 +317,23 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
         block_instructions.push_back(IR::BinOp{
             variable_to_encode.value(), variable_to_encode.value(), IR::op::add, L3::N{1}});
       }
+      // decode BrCond condition and encode ReturnT value
+      block.terminal = std::visit([&](auto &te) -> IR::te {
+        using T = std::decay_t<decltype(te)>;
+        if constexpr (std::is_same_v<T, IR::BrCond>) {
+          L3::var decoded = gensym();
+          declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, decoded}});
+          block_instructions.push_back(IR::i{IR::BinOp{decoded, encode_t(te.cond), IR::op::rshift, L3::N{1}}});
+          return IR::BrCond{L3::t{decoded}, te.true_label, te.false_label};
+        } else if constexpr (std::is_same_v<T, L3::ReturnT>)
+          return L3::ReturnT{encode_t(te.return_thing)};
+        else
+          return te;
+      },
+                                  block.terminal);
       block.instructions = block_instructions;
     }
-    fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb);
+    fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb.begin(), declarations_first_bb.end());
   };
 };
 
