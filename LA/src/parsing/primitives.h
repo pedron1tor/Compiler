@@ -364,6 +364,8 @@ inline std::string type_to_str(IR::type function_type) {
       };
       return "int64" + repeated + " ";
 }
+    else if constexpr (std::is_same_v<T, IR::t_code>)
+      return "code ";
     else
       return "failure "; },
                     function_type);

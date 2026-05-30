@@ -154,8 +154,10 @@ void print_functionLA(fLA &fn, bool generator, std::ofstream *outputFile) {
         out << ins.dest << " <- " << ins.src << indices_to_str(ins.indices);
       else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
         out <<  ins.dest << indices_to_str(ins.indices) << " <- " << t_to_str(ins.src);
-      else if constexpr (std::is_same_v<T, LA::Length>)
-        out <<  ins.dest << " <- length " <<  ins.src;
+      else if constexpr (std::is_same_v<T, LA::Length>) {
+        out << ins.dest << " <- length " << ins.src;
+        if (ins.dim) out << " " << t_to_str(*ins.dim);
+      }
       else if constexpr (std::is_same_v<T, LA::NewArray>)
         out <<  ins.dest << " <- new Array(" << dims_to_str(ins.dims) << ")";
       else if constexpr (std::is_same_v<T, LA::NewTuple>)
