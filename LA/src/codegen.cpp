@@ -46,13 +46,24 @@ bool inst_is_labelinst(LA::i &instr) {
   },
                     instr);
 };
+bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator) {
+return std::visit([&](auto &ins) -> bool  {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, LA::TypeVar>)
+      {IR::TypeVar type_var = IR::TypeVar{ins.var_type, L3::var{ins.var_declared}};
+          variable_accumulator.push_back(type_var); 
+        return true; 
+        }
+        else {
+          return false;
+        }
+        }, inst);
+}; 
 
 static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars) {
   return std::visit([&](auto &ins) -> IR::i {
     using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, LA::TypeVar>)
-      return IR::TypeVar{ins.var_type, L3::var{ins.var_declared}};
-    else if constexpr (std::is_same_v<T, LA::Assign>)
+     if constexpr (std::is_same_v<T, LA::Assign>)
       return L3::Assign{L3::w{L3::var{ins.dest}}, la_s_to_l3_s(ins.src)};
     else if constexpr (std::is_same_v<T, LA::BinOp>)
       return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
@@ -78,6 +89,25 @@ static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars) {
   },
                     inst);
 }
+void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::vector<IR::bb> &blocks) {
+  if (blocks.size() > 0){ 
+    for (auto typed_var : all_var_accumulator) {
+    blocks[0].instructions.insert(blocks[0].instructions.begin(), typed_var); // add all the variable declarations
+    }
+    for (auto typed_var : all_var_accumulator) {  
+      int value = std::visit([&](auto &ins) -> int {
+    using T = std::decay_t<decltype(ins)>;
+     if constexpr (std::is_same_v<T, IR::t_int64>)
+      return 1;
+      else return 0;
+      }, typed_var.var_type);
+      blocks[0].instructions.insert(blocks[0].instructions.begin(), IR::i{L3::Assign{typed_var.var_declared, L3::N{value}}});
+    // assign the default values to the variables
+    }
+  }
+
+}; 
+
 
 IR::fIR fLA_to_fIR(LA::fLA &f) {
   // collect code variables to assert if function call is valid later, or not.
@@ -89,7 +119,7 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
     if (auto *tv = std::get_if<LA::TypeVar>(&instr))
       if (std::holds_alternative<IR::t_code>(tv->var_type))
         code_vars.insert(tv->var_declared);
-
+  std::vector<IR::TypeVar> all_var_accumulator;
   int counter = 0;
   // gensym helper to create labels for the blocks. L cpp for not having it builtin...
   auto gensym = [&counter]() -> L3::label {
@@ -118,8 +148,12 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
       }
       bool is_brlbl = std::holds_alternative<L3::brlabel>(instr);
       bool is_term = is_terminator(instr) || is_brlbl; // compute whether it's a terminator or brblabel
+      bool is_decl = is_declaration(instr, all_var_accumulator); 
       if (!is_term) {
+        if (!is_decl) {
         block.instructions.push_back(LA_to_IRinst(instr, code_vars));
+        }
+
       } else {
         block.terminal = LAterm_to_IRterm(instr); // transform into IR instruction forms
         blocks.push_back(block);
@@ -138,7 +172,8 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
   // wrap the strings into variables
   for (auto &tv : f.parameters.input_variables)
     ir_pars.input_variables.push_back(IR::TypeVar{tv.var_type, L3::var{tv.var_declared}});
-
+  // variable declaration
+  variable_declaration(all_var_accumulator, blocks);  
   IR::fIR result;
   result.f_type = f.f_type;
   result.name = L3::l{"@" + f.name};
