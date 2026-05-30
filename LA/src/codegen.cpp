@@ -328,7 +328,7 @@ std::optional<std::vector<L3::t>> toDecode(IR::i &inst) {
     else if constexpr (std::is_same_v<T, IR::ArrayRead>)
       return ins.indices;
     else if constexpr (std::is_same_v<T, IR::Length>)
-      return ins.dim.has_value() ? std::optional<std::vector<L3::t>>{std::vector<L3::t>{*ins.dim}} : std::nullopt;
+      return std::nullopt;
     else if constexpr (std::is_same_v<T, IR::BrCond>)
       return std::vector<L3::t>{ins.cond};
     else
@@ -396,7 +396,8 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
               return IR::NewTuple{ins.dest, encode_t(ins.size)};
             else
               return ins;
-          }, block.instructions[i]));
+          },
+                                                  block.instructions[i]));
         }
         std::optional<L3::var> variable_to_encode = toEncode(block.instructions[i]);
         if (variable_to_encode.has_value()) {
