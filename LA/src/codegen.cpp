@@ -96,21 +96,14 @@ static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars) {
 }
 void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::vector<IR::bb> &blocks) {
   if (blocks.size() > 0) {
-    for (auto typed_var : all_var_accumulator) {
-      blocks[0].instructions.insert(blocks[0].instructions.begin(), typed_var); // add all the variable declarations
+    std::vector<IR::i> prefix;
+    for (auto &typed_var : all_var_accumulator)
+      prefix.push_back(IR::i{typed_var});
+    for (auto &typed_var : all_var_accumulator) {
+      // use 0 for all types; value_encoding will encode int64 scalars to 1
+      prefix.push_back(IR::i{L3::Assign{typed_var.var_declared, L3::N{0}}});
     }
-    for (auto typed_var : all_var_accumulator) {
-      int value = std::visit([&](auto &ins) -> int {
-        using T = std::decay_t<decltype(ins)>;
-        if constexpr (std::is_same_v<T, IR::t_int64>)
-          return ins.dim == 0 ? 1 : 0;
-        else
-          return 0;
-      },
-                             typed_var.var_type);
-      blocks[0].instructions.insert(blocks[0].instructions.begin(), IR::i{L3::Assign{typed_var.var_declared, L3::N{value}}});
-      // assign the default values to the variables
-    }
+    blocks[0].instructions.insert(blocks[0].instructions.begin(), prefix.begin(), prefix.end());
   }
 };
 
@@ -393,7 +386,11 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
           } else if constexpr (std::is_same_v<T, L3::CallL3>) {
             return L3::CallL3{
                 ins.callee, map(ins.args, encode_t)};
-          } else
+          } else if constexpr (std::is_same_v<T, IR::NewArray>)
+            return IR::NewArray{ins.dest, map(ins.dims, encode_t)};
+          else if constexpr (std::is_same_v<T, IR::NewTuple>)
+            return IR::NewTuple{ins.dest, encode_t(ins.size)};
+          else
             return ins;
         },
                                                 block.instructions[i]));
