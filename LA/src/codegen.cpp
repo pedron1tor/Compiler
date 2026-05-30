@@ -98,7 +98,7 @@ void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::ve
       int value = std::visit([&](auto &ins) -> int {
         using T = std::decay_t<decltype(ins)>;
         if constexpr (std::is_same_v<T, IR::t_int64>)
-          return 1;
+          return ins.dim == 0 ? 1 : 0;
         else
           return 0;
       },
@@ -126,9 +126,96 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
     return L3::label{":_label_" + std::to_string(counter++)};
   };
 
+  auto gensym_var = [&counter]() -> L3::var {
+    return L3::var{":_arrayvar_" + std::to_string(counter++)};
+  };
+
   bool startBB = true;
   std::vector<IR::bb> blocks; // list of blocks
   IR::bb block;
+
+  // check if an array, tensor, or tuple has been allocated before their use;
+  // returns the label to continue from after the check
+  auto emit_null_check = [&](const std::string &src_name, int64_t line) -> L3::label {
+    L3::label null_check_lbl = gensym(), error_alloc_lbl = gensym(), after_null_lbl = gensym(); // define all the labels for redirection
+    L3::var is_null = gensym_var();
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, is_null});
+
+    block.terminal = IR::te{L3::Goto{null_check_lbl}};
+    blocks.push_back(block);
+
+    // Check if v is not 0
+    // II. If it is 0, then call tensor-error(int64 line)
+    IR::bb null_chk;
+    null_chk.lbl = null_check_lbl;
+    null_chk.instructions.push_back(IR::BinOp{is_null, L3::t{L3::var{src_name}}, IR::op::eq, L3::t{L3::N{0}}});
+    null_chk.terminal = IR::te{IR::BrCond{L3::t{is_null}, error_alloc_lbl, after_null_lbl}};
+    blocks.push_back(null_chk);
+
+    IR::bb error_null;
+    error_null.lbl = error_alloc_lbl;
+    error_null.instructions.push_back(L3::CallL3{L3::CallTensorError{1}, {L3::t{L3::N{line}}}});
+    error_null.terminal = IR::te{L3::Return{}};
+    blocks.push_back(error_null);
+
+    return after_null_lbl; // returns continuation label
+  };
+
+  // for the index i used (e.g., ar[i]), we need to
+  // A. Check i is not negative
+  // B. Check i is less than the length of the array
+  auto emit_bounds_check = [&](const std::string &src_name, L3::t idx, int d,
+                               bool is_tensor, int64_t F, int64_t line, L3::label entry) -> L3::label {
+    L3::var len_var = gensym_var(), neg_cmp = gensym_var(), upper_cmp = gensym_var();
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, len_var}); // add to the accumulator for the variable definitions at the top
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, neg_cmp});
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, upper_cmp});
+    L3::label error_lbl = gensym(), upper_chk_lbl = gensym(), next_entry = gensym();
+
+    //  check i < 0
+    IR::bb chk;
+    chk.lbl = entry;
+    chk.instructions.push_back(IR::Length{len_var, L3::var{src_name}, std::optional<L3::t>{L3::t{L3::N{(int64_t)d}}}});
+    chk.instructions.push_back(IR::BinOp{neg_cmp, idx, IR::op::lt, L3::t{L3::N{0}}});
+    chk.terminal = IR::te{IR::BrCond{L3::t{neg_cmp}, error_lbl, upper_chk_lbl}};
+    blocks.push_back(chk);
+
+    // call tensor-error
+    std::vector<L3::t> err_args = {L3::t{L3::N{line}}};
+    if (is_tensor)
+      err_args.push_back(L3::t{L3::N{(int64_t)d}}); // first dim incorrectly accessed
+    err_args.push_back(L3::t{len_var});             // len of the dimension
+    err_args.push_back(idx);                        // idx used to access the dim
+
+    IR::bb error_bb, upper_bound_check_block;
+    error_bb.lbl = error_lbl;
+    error_bb.instructions.push_back(L3::CallL3{L3::CallTensorError{F}, std::move(err_args)});
+    error_bb.terminal = IR::te{L3::Return{}};
+    blocks.push_back(error_bb);
+
+    // cond i >= length src d
+    upper_bound_check_block.lbl = upper_chk_lbl;
+    upper_bound_check_block.instructions.push_back(IR::BinOp{upper_cmp, idx, IR::op::gte, L3::t{len_var}});
+    upper_bound_check_block.terminal = IR::te{IR::BrCond{L3::t{upper_cmp}, error_lbl, next_entry}};
+    blocks.push_back(upper_bound_check_block);
+
+    return next_entry;
+  };
+
+  auto emit_array_checks = [&](const std::string &src_name, const std::vector<LA::t> &indices, int64_t line) {
+    int num_indices = (int)indices.size();
+    bool is_tensor = num_indices > 1;
+    // set arity of the error call
+    int64_t F = is_tensor ? 4 : 3;
+
+    L3::label current_entry = emit_null_check(src_name, line);
+    for (int d = 0; d < num_indices; d++)
+      current_entry = emit_bounds_check(src_name, la_t_to_l3_t(indices[d]), d, is_tensor, F, line, current_entry);
+
+    block = IR::bb{};
+    block.lbl = current_entry;
+    startBB = false;
+  };
 
   for (auto &instr : f.instructions) {
     if (inst_is_labelinst(instr)) {
@@ -151,9 +238,16 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
       bool is_decl = is_declaration(instr, all_var_accumulator);
       if (!is_term) {
         if (!is_decl) {
+          std::visit([&](auto &ins) {
+            using T = std::decay_t<decltype(ins)>;
+            if constexpr (std::is_same_v<T, LA::ArrayRead>) // emit array checks if array read or write
+              emit_array_checks(ins.src, ins.indices, ins.line);
+            else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
+              emit_array_checks(ins.dest, ins.indices, ins.line);
+          },
+                     instr);
           block.instructions.push_back(LA_to_IRinst(instr, code_vars));
         }
-
       } else {
         block.terminal = LAterm_to_IRterm(instr); // transform into IR instruction forms
         blocks.push_back(block);
