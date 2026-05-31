@@ -263,10 +263,16 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
       }
     }
   }
-  // return at the bottom of void function, else add returnt for completeness, although startBB = false at the end shouldn't happen if program is correct
+  // return at the bottom of void function, else add returnt for completeness
   if (!startBB) {
     block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
     blocks.push_back(block);
+  } else {
+    // just a return
+    IR::bb empty_block;
+    empty_block.lbl = gensym();
+    empty_block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
+    blocks.push_back(empty_block);
   }
 
   IR::pars ir_pars;
@@ -434,7 +440,8 @@ void value_encoding(std::vector<IR::fIR> &function_list) {
                                   block.terminal);
       block.instructions = block_instructions;
     }
-    fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb.begin(), declarations_first_bb.end());
+    if (!fn.blocks.empty())
+      fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb.begin(), declarations_first_bb.end());
   };
 };
 
