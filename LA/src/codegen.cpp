@@ -187,16 +187,16 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
     chk.terminal = IR::te{IR::BrCond{L3::t{neg_cmp}, error_lbl, upper_chk_lbl}};
     blocks.push_back(chk);
 
-    // call tensor-error
     std::vector<L3::t> err_args = {L3::t{L3::N{line}}};
     if (is_tensor)
       err_args.push_back(L3::t{L3::N{(int64_t)d}}); // first dim incorrectly accessed
     err_args.push_back(L3::t{len_var});             // len of the dimension
     err_args.push_back(idx);                        // idx used to access the dim
 
+    L3::callee_type err_callee = is_tuple ? L3::callee_type{L3::CallTupleError{}} : L3::callee_type{L3::CallTensorError{F}};
     IR::bb error_bb, upper_bound_check_block;
     error_bb.lbl = error_lbl;
-    error_bb.instructions.push_back(L3::CallL3{L3::CallTensorError{F}, std::move(err_args)});
+    error_bb.instructions.push_back(L3::CallL3{err_callee, std::move(err_args)});
     error_bb.terminal = IR::te{L3::Return{}};
     blocks.push_back(error_bb);
 
