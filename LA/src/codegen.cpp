@@ -60,7 +60,7 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
                     inst);
 };
 
-static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars) {
+static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars, const std::unordered_map<std::string, IR::type> &type_map) {
   return std::visit([&](auto &ins) -> IR::i {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_same_v<T, LA::Assign>) {
@@ -74,9 +74,12 @@ static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars) {
       return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
     else if constexpr (std::is_same_v<T, LA::ArrayRead>)
       return IR::ArrayRead{L3::var{ins.dest}, L3::var{ins.src}, la_t_vec_to_l3_t_vec(ins.indices)};
-    else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
-      return IR::ArrayWrite{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.indices), la_t_to_l3_s(ins.src)};
-    else if constexpr (std::is_same_v<T, LA::Length>)
+    else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
+      L3::s src = la_t_to_l3_s(ins.src);
+      if (auto *v = std::get_if<L3::var>(&src); v && !type_map.count(v->name))
+        src = L3::s{L3::l{"@" + v->name}}; // add @ annotation if the variable is a function
+      return IR::ArrayWrite{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.indices), src};
+    } else if constexpr (std::is_same_v<T, LA::Length>)
       return IR::Length{L3::var{ins.dest}, L3::var{ins.src},
                         ins.dim ? std::optional<L3::t>{la_t_to_l3_t(*ins.dim)} : std::nullopt};
     else if constexpr (std::is_same_v<T, LA::NewArray>)
@@ -250,7 +253,7 @@ IR::fIR fLA_to_fIR(LA::fLA &f) {
               emit_array_checks(ins.dest, ins.indices, ins.line);
           },
                      instr);
-          block.instructions.push_back(LA_to_IRinst(instr, code_vars));
+          block.instructions.push_back(LA_to_IRinst(instr, code_vars, type_map));
         }
       } else {
         block.terminal = LAterm_to_IRterm(instr); // transform into IR instruction forms
