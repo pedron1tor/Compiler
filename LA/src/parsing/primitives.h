@@ -617,7 +617,7 @@ inline static L3::t la_t_to_l3_t(const LA::t &t) {
                     t);
 }
 
-inline static L3::s la_s_to_l3_s(const LA::t &t) {
+inline static L3::s la_t_to_l3_s(const LA::t &t) {
   return std::visit([](const auto &v) -> L3::s {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, L3::N>)
