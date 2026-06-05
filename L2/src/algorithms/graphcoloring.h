@@ -102,9 +102,9 @@ interference_colored assign_colors(f &function, interference interference, bool 
           if (item_var.name.find("%spilled") == std::string::npos) {
             var_to_spill = item_var;
           } else {
-            for (const auto &neighbor : unique_variable_to_dependendency_nodes[unique_var]) {
-              if (is_real_var(neighbor)) {
-                var neighbor_var = std::get<var>(neighbor);
+            for (const auto &adjacent_node : unique_variable_to_dependendency_nodes[unique_var]) {
+              if (is_real_var(adjacent_node)) {
+                var neighbor_var = std::get<var>(adjacent_node);
                 if (neighbor_var.name.find("%spilled") == std::string::npos) {
                   var_to_spill = neighbor_var;
                   break;
