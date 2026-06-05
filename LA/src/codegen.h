@@ -1,7 +1,6 @@
 #pragma once
-#include "IR.h"
+#include "LA.h"
 
-namespace IR
-{
-  void generate_code(pIR &program);
+namespace LA {
+void generate_code(LA::pLA &program);
 }

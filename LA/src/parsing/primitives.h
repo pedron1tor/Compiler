@@ -1,6 +1,6 @@
 #pragma once
 
-#include <IR.h>
+#include <LA.h>
 #include <parser.h>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/analyze.hpp>
@@ -9,23 +9,19 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace IR {
+namespace LA {
 /*
 tokens parsed
 */
 struct GlobalAccumulator {
-  pIR program;
-  std::vector<L3::s> parsed_items;
-  std::vector<L3::t> parsed_items_t;
-  std::vector<L3::var> parsed_vars;
-  std::vector<op> parsed_ops;
-  std::vector<L3::N> parsed_offset;
+  pLA program;
+  std::vector<LA::t> parsed_items_t;
+  std::vector<IR::op> parsed_ops;
   std::vector<L3::label> parsed_labels;
-  std::vector<L3::u> parsed_items_u;
-  std::vector<L3::callee_type> parsed_callee;
-  std::vector<L3::t> parsed_call_args;
-  std::vector<type> parsed_types;
-  std::vector<L3::t> parsed_indices;
+  std::vector<LA::t> parsed_call_args;
+  std::vector<IR::type> parsed_types;
+  std::vector<LA::t> parsed_indices;
+  std::vector<std::string> parsed_names;
 };
 
 struct parse_number : pegtl::seq<pegtl::sor<
@@ -46,7 +42,7 @@ struct parse_name : pegtl::seq<
                                 pegtl::one<'_'>,
                                 pegtl::digit>>> {
 };
-struct parse_variable : pegtl::seq<pegtl::one<'%'>, parse_name> {
+struct parse_variable : parse_name {
 };
 struct parse_label : pegtl::seq<pegtl::one<':'>, parse_name> {
 };
@@ -118,7 +114,6 @@ allocate
 tuple-error
 tensor-error
 stack-arg
-define
 ,
 void
 int64
@@ -142,8 +137,6 @@ struct parse_allocate : pegtl::seq<pegtl::string<'a', 'l', 'l', 'o', 'c', 'a', '
 struct parse_tuple_error : pegtl::seq<pegtl::string<'t', 'u', 'p', 'l', 'e', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {
 };
 struct parse_tensor_error : pegtl::seq<pegtl::string<'t', 'e', 'n', 's', 'o', 'r', '-', 'e', 'r', 'r', 'o', 'r'>, parse_nochar> {
-};
-struct parse_define : pegtl::seq<pegtl::string<'d', 'e', 'f', 'i', 'n', 'e'>, parse_nochar> {
 };
 struct parse_store : pegtl::seq<pegtl::string<'s', 't', 'o', 'r', 'e'>, parse_nochar> {
 };
@@ -324,13 +317,22 @@ r_to_str(L3::r reg) {
   }
   __builtin_unreachable();
 };
-inline std::string t_to_str(L3::t val) {
+inline std::string L3t_to_str(L3::t val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, L3::r>)
       return r_to_str(v);
     else if constexpr (std::is_same_v<T, L3::var>)
       return add_perc(v.name);
+    else
+      return std::to_string(v.value); },
+                    val);
+}
+inline std::string t_to_str(t val) {
+  return std::visit([](auto &v) -> std::string {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, std::string>)
+      return v;
     else
       return std::to_string(v.value); },
                     val);
@@ -348,26 +350,28 @@ inline std::string s_to_str(L3::s val) {
       return v.name; },
                     val);
 }
-inline std::string type_to_str(type function_type) {
+inline std::string type_to_str(IR::type function_type) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
-    if constexpr (std::is_same_v<T, t_void>)
+    if constexpr (std::is_same_v<T, IR::t_void>)
       return "void ";
-    else if constexpr (std::is_same_v<T, t_tuple>)
+    else if constexpr (std::is_same_v<T, IR::t_tuple>)
       return "tuple ";
-    else if constexpr (std::is_same_v<T, t_int64>) {
+    else if constexpr (std::is_same_v<T, IR::t_int64>) {
       std::string repeated = "";
       for(int i = 0; i < v.dim; ++i) {
           repeated += "[]";
       };
       return "int64" + repeated + " ";
 }
+    else if constexpr (std::is_same_v<T, IR::t_code>)
+      return "code ";
     else
       return "failure "; },
                     function_type);
 };
 
-inline std::string dims_to_str(std::vector<L3::t> dims) {
+inline std::string dims_to_str(std::vector<LA::t> dims) {
   std::string repeated = "";
   bool first = true;
   for (int i = 0; i < dims.size(); i++) {
@@ -375,6 +379,17 @@ inline std::string dims_to_str(std::vector<L3::t> dims) {
       repeated += ", ";
     first = false;
     repeated += t_to_str(dims[i]);
+  };
+  return repeated;
+};
+inline std::string L3dims_to_str(std::vector<L3::t> dims) {
+  std::string repeated = "";
+  bool first = true;
+  for (int i = 0; i < dims.size(); i++) {
+    if (!first)
+      repeated += ", ";
+    first = false;
+    repeated += L3t_to_str(dims[i]);
   };
   return repeated;
 };
@@ -449,59 +464,68 @@ inline std::string cmp_to_str(L3::cmp op) {
   __builtin_unreachable();
 }
 
-inline std::string op_to_str(op operation) {
+inline std::string op_to_str(IR::op operation) {
   switch (operation) {
-  case op::add:
+  case IR::op::add:
     return "+";
-  case op::sub:
+  case IR::op::sub:
     return "-";
-  case op::mul:
+  case IR::op::mul:
     return "*";
-  case op::and_:
+  case IR::op::and_:
     return "&";
-  case op::lshift:
+  case IR::op::lshift:
     return "<<";
-  case op::rshift:
+  case IR::op::rshift:
     return ">>";
-  case op::lt:
+  case IR::op::lt:
     return "<";
-  case op::gt:
+  case IR::op::gt:
     return ">";
-  case op::le:
+  case IR::op::le:
     return "<=";
-  case op::gte:
+  case IR::op::gte:
     return ">=";
-  case op::eq:
+  case IR::op::eq:
     return "=";
   }
   __builtin_unreachable();
 };
-inline op str_to_op(std::string operation) {
+inline IR::op str_to_op(std::string operation) {
   if (operation == "+")
-    return op::add;
+    return IR::op::add;
   else if (operation == "-")
-    return op::sub;
+    return IR::op::sub;
   else if (operation == "*")
-    return op::mul;
+    return IR::op::mul;
   else if (operation == "&")
-    return op::and_;
+    return IR::op::and_;
   else if (operation == "<<")
-    return op::lshift;
+    return IR::op::lshift;
   else if (operation == ">>")
-    return op::rshift;
+    return IR::op::rshift;
   else if (operation == "<")
-    return op::lt;
+    return IR::op::lt;
   else if (operation == ">")
-    return op::gt;
+    return IR::op::gt;
   else if (operation == "<=")
-    return op::le;
+    return IR::op::le;
   else if (operation == ">=")
-    return op::gte;
+    return IR::op::gte;
   else if (operation == "=")
-    return op::eq;
+    return IR::op::eq;
   __builtin_unreachable();
 }
-inline std::string indices_to_str(std::vector<L3::t> indices) {
+inline std::string L3indices_to_str(std::vector<L3::t> indices) {
+  std::string repeated = "";
+  for (int i = 0; i < indices.size(); i++) {
+    repeated += "[";
+    repeated += L3t_to_str(indices[i]);
+    repeated += "]";
+  };
+  return repeated;
+};
+inline std::string indices_to_str(std::vector<t> indices) {
   std::string repeated = "";
   for (int i = 0; i < indices.size(); i++) {
     repeated += "[";
@@ -526,7 +550,7 @@ inline std::string callee_to_str(L3::callee_type &callee) {
         else return v.name;
       }, c); }, callee);
 }
-inline std::string call_args_to_str(std::vector<L3::t> &args) {
+inline std::string call_args_to_str(std::vector<LA::t> &args) {
   std::string result = "(";
   bool first = true;
   for (auto &arg : args) {
@@ -540,51 +564,107 @@ inline std::string call_args_to_str(std::vector<L3::t> &args) {
   }
   return result + ")";
 }
-inline trace_bb bb_to_trace_bb(bb &basic_block) {
-  return trace_bb{basic_block.lbl, basic_block.instructions, basic_block.terminal, false};
-};
+inline std::string L3call_args_to_str(std::vector<L3::t> &args) {
+  std::string result = "(";
+  bool first = true;
+  for (auto &arg : args) {
+    if (first) {
+      first = false;
+    } else {
+      result += ", ";
+    }
 
-inline bb trace_bb_to_bb(trace_bb &trace_basic_block) {
-  return bb{trace_basic_block.lbl, trace_basic_block.instructions, trace_basic_block.terminal};
-};
-inline std::vector<bb> traces_to_bbs(std::vector<trace> &traces) {
-  std::vector<bb> bbs;
-  for (trace trace_obj : traces) {
-    for (trace_bb trace_basic_block : trace_obj.blocks) {
-      bbs.push_back(trace_bb_to_bb(trace_basic_block));
-    };
-  };
-  return bbs;
-};
+    result += L3t_to_str(arg);
+  }
+  return result + ")";
+}
 
 inline L3::i BinOp_to_l3op(IR::BinOp &b) {
   L3::w dest{b.dest};
   switch (b.operation) {
-  case op::add:
+  case IR::op::add:
     return L3::AopL3{dest, b.left, L3::aop::add, b.right};
-  case op::sub:
+  case IR::op::sub:
     return L3::AopL3{dest, b.left, L3::aop::sub, b.right};
-  case op::mul:
+  case IR::op::mul:
     return L3::AopL3{dest, b.left, L3::aop::mul, b.right};
-  case op::and_:
+  case IR::op::and_:
     return L3::AopL3{dest, b.left, L3::aop::and_, b.right};
-  case op::lshift:
+  case IR::op::lshift:
     return L3::AopL3{dest, b.left, L3::aop::lshift, b.right};
-  case op::rshift:
+  case IR::op::rshift:
     return L3::AopL3{dest, b.left, L3::aop::rshift, b.right};
-  case op::lt:
+  case IR::op::lt:
     return L3::Compare{dest, b.left, L3::cmp::lt, b.right};
-  case op::gt:
+  case IR::op::gt:
     return L3::Compare{dest, b.left, L3::cmp::gt, b.right};
-  case op::le:
+  case IR::op::le:
     return L3::Compare{dest, b.left, L3::cmp::le, b.right};
-  case op::gte:
+  case IR::op::gte:
     return L3::Compare{dest, b.left, L3::cmp::gte, b.right};
   default:
     return L3::Compare{dest, b.left, L3::cmp::eq, b.right};
   }
 }
+inline static L3::t la_t_to_l3_t(const LA::t &t) {
+  return std::visit([](const auto &v) -> L3::t {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return v;
+    else
+      return L3::var{v};
+  },
+                    t);
+}
 
+inline static L3::s la_t_to_l3_s(const LA::t &t) {
+  return std::visit([](const auto &v) -> L3::s {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return v;
+    else
+      return L3::var{v};
+  },
+                    t);
+}
+
+inline static std::vector<L3::t> la_t_vec_to_l3_t_vec(const std::vector<LA::t> &ts) {
+  std::vector<L3::t> r;
+  for (const auto &t : ts)
+    r.push_back(la_t_to_l3_t(t));
+  return r;
+}
+
+inline static L3::callee_type str_to_callee(const std::string &name, const std::set<std::string> &code_vars) {
+  if (name == "print")
+    return L3::CallPrint{};
+  if (name == "input")
+    return L3::CallInput{};
+  if (code_vars.count(name))
+    return L3::u{L3::var{name}};
+  if (!name.empty() && name[0] == '@')
+    return L3::u{L3::l{name}}; // the case for function calls
+  return L3::u{L3::l{"@" + name}};
+}
+
+inline IR::te LAterm_to_IRterm(LA::i &instr) {
+  return std::visit([&](auto &ins) -> IR::te {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::brlabel>)
+      return IR::te{L3::Goto{ins.lbl}};
+    else if constexpr (std::is_same_v<T, LA::BrCond>)
+      return IR::te{IR::BrCond{la_t_to_l3_t(ins.cond),
+                               L3::label{ins.true_label},
+                               L3::label{ins.false_label}}};
+    else if constexpr (std::is_same_v<T, L3::Return>)
+      return IR::te{L3::Return{}};
+    else if constexpr (std::is_same_v<T, LA::ReturnT>)
+      return IR::te{L3::ReturnT{la_t_to_l3_t(ins.return_thing)}};
+    else
+      return IR::te{L3::Return{}};
+  },
+                    instr);
+};
 template <typename V>
 bool is_var(const V &val, const L3::var &v) {
   return std::visit([&](const auto &x) -> bool {
@@ -610,29 +690,29 @@ struct action<parse_type_int64> {
   static void apply(const Input &in, GlobalAccumulator &acc) {
     int len_brackets = in.string().size() - 5; // remove the int64 prefix
     int dim = (len_brackets) / 2;              // count the pairs of brackets
-    acc.parsed_types.push_back(type{t_int64{dim}});
+    acc.parsed_types.push_back(IR::type{IR::t_int64{dim}});
   }
 };
 template <>
 struct action<parse_type_tuple> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    acc.parsed_types.push_back(type{t_tuple{}});
+    acc.parsed_types.push_back(IR::type{IR::t_tuple{}});
   }
 };
 template <>
 struct action<parse_type_code> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    acc.parsed_types.push_back(type{t_code{}});
+    acc.parsed_types.push_back(IR::type{IR::t_code{}});
   }
 };
 template <>
 struct action<parse_T_void> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    acc.parsed_types.push_back(type{t_void{}});
+    acc.parsed_types.push_back(IR::type{IR::t_void{}});
   }
 };
 
-} // namespace IR
+} // namespace LA

@@ -1,4 +1,4 @@
-#include "IR.h"
+#include "LA.h"
 #include "parser.h"
 #include "parsing/primitives.h"
 #include <fstream>
@@ -9,332 +9,467 @@
 #include <unordered_map>
 #include <utils.h>
 
-namespace IR {
+namespace LA {
 
-static L3::var compute_elem_addr(L3::var arr, std::vector<L3::t> &indices,
-                                 std::vector<L3::i> &out,
-                                 std::function<L3::var()> &fresh_var,
-                                 bool is_tuple = false) {
-  int n = indices.size();
-
-  // ADDR_M <- A + 16 / M_ <- load ADDR_M / M <- M_ >> 1
-  //      ADDR_N <- A + 24 / N_ <- load ADDR_N / N <- N_ >> 1
-  std::vector<L3::var> dims;
-  for (int i = 1; i < n; i++) { // for all dimensions
-    L3::var dim_addr = fresh_var(), dim_enc = fresh_var(), dim_raw = fresh_var();
-    out.push_back(L3::AopL3{L3::w{dim_addr}, L3::t{arr}, L3::aop::add, L3::t{L3::N{(int64_t)(i + 1) * 8}}}); // calculate address
-    out.push_back(L3::LoadL3{dim_enc, dim_addr});                                                            // load the encoded dimension
-    out.push_back(L3::AopL3{L3::w{dim_raw}, L3::t{dim_enc}, L3::aop::rshift, L3::t{L3::N{1}}});              // decode
-    dims.push_back(dim_raw);
-  }
-
-  // newVar1 <- (i * N)
-  // newVar2 <- (k * M * N)
-  // newVar3 <- (k*M*N
-  // index <- (k*M*N) + (i*N) + j
-  L3::var idx_var = fresh_var();
-  out.push_back(L3::Assign{L3::w{idx_var}, L3::s{L3::N{0}}});
-  if (n > 1) {
-    L3::var stride = dims[n - 2];
-    for (int j = n - 2; j >= 0; j--) {
-      L3::var contrib = fresh_var(), new_lin = fresh_var();
-      out.push_back(L3::AopL3{L3::w{contrib}, indices[j], L3::aop::mul, L3::t{stride}});
-      out.push_back(L3::AopL3{L3::w{new_lin}, L3::t{idx_var}, L3::aop::add, L3::t{contrib}});
-      idx_var = new_lin;
-      if (j > 0) {
-        L3::var new_stride = fresh_var();
-        out.push_back(L3::AopL3{L3::w{new_stride}, L3::t{dims[j - 1]}, L3::aop::mul, L3::t{stride}});
-        stride = new_stride;
-      }
-    }
-  }
-
-  // add inner idx
-  // index <- newVar3 + j
-  L3::var flat = fresh_var();
-  out.push_back(L3::AopL3{L3::w{flat}, L3::t{idx_var}, L3::aop::add, indices[n - 1]});
-
-  //   Matrix M x N:
-  // Offset for all: B = 8 + (2 * 8)
-  // cond tuples, base offset is 8 instead of (n+1)*8
-  int64_t header_bytes = is_tuple ? 8 : (int64_t)(n + 1) * 8;
-  L3::var byte_off = fresh_var();
-  out.push_back(L3::AopL3{L3::w{byte_off}, L3::t{flat}, L3::aop::mul, L3::t{L3::N{8}}});
-  out.push_back(L3::AopL3{L3::w{byte_off}, L3::t{byte_off}, L3::aop::add,
-                          L3::t{L3::N{header_bytes}}});
-
-  L3::var addr = fresh_var();
-  out.push_back(L3::AopL3{L3::w{addr}, L3::t{arr}, L3::aop::add, L3::t{byte_off}});
-  return addr;
-}
-std::vector<L3::i> NewArray_to_l3(IR::NewArray &na, std::function<L3::var()> &fresh_var) {
-  std::vector<L3::i> out;
-  int n = na.dims.size();
-
-  // decode by right shifting by 1...
-  L3::var prod = fresh_var();
-  out.push_back(L3::Assign{L3::w{prod}, L3::s{L3::N{1}}});
-  for (auto &dim : na.dims) {
-    L3::var dec = fresh_var();
-    L3::var new_prod = fresh_var();
-    out.push_back(L3::AopL3{L3::w{dec}, dim, L3::aop::rshift, L3::t{L3::N{1}}});      // assign the decoded value to dec fresh var
-    out.push_back(L3::AopL3{L3::w{new_prod}, L3::t{prod}, L3::aop::mul, L3::t{dec}}); // multiply times prod
-    prod = new_prod;
-  }
-
-  // encode(product + n)
-  L3::var enc = fresh_var();
-  out.push_back(L3::AopL3{L3::w{enc}, L3::t{prod}, L3::aop::add, L3::t{L3::N{n}}});
-  out.push_back(L3::AopL3{L3::w{enc}, L3::t{enc}, L3::aop::lshift, L3::t{L3::N{1}}});
-  out.push_back(L3::AopL3{L3::w{enc}, L3::t{enc}, L3::aop::add, L3::t{L3::N{1}}});
-
-  // %a <- call allocate(%v0, 1)
-  out.push_back(L3::CallAssignL3{na.dest,
-                                 L3::CallL3{L3::CallAllocate{}, {L3::t{enc}, L3::t{L3::N{1}}}}});
-  // store all of the dimensions
-  // %v2 <- %a + 8
-  // store %v2 <- %p1 ...
-  for (int i = 0; i < n; i++) {
-    L3::var ai = fresh_var();
-    out.push_back(L3::AopL3{L3::w{ai}, L3::t{na.dest}, L3::aop::add,
-                            L3::t{L3::N{(int64_t)(i + 1) * 8}}});
-    out.push_back(L3::StoreL3{ai, t_to_s(na.dims[i])});
-  }
-  return out;
-}
-
-std::vector<L3::i> Length_to_l3(IR::Length &len, std::function<L3::var()> &fresh_var) {
-  std::vector<L3::i> out;
-  if (!len.dim) {
-    // %l1 <- %l1 << 1
-    // %l1 <- %l1 + 1
-    out.push_back(L3::LoadL3{len.dest, len.src});
-    out.push_back(L3::AopL3{L3::w{len.dest}, L3::t{len.dest}, L3::aop::lshift, L3::t{L3::N{1}}});
-    out.push_back(L3::AopL3{L3::w{len.dest}, L3::t{len.dest}, L3::aop::add, L3::t{L3::N{1}}});
-    return out;
-  }
-  L3::var addr = fresh_var();
-  // cond the dimension is a number do static rule offset = (k+1)*8
-  if (std::holds_alternative<L3::N>(*len.dim)) {
-    int64_t k = std::get<L3::N>(*len.dim).value;
-    out.push_back(L3::AopL3{L3::w{addr}, L3::t{len.src}, L3::aop::add,
-                            L3::t{L3::N{(k + 1) * 8}}});
-  } else {
-    // O.W offset = dim*8 + 8
-    L3::var off = fresh_var();
-    out.push_back(L3::AopL3{L3::w{off}, *len.dim, L3::aop::mul, L3::t{L3::N{8}}});
-    out.push_back(L3::AopL3{L3::w{off}, L3::t{off}, L3::aop::add, L3::t{L3::N{8}}});
-    out.push_back(L3::AopL3{L3::w{addr}, L3::t{len.src}, L3::aop::add, L3::t{off}});
-  }
-  out.push_back(L3::LoadL3{len.dest, addr});
-  return out;
-}
-
-std::vector<L3::i> ArrayRead_to_l3(IR::ArrayRead &ar, std::function<L3::var()> &fresh_var,
-                                   std::unordered_map<std::string, IR::type> &type_map) {
-  std::vector<L3::i> out;
-  bool is_tuple = type_map.count(ar.src.name) && std::holds_alternative<IR::t_tuple>(type_map.at(ar.src.name));
-  L3::var addr = compute_elem_addr(ar.src, ar.indices, out, fresh_var, is_tuple);
-  out.push_back(L3::LoadL3{ar.dest, addr});
-  return out;
-}
-
-std::vector<L3::i> ArrayWrite_to_l3(IR::ArrayWrite &aw, std::function<L3::var()> &fresh_var,
-                                    std::unordered_map<std::string, IR::type> &type_map) {
-  std::vector<L3::i> out;
-  bool is_tuple = type_map.count(aw.dest.name) && std::holds_alternative<IR::t_tuple>(type_map.at(aw.dest.name));
-  L3::var addr = compute_elem_addr(aw.dest, aw.indices, out, fresh_var, is_tuple);
-  out.push_back(L3::StoreL3{addr, aw.src});
-  return out;
-}
-L3::i NewTuple_to_l3(IR::NewTuple &nt) {
-  // %t <- call allocate(7, 1)
-  return L3::CallAssignL3{nt.dest,
-                          L3::CallL3{L3::CallAllocate{}, {nt.size, L3::t{L3::N{1}}}}};
-}
-
-L3::fl3 fIR_to_fl3(fIR &f) {
-  int temp_counter = 0;
-  std::function<L3::var()> fresh_var = [&]() { return L3::var{"__IR_tmp_" + std::to_string(temp_counter++)}; }; // closure passed to the helper functions
-
-  L3::fl3 new_function;
-  new_function.name = f.name;
-  for (auto &tv : f.parameters.input_variables) // unwrap the variable names from the type tuples
-    new_function.vars.push_back(tv.var_declared);
-
-  std::unordered_map<std::string, IR::type> type_map;
-  for (auto &param : f.parameters.input_variables)
-    type_map[param.var_declared.name] = param.var_type;
-  for (auto &block : f.blocks)
-    for (auto &instr : block.instructions)
-      if (auto *tv = std::get_if<TypeVar>(&instr))
-        type_map[tv->var_declared.name] = tv->var_type;
-
-  for (int block_idx = 0; block_idx < f.blocks.size(); block_idx++) {
-    auto &block = f.blocks[block_idx];
-    new_function.instructions.push_back(L3::LabelInst{block.lbl});
-    // pattern match the instructions first
-    for (auto &instr : block.instructions) {
-      std::visit([&](auto &inst) {
-        using T = std::decay_t<decltype(inst)>;
-        if constexpr (std::is_same_v<T, L3::Assign>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, L3::CallL3>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, L3::CallPrint>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, L3::CallInput>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, L3::CallTupleError>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, L3::CallTensorError>)
-          new_function.instructions.push_back(inst);
-        else if constexpr (std::is_same_v<T, BinOp>) {
-          new_function.instructions.push_back(BinOp_to_l3op(inst));
-        } else if constexpr (std::is_same_v<T, TypeVar>) {
-        } else if constexpr (std::is_same_v<T, ArrayRead>) {
-          auto res = ArrayRead_to_l3(inst, fresh_var, type_map); // finally some functional programming haha. Functions as first class citizens let's goo
-          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
-        } else if constexpr (std::is_same_v<T, ArrayWrite>) {
-          auto res = ArrayWrite_to_l3(inst, fresh_var, type_map);
-          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
-        } else if constexpr (std::is_same_v<T, Length>) {
-          auto res = Length_to_l3(inst, fresh_var);
-          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
-        } else if constexpr (std::is_same_v<T, NewArray>) {
-          auto res = NewArray_to_l3(inst, fresh_var);
-          new_function.instructions.insert(new_function.instructions.end(), res.begin(), res.end());
-        } else if constexpr (std::is_same_v<T, NewTuple>) {
-          new_function.instructions.push_back(NewTuple_to_l3(inst));
-        }
-      },
-                 instr);
-    }
-    // pattern match the terminal instructions after, depending on whether it can fallthrough to the next bb
-    bool has_next = (block_idx + 1 < f.blocks.size());
-    std::visit([&](auto &terminal_inst) {
-      using T = std::decay_t<decltype(terminal_inst)>;
-      if constexpr (std::is_same_v<T, L3::Return>)
-        new_function.instructions.push_back(terminal_inst);
-      else if constexpr (std::is_same_v<T, L3::ReturnT>)
-        new_function.instructions.push_back(terminal_inst); // push returns as they are
-      else if constexpr (std::is_same_v<T, L3::Goto>) {
-        if (!has_next || !(f.blocks[block_idx + 1].lbl == terminal_inst.target)) // if it doesnt't have a basic block after, or the next basic block does not match the target
-          new_function.instructions.push_back(L3::brlabel{terminal_inst.target});
-      } else if constexpr (std::is_same_v<T, BrCond>) {
-        new_function.instructions.push_back(L3::brtlabel{terminal_inst.cond, terminal_inst.true_label}); // only push the first branch unless the next block matches the else label of the cond
-        bool else_next = has_next && f.blocks[block_idx + 1].lbl == terminal_inst.false_label;
-        if (!else_next)
-          new_function.instructions.push_back(L3::brlabel{terminal_inst.false_label});
-      }
-    },
-               block.terminal);
-  }
-  return new_function;
-}
-// function to get the labels that the terminal instruction of a basic function can lead to
-std::vector<L3::label> successors(trace_bb &trace_basic_block) {
-  std::vector<L3::label> successors_list;
-  std::visit([&](auto &terminal_inst) {
-    using T = std::decay_t<decltype(terminal_inst)>;
-    if constexpr (std::is_same_v<T, L3::Goto>)
-      successors_list.push_back(terminal_inst.target);
-    else if constexpr (std::is_same_v<T, BrCond>) {
-      successors_list.push_back(terminal_inst.true_label);
-      successors_list.push_back(terminal_inst.false_label);
-    } else { // nothing happens O.W.
-    };
+bool is_terminator(LA::i &instruction) {
+  return std::visit([&](auto &ins) {
+    // no gotos in LA
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, BrCond>)
+      return true;
+    else if constexpr (std::is_same_v<T, L3::Return>)
+      return true;
+    else if constexpr (std::is_same_v<T, LA::ReturnT>)
+      return true;
+    else
+      return false;
   },
-             trace_basic_block.terminal);
-  return successors_list;
+                    instruction);
+};
+bool f_type_void(LA::fLA &f) {
+  return std::visit([&](auto &func) {
+    using T = std::decay_t<decltype(func)>;
+    if constexpr (std::is_same_v<T, IR::t_void>)
+      return true;
+    else
+      return false;
+  },
+                    f.f_type);
+};
+bool inst_is_labelinst(LA::i &instr) {
+  return std::visit([&](auto &ins) {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::LabelInst>)
+      return true;
+    else
+      return false;
+  },
+                    instr);
+};
+bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator) {
+  return std::visit([&](auto &ins) -> bool {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, LA::TypeVar>) {
+      IR::TypeVar type_var = IR::TypeVar{ins.var_type, L3::var{ins.var_declared}};
+      variable_accumulator.push_back(type_var);
+      return true;
+    } else {
+      return false;
+    }
+  },
+                    inst);
 };
 
-static std::optional<bb> find_label(std::set<bb> &f_bb, const L3::label &target) {
-  for (auto it = f_bb.begin(); it != f_bb.end(); ++it) {
-    if (it->lbl == target) {
-      bb result = *it;
-      f_bb.erase(it);
-      return result;
+static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars, const std::unordered_map<std::string, IR::type> &type_map) {
+  return std::visit([&](auto &ins) -> IR::i {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, LA::Assign>) {
+      L3::s src = la_t_to_l3_s(ins.src);
+      if (code_vars.count(ins.dest)) {
+        if (auto *v = std::get_if<L3::var>(&src); v && !code_vars.count(v->name))
+          src = L3::s{L3::l{"@" + v->name}};
+      }
+      return L3::Assign{L3::w{L3::var{ins.dest}}, src};
+    } else if constexpr (std::is_same_v<T, LA::BinOp>)
+      return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
+    else if constexpr (std::is_same_v<T, LA::ArrayRead>)
+      return IR::ArrayRead{L3::var{ins.dest}, L3::var{ins.src}, la_t_vec_to_l3_t_vec(ins.indices)};
+    else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
+      L3::s src = la_t_to_l3_s(ins.src);
+      if (auto *v = std::get_if<L3::var>(&src); v && !type_map.count(v->name))
+        src = L3::s{L3::l{"@" + v->name}}; // add @ annotation if the variable is a function
+      return IR::ArrayWrite{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.indices), src};
+    } else if constexpr (std::is_same_v<T, LA::Length>)
+      return IR::Length{L3::var{ins.dest}, L3::var{ins.src},
+                        ins.dim ? std::optional<L3::t>{la_t_to_l3_t(*ins.dim)} : std::nullopt};
+    else if constexpr (std::is_same_v<T, LA::NewArray>)
+      return IR::NewArray{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.dims)};
+    else if constexpr (std::is_same_v<T, LA::NewTuple>)
+      return IR::NewTuple{L3::var{ins.dest}, la_t_to_l3_t(ins.size)};
+    else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
+      return L3::CallAssignL3{L3::var{ins.dest},
+                              L3::CallL3{str_to_callee(ins.callexpr.callee, code_vars),
+                                         la_t_vec_to_l3_t_vec(ins.callexpr.args)}};
+    else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
+      return L3::CallL3{str_to_callee(ins.callee, code_vars), la_t_vec_to_l3_t_vec(ins.args)};
+    else
+      return IR::TypeVar{IR::type{IR::t_void{}}, L3::var{""}};
+  },
+                    inst);
+}
+void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::vector<IR::bb> &blocks) {
+  if (blocks.size() > 0) {
+    std::vector<IR::i> prefix;
+    for (auto &typed_var : all_var_accumulator)
+      prefix.push_back(IR::i{typed_var});
+    for (auto &typed_var : all_var_accumulator) {
+      prefix.push_back(IR::i{L3::Assign{typed_var.var_declared, L3::N{0}}});
+    }
+    blocks[0].instructions.insert(blocks[0].instructions.begin(), prefix.begin(), prefix.end());
+  }
+};
+
+IR::fIR fLA_to_fIR(LA::fLA &f) {
+  // collect code variables to assert if function call is valid later, or not.
+  std::set<std::string> code_vars;
+  std::unordered_map<std::string, IR::type> type_map;
+  for (auto &tv : f.parameters.input_variables) {
+    type_map[tv.var_declared] = tv.var_type;
+    if (std::holds_alternative<IR::t_code>(tv.var_type))
+      code_vars.insert(tv.var_declared);
+  }
+  for (auto &instr : f.instructions)
+    if (auto *tv = std::get_if<LA::TypeVar>(&instr)) {
+      type_map[tv->var_declared] = tv->var_type;
+      if (std::holds_alternative<IR::t_code>(tv->var_type))
+        code_vars.insert(tv->var_declared);
+    }
+  std::vector<IR::TypeVar> all_var_accumulator;
+  int counter = 0;
+  // gensym helper to create labels for the blocks. L cpp for not having it builtin...
+  auto gensym = [&counter]() -> L3::label {
+    return L3::label{":_label_" + std::to_string(counter++)};
+  };
+
+  auto gensym_var = [&counter]() -> L3::var {
+    return L3::var{"_arrayvar_" + std::to_string(counter++)};
+  };
+
+  bool startBB = true;
+  std::vector<IR::bb> blocks; // list of blocks
+  IR::bb block;
+
+  // check if an array, tensor, or tuple has been allocated before their use;
+  // returns the label to continue from after the check
+  auto emit_null_check = [&](const std::string &src_name, int64_t line) -> L3::label {
+    L3::label null_check_lbl = gensym(), error_alloc_lbl = gensym(), after_null_lbl = gensym(); // define all the labels for redirection
+    L3::var is_null = gensym_var();
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, is_null});
+
+    block.terminal = IR::te{L3::Goto{null_check_lbl}};
+    blocks.push_back(block);
+
+    // Check if v is not 0
+    // II. If it is 0, then call tensor-error(int64 line)
+    IR::bb null_chk;
+    null_chk.lbl = null_check_lbl;
+    null_chk.instructions.push_back(IR::BinOp{is_null, L3::t{L3::var{src_name}}, IR::op::eq, L3::t{L3::N{0}}});
+    null_chk.terminal = IR::te{IR::BrCond{L3::t{is_null}, error_alloc_lbl, after_null_lbl}};
+    blocks.push_back(null_chk);
+
+    IR::bb error_null;
+    error_null.lbl = error_alloc_lbl;
+    error_null.instructions.push_back(L3::CallL3{L3::CallTensorError{1}, {L3::t{L3::N{line}}}});
+    error_null.terminal = IR::te{L3::Return{}};
+    blocks.push_back(error_null);
+
+    return after_null_lbl; // returns continuation label
+  };
+
+  // for the index i used (e.g., ar[i]), we need to
+  // A. Check i is not negative
+  // B. Check i is less than the length of the array
+  auto emit_bounds_check = [&](const std::string &src_name, L3::t idx, int d,
+                               bool is_tensor, int64_t F, int64_t line, L3::label entry) -> L3::label {
+    L3::var len_var = gensym_var(), neg_cmp = gensym_var(), upper_cmp = gensym_var();
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, len_var}); // add to the accumulator for the variable definitions at the top
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, neg_cmp});
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, upper_cmp});
+    L3::label error_lbl = gensym(), upper_chk_lbl = gensym(), next_entry = gensym();
+
+    //  check i < 0
+    IR::bb chk;
+    chk.lbl = entry;
+    bool is_tuple = type_map.count(src_name) && std::holds_alternative<IR::t_tuple>(type_map[src_name]);
+    std::optional<L3::t> dim = is_tuple ? std::nullopt : std::optional<L3::t>{L3::t{L3::N{(int64_t)d}}};
+    chk.instructions.push_back(IR::Length{len_var, L3::var{src_name}, dim});
+    chk.instructions.push_back(IR::BinOp{neg_cmp, idx, IR::op::lt, L3::t{L3::N{0}}});
+    chk.terminal = IR::te{IR::BrCond{L3::t{neg_cmp}, error_lbl, upper_chk_lbl}};
+    blocks.push_back(chk);
+
+    std::vector<L3::t> err_args = {L3::t{L3::N{line}}};
+    if (is_tensor)
+      err_args.push_back(L3::t{L3::N{(int64_t)d}}); // first dim incorrectly accessed
+    err_args.push_back(L3::t{len_var});             // len of the dimension
+    err_args.push_back(idx);                        // idx used to access the dim
+
+    L3::callee_type err_callee = is_tuple ? L3::callee_type{L3::CallTupleError{}} : L3::callee_type{L3::CallTensorError{F}};
+    IR::bb error_bb, upper_bound_check_block;
+    error_bb.lbl = error_lbl;
+    error_bb.instructions.push_back(L3::CallL3{err_callee, std::move(err_args)});
+    error_bb.terminal = IR::te{L3::Return{}};
+    blocks.push_back(error_bb);
+
+    // cond i >= length src d
+    upper_bound_check_block.lbl = upper_chk_lbl;
+    upper_bound_check_block.instructions.push_back(IR::BinOp{upper_cmp, idx, IR::op::gte, L3::t{len_var}});
+    upper_bound_check_block.terminal = IR::te{IR::BrCond{L3::t{upper_cmp}, error_lbl, next_entry}};
+    blocks.push_back(upper_bound_check_block);
+
+    return next_entry;
+  };
+
+  auto emit_array_checks = [&](const std::string &src_name, const std::vector<LA::t> &indices, int64_t line) {
+    int num_indices = (int)indices.size();
+    bool is_tensor = num_indices > 1;
+    // set arity of the error call
+    int64_t F = is_tensor ? 4 : 3;
+
+    L3::label current_entry = emit_null_check(src_name, line);
+    for (int d = 0; d < num_indices; d++)
+      current_entry = emit_bounds_check(src_name, la_t_to_l3_t(indices[d]), d, is_tensor, F, line, current_entry);
+
+    block = IR::bb{};
+    block.lbl = current_entry;
+    startBB = false;
+  };
+
+  for (auto &instr : f.instructions) {
+    if (inst_is_labelinst(instr)) {
+      auto &lbl = std::get<L3::LabelInst>(instr).lbl; // get the label obj from LabelInst
+      if (!startBB) {
+        block.terminal = IR::te{L3::Goto{lbl}}; // if we've encountered a label but it isn't the start of a bb, then add a goto to the block
+        blocks.push_back(block);
+        block = IR::bb{}; // then start new bb
+      }
+      block.lbl = lbl; // add the label to the block
+      startBB = false;
+    } else { // if the instruction wasn't a label, then gensym a new label to a new block
+      if (startBB) {
+        block = IR::bb{};
+        block.lbl = gensym();
+        startBB = false;
+      }
+      bool is_brlbl = std::holds_alternative<L3::brlabel>(instr);
+      bool is_term = is_terminator(instr) || is_brlbl; // compute whether it's a terminator or brblabel
+      bool is_decl = is_declaration(instr, all_var_accumulator);
+      if (!is_term) {
+        if (!is_decl) {
+          std::visit([&](auto &ins) {
+            using T = std::decay_t<decltype(ins)>;
+            if constexpr (std::is_same_v<T, LA::ArrayRead>) // emit array checks if array read or write
+              emit_array_checks(ins.src, ins.indices, ins.line);
+            else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
+              emit_array_checks(ins.dest, ins.indices, ins.line);
+          },
+                     instr);
+          block.instructions.push_back(LA_to_IRinst(instr, code_vars, type_map));
+        }
+      } else {
+        block.terminal = LAterm_to_IRterm(instr); // transform into IR instruction forms
+        blocks.push_back(block);
+        block = IR::bb{};
+        startBB = true;
+      }
     }
   }
-  return std::nullopt;
+  // return at the bottom of void function, else add returnt for completeness
+  if (!startBB) {
+    block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
+    blocks.push_back(block);
+  } else {
+    // just a return
+    IR::bb empty_block;
+    empty_block.lbl = gensym();
+    empty_block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
+    blocks.push_back(empty_block);
+  }
+
+  IR::pars ir_pars;
+  // wrap the strings into variables
+  for (auto &tv : f.parameters.input_variables)
+    ir_pars.input_variables.push_back(IR::TypeVar{tv.var_type, L3::var{tv.var_declared}});
+  // variable declaration
+  variable_declaration(all_var_accumulator, blocks);
+  IR::fIR result;
+  result.f_type = f.f_type;
+  result.name = L3::l{"@" + f.name};
+  result.parameters = ir_pars;
+  result.blocks = blocks;
+  return result;
+}
+L3::N encode_N(L3::N num) {
+  return L3::N{((2 * num.value) + 1)};
+};
+L3::N decode_N(L3::N num) {
+  return L3::N{(num.value >> 1)};
 }
 
-trace_bb select_next(std::set<bb> &f_bb, trace_bb &prev_bb, std::vector<L3::label> &succs) {
-  // case where there is only one successor, you just skip the terminal instruction, O.W. optimize for less branches
-  trace_bb selected_bb;
-  selected_bb.mark = true;
-
-  // if there are no successors, end loop
-  // if the remaining bbs are empty, return an item with mark true, to end the loop
-  if (f_bb.empty() || succs.size() == 0)
-    return selected_bb;
-
-  if (succs.size() == 1) {
-    // skip the br condition
-    if (auto match = find_label(f_bb, succs[0]))
-      selected_bb = bb_to_trace_bb(*match);
-  } else {
-    // prefer the else bb of the conditional branch, because that way we can make this a conditional jump and if false it falls through
-    if (auto match = find_label(f_bb, succs[1]))
-      selected_bb = bb_to_trace_bb(*match);
-    else if (auto match = find_label(f_bb, succs[0]))
-      selected_bb = bb_to_trace_bb(*match);
+L3::t encode_t(L3::t orig_value) {
+  return std::visit([&](auto &ins) -> L3::t {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return encode_N(ins);
+    else
+      return ins;
+  },
+                    orig_value);
+};
+L3::s encode_s(L3::s orig_value) {
+  return std::visit([&](auto &ins) -> L3::s {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return encode_N(ins);
+    else
+      return ins;
+  },
+                    orig_value);
+};
+template <typename T, typename F> // why is there no map in cpp???? .......
+auto map(const std::vector<T> &vec, F f) {
+  std::vector<decltype(f(vec[0]))> result;
+  result.reserve(vec.size());
+  for (const auto &x : vec) {
+    result.push_back(f(x));
   }
-
-  return selected_bb;
+  return result;
+}
+std::optional<L3::var> toEncode(IR::i &inst) {
+  return std::visit([&](auto &ins) -> std::optional<L3::var> {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, IR::BinOp>)
+      return ins.dest;
+    else
+      return std::nullopt;
+  },
+                    inst);
+};
+std::optional<std::vector<L3::t>> toDecode(IR::i &inst) {
+  return std::visit([&](auto &ins) -> std::optional<std::vector<L3::t>> {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, IR::BinOp>)
+      return std::vector<L3::t>{ins.left, ins.right};
+    else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
+      return ins.indices;
+    else if constexpr (std::is_same_v<T, IR::ArrayRead>)
+      return ins.indices;
+    else if constexpr (std::is_same_v<T, IR::Length>)
+      return std::nullopt;
+    else if constexpr (std::is_same_v<T, IR::BrCond>)
+      return std::vector<L3::t>{ins.cond};
+    else
+      return std::nullopt;
+  },
+                    inst);
 };
 
-pIR linearize_CFG(pIR &original_program) {
-  pIR linearized_p;
-  for (auto &fn : original_program.functions) {
-    std::set<bb> f_bb(fn.blocks.begin(), fn.blocks.end()); // get all the basic blocks of the function
-    std::vector<trace> traces;                             // define a list of traces for the function
-    for (auto &orig_block : fn.blocks) {
-      auto it = f_bb.find(orig_block);
-      if (it == f_bb.end())
-        continue;
-      trace tr;
-      bb first_bb = *it;
-      f_bb.erase(it);
-      trace_bb tbb = bb_to_trace_bb(first_bb); // initialize a trace basic block with mark set to false
-      while (!tbb.mark) {
-        tbb.mark = true;
-        tr.blocks.push_back(tbb);
-        std::vector<L3::label> succs = successors(tbb);
-        tbb = select_next(f_bb, tbb, succs);
-      }
-      traces.push_back(tr);
-    }
-    linearized_p.functions.push_back(fIR{fn.f_type, fn.name, fn.parameters, traces_to_bbs(traces)});
+IR::i substitute(IR::i &inst, std::vector<L3::var> identifiers) {
+  auto var_to_t = [](const L3::var &v) -> L3::t { return v; };
+  return std::visit([&](auto &ins) -> IR::i {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, IR::BinOp>)
+      return IR::BinOp{ins.dest, L3::t{identifiers[0]}, ins.operation, L3::t{identifiers[1]}};
+    else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
+      return IR::ArrayWrite{ins.dest, map(identifiers, var_to_t), encode_s(ins.src)};
+    else if constexpr (std::is_same_v<T, IR::ArrayRead>)
+      return IR::ArrayRead{ins.dest, ins.src, map(identifiers, var_to_t)};
+    else if constexpr (std::is_same_v<T, IR::Length>)
+      return IR::Length{ins.dest, ins.src, L3::t{identifiers[0]}};
+    else
+      return ins;
+  },
+                    inst);
+};
+
+void value_encoding(std::vector<IR::fIR> &function_list) {
+  // Encode all constants not used for array/tuple indices
+  // and 2nd parameter of length
+  int counter = 0;
+  // gensym helper to create labels for the blocks. L cpp for not having it builtin...
+  auto gensym = [&counter]() -> L3::var {
+    return L3::var{"_label_encoding" + std::to_string(counter++)};
   };
-  return linearized_p;
+  std::vector<IR::fIR> new_function_list;
+  for (auto &fn : function_list) {
+    std::vector<IR::i> declarations_first_bb;
+    for (auto &block : fn.blocks) {
+      int bound = block.instructions.size();
+      std::vector<IR::i> block_instructions;
+
+      for (int i = 0; i < bound; i++) {
+        std::optional<std::vector<L3::t>> things_to_decode = toDecode(block.instructions[i]);
+        if (things_to_decode.has_value()) {
+          std::vector<L3::var> identifiers;
+          for (auto thing_to_decode : things_to_decode.value()) {
+            L3::var var_identifier = gensym();
+            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, var_identifier}});
+            block_instructions.push_back(IR::i{IR::BinOp{var_identifier, encode_t(thing_to_decode), IR::op::rshift, L3::N{1}}});
+            identifiers.push_back(var_identifier);
+          }
+          block_instructions.push_back(substitute(block.instructions[i], identifiers));
+        } else {
+          block_instructions.push_back(std::visit([&](auto &ins) -> IR::i {
+            using T = std::decay_t<decltype(ins)>;
+            if constexpr (std::is_same_v<T, L3::Assign>)
+              return L3::Assign{ins.dest, encode_s(ins.src)};
+            else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
+              return L3::CallAssignL3{ins.dest, L3::CallL3{ins.callexpr.callee, map(ins.callexpr.args, encode_t)}};
+            else if constexpr (std::is_same_v<T, L3::CallL3>)
+              return L3::CallL3{ins.callee, map(ins.args, encode_t)};
+            else if constexpr (std::is_same_v<T, IR::NewArray>)
+              return IR::NewArray{ins.dest, map(ins.dims, encode_t)};
+            else if constexpr (std::is_same_v<T, IR::NewTuple>)
+              return IR::NewTuple{ins.dest, encode_t(ins.size)};
+            else
+              return ins;
+          },
+                                                  block.instructions[i]));
+        }
+        std::optional<L3::var> variable_to_encode = toEncode(block.instructions[i]);
+        if (variable_to_encode.has_value()) {
+          // encode the variable
+          block_instructions.push_back(IR::BinOp{
+              variable_to_encode.value(), variable_to_encode.value(), IR::op::lshift, L3::N{1}});
+          block_instructions.push_back(IR::BinOp{
+              variable_to_encode.value(), variable_to_encode.value(), IR::op::add, L3::N{1}});
+        };
+      }
+      // decode BrCond condition and encode ReturnT value
+      block.terminal = std::visit([&](auto &te) -> IR::te {
+        using T = std::decay_t<decltype(te)>;
+        if constexpr (std::is_same_v<T, IR::BrCond>) {
+          L3::var decoded = gensym();
+          declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, decoded}});
+          block_instructions.push_back(IR::i{IR::BinOp{decoded, encode_t(te.cond), IR::op::rshift, L3::N{1}}});
+          return IR::BrCond{L3::t{decoded}, te.true_label, te.false_label};
+        } else if constexpr (std::is_same_v<T, L3::ReturnT>)
+          return L3::ReturnT{encode_t(te.return_thing)};
+        else
+          return te;
+      },
+                                  block.terminal);
+      block.instructions = block_instructions;
+    }
+    if (!fn.blocks.empty())
+      fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb.begin(), declarations_first_bb.end());
+  };
 };
-L3::pl3 pIR_to_pL3(pIR &p) {
-  std::vector<L3::fl3> function_list;
+
+IR::pIR pLA_to_pIR(LA::pLA &p) {
+  std::vector<IR::fIR> function_list;
+
   for (auto &fn : p.functions) {
-    function_list.push_back(fIR_to_fl3(fn));
+    // bb generation and variable declaration done in fLA_to_fIR
+    function_list.push_back(fLA_to_fIR(fn));
   }
-  return L3::pl3{
+  // value encoding
+  value_encoding(function_list);
+  // allocation and bounds check
+  return IR::pIR{
       function_list};
 };
 
-void generate_code(pIR &p) {
-  pIR linearized_p;
-  // linearize CFG
-  linearized_p = linearize_CFG(p);
-  L3::pl3 transformed_p;
-  transformed_p = pIR_to_pL3(linearized_p);
+void generate_code(pLA &p) {
+  IR::pIR transformed_p;
+  transformed_p = pLA_to_pIR(p);
   std::ofstream outputFile;
-  outputFile.open("prog.L3");
+  outputFile.open("prog.IR");
 
-  // build the L3 code for each of the funtions inside of the ast/program
+  // // build the IR code for each of the funtions inside of the ast/program
   for (auto &fn : transformed_p.functions) {
-    print_functionl3(fn, true, &outputFile);
+    print_functionIR(fn, true, &outputFile);
   };
 
   outputFile.close();
 }
-} // namespace IR
+} // namespace LA
