@@ -97,8 +97,23 @@ interference_colored assign_colors(f &function, interference interference, bool 
       std::pair<w, r> added_var;
       if (is_real_var(unique_var)) {
         int current_color = select_color(unique_var, unique_variable_to_dependendency_nodes[unique_var], added_vars, 0, coloring_succeds);
-        if (!coloring_succeds)
-          break;
+        if (!coloring_succeds) {
+          var item_var = std::get<var>(unique_var);
+          if (item_var.name.find("%spilled") == std::string::npos) {
+            var_to_spill = item_var;
+          } else {
+            for (const auto &neighbor : unique_variable_to_dependendency_nodes[unique_var]) {
+              if (is_real_var(neighbor)) {
+                var neighbor_var = std::get<var>(neighbor);
+                if (neighbor_var.name.find("%spilled") == std::string::npos) {
+                  var_to_spill = neighbor_var;
+                  break;
+                }
+              }
+            }
+            break;
+          }
+        };
         added_var = coloring_rule(unique_var, colors[current_color]);
         colored_interference[row].push_back(added_var);
       } else {
