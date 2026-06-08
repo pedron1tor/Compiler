@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-#include "LA.h"
+#include "LB.h"
 #include "codegen.h"
 #include "parser.h"
 
