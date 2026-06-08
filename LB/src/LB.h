@@ -47,6 +47,7 @@ namespace LB
     std::string dest;
     LB::CallArbitrary callexpr;
   };
+  struct scope;
   using i = std::variant<
       LB::TypeVars, LA::Assign, LA::BinOp, L3::LabelInst, LB::ifthen, L3::Goto, LB::ReturnTOpt, While, Continue, Break, LA::ArrayRead, LA::ArrayWrite,
       LA::Length, LB::CallArbitrary, LB::CallAssignArbitrary, LA::NewArray, LA::NewTuple, std::unique_ptr<LB::scope>>;
