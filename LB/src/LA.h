@@ -58,6 +58,10 @@ struct BrCond {
 struct ReturnT {
   LA::t return_thing;
 };
+namespace LB {
+struct Continue {};
+struct Break {};
+} // namespace LB
 using i = std::variant<
     LA::TypeVar,
     LA::Assign,
@@ -68,7 +72,7 @@ using i = std::variant<
     L3::Return, LA::ReturnT, LA::ArrayRead, LA::ArrayWrite, LA::Length,
     LA::CallAssignArbitrary,
     LA::CallArbitrary,
-    LA::NewArray, LA::NewTuple>;
+    LA::NewArray, LA::NewTuple, LB::Break, LB::Continue>;
 struct pars {
   std::vector<TypeVar> input_variables;
 };

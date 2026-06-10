@@ -6,6 +6,7 @@
 #include <iostream>
 #include <optional>
 #include <set>
+#include <stack>
 #include <unordered_map>
 #include <utils.h>
 
@@ -44,10 +45,30 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
   },
                     inst);
 };
-template <typename Gensym>
-std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, std::vector<std::unordered_map<std::string, std::string>> &kont);
 template <typename Gensym, typename Gensym2>
-static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont) {
+std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops);
+template <typename Gensym2>
+std::vector<LA::i> translate_while_loop(LB::While &while_instr, Gensym2 gensym2, WhileInfo &while_loops) {
+  L3::label condlabel = L3::label{gensym2()};
+  std::string gensymmed_var_temp = gensym2();
+  while_loops.begin_while[while_instr] = while_instr.then;
+  while_loops.end_while[while_instr] = while_instr.els;
+  while_loops.cond_labels[while_instr] = condlabel;
+  //   Identify entry and exit point of each while instruction w
+  // while (%v1 = 3) :body_w :after_w
+  // • beginWhile[w] = :body_w
+  // • endWhile[w] = :after_w
+  // 2. Add a new label l just before a while instruction w
+  // • condLabels[w] = l
+  return {
+      L3::LabelInst{L3::label{condlabel}},
+      LA::TypeVar{IR::t_int64{0}, gensymmed_var_temp},
+      LA::BinOp{gensymmed_var_temp, while_instr.cnd.left, while_instr.cnd.op, while_instr.cnd.right},
+      LA::BrCond{gensymmed_var_temp, while_instr.then.name, while_instr.els.name}};
+};
+
+template <typename Gensym, typename Gensym2>
+static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops) {
   return std::visit([&](auto &ins) -> std::vector<LA::i> {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_constructible_v<LA::i, T>) {
@@ -75,11 +96,16 @@ static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, Gensym2 gensy
       return {
           LA::TypeVar{IR::t_int64{0}, gensymmed_var}, LA::BinOp{gensymmed_var, ins.cnd.left, ins.cnd.op, ins.cnd.right},
           LA::BrCond{gensymmed_var, ins.then.name, ins.els.name}};
+    } else if constexpr (std::is_same_v<T, LB::While>) {
+      return translate_while_loop(ins, gensym2, while_loops);
     } else if constexpr (std::is_same_v<T, std::shared_ptr<LB::scope>>) {
-      return compile_LB_scope(*ins, gensym, gensym2, kont);
+      return compile_LB_scope(*ins, gensym, gensym2, kont, while_loops);
     } // flatten the scopes by recursively calling compile_LB_scope. Finally some proper PL stuff....
-
-    else {
+    else if constexpr (std::is_same_v<T, LB::Continue>) {
+      return {LA::LB::Continue{}};
+    } else if constexpr (std::is_same_v<T, LB::Break>) {
+      return {LA::LB::Break{}};
+    } else {
       return {L3::Return{}}; // TODO remove this placeholder...
     }
   },
@@ -130,67 +156,59 @@ LA::t kont_lookup_t(std::vector<std::unordered_map<std::string, std::string>> &k
 
 LA::i refactor_old_vars(LA::i &compiled_instr, std::vector<std::unordered_map<std::string, std::string>> &kont) {
   return std::visit([&](auto &ins) -> LA::i {
-      using T = std::decay_t<decltype(ins)>;
-      if constexpr (std::is_same_v<T, LA::Assign>)
-        return LA::Assign{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.src)};
-      else if constexpr (std::is_same_v<T, LA::BinOp>)
-        return LA::BinOp{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.left), ins.operation, kont_lookup_t(kont, ins.right)};
-      else if constexpr (std::is_same_v<T, LA::CallArbitrary>) {
-        std::vector<LA::t> new_args;
-        for (auto &arg : ins.args) new_args.push_back(kont_lookup_t(kont, arg));
-        return LA::CallArbitrary{kont_lookup(kont, ins.callee), new_args};
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, LA::Assign>)
+      return LA::Assign{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.src)};
+    else if constexpr (std::is_same_v<T, LA::BinOp>)
+      return LA::BinOp{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.left), ins.operation, kont_lookup_t(kont, ins.right)};
+    else if constexpr (std::is_same_v<T, LA::CallArbitrary>) {
+      std::vector<LA::t> new_args;
+      for (auto &arg : ins.args)
+        new_args.push_back(kont_lookup_t(kont, arg));
+      return LA::CallArbitrary{kont_lookup(kont, ins.callee), new_args};
+    } else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>) {
+      std::vector<LA::t> new_args;
+      for (auto &arg : ins.callexpr.args)
+        new_args.push_back(kont_lookup_t(kont, arg));
+      return LA::CallAssignArbitrary{kont_lookup(kont, ins.dest), LA::CallArbitrary{kont_lookup(kont, ins.callexpr.callee), new_args}};
+    } else if constexpr (std::is_same_v<T, LA::ArrayRead>) {
+      std::vector<LA::t> new_indices;
+      for (auto &idx : ins.indices)
+        new_indices.push_back(kont_lookup_t(kont, idx));
+      return LA::ArrayRead{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), new_indices, ins.line};
+    } else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
+      std::vector<LA::t> new_indices;
+      for (auto &idx : ins.indices)
+        new_indices.push_back(kont_lookup_t(kont, idx));
+      return LA::ArrayWrite{kont_lookup(kont, ins.dest), new_indices, kont_lookup_t(kont, ins.src), ins.line};
+    } else if constexpr (std::is_same_v<T, LA::Length>) {
+      if (ins.dim.has_value()) {
+        LA::t dim_val = ins.dim.value();
+        return LA::Length{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), kont_lookup_t(kont, dim_val)};
+      } else {
+        return LA::Length{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), ins.dim};
       }
-      else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>) {
-        std::vector<LA::t> new_args;
-        for (auto &arg : ins.callexpr.args) new_args.push_back(kont_lookup_t(kont, arg));
-        return LA::CallAssignArbitrary{kont_lookup(kont, ins.dest), LA::CallArbitrary{kont_lookup(kont, ins.callexpr.callee), new_args}};
-      }
-      else if constexpr (std::is_same_v<T, LA::ArrayRead>) {
-        std::vector<LA::t> new_indices;
-        for (auto &idx : ins.indices) new_indices.push_back(kont_lookup_t(kont, idx));
-        return LA::ArrayRead{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), new_indices, ins.line};
-      }
-      else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
-        std::vector<LA::t> new_indices;
-        for (auto &idx : ins.indices) new_indices.push_back(kont_lookup_t(kont, idx));
-        return LA::ArrayWrite{kont_lookup(kont, ins.dest), new_indices, kont_lookup_t(kont, ins.src), ins.line};
-      }
-      else if constexpr (std::is_same_v<T, LA::Length>) {
-        if (ins.dim.has_value()) {
-          LA::t dim_val = ins.dim.value();
-          return LA::Length{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), kont_lookup_t(kont, dim_val)};
-        } else {
-          return LA::Length{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), ins.dim};
-        }
-      }
-      else if constexpr (std::is_same_v<T, LA::NewArray>) {
-        std::vector<LA::t> new_dims;
-        for (auto &dim : ins.dims) new_dims.push_back(kont_lookup_t(kont, dim));
-        return LA::NewArray{kont_lookup(kont, ins.dest), new_dims};
-      }
-      else if constexpr (std::is_same_v<T, LA::NewTuple>)
-        return LA::NewTuple{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.size)};
-      else if constexpr (std::is_same_v<T, LA::BrCond>)
-        return LA::BrCond{kont_lookup_t(kont, ins.cond), kont_lookup(kont, ins.true_label), kont_lookup(kont, ins.false_label)};
-      else if constexpr (std::is_same_v<T, LA::TypeVar>)
-        return ins;
-      else if constexpr (std::is_same_v<T, L3::Return>)
-        return ins;
-      else if constexpr (std::is_same_v<T, LA::ReturnT>)
-        return ins;
-      else if constexpr (std::is_same_v<T, L3::LabelInst>)
-        return ins;
-      else if constexpr (std::is_same_v<T, L3::brlabel>)
-        return ins; },
+    } else if constexpr (std::is_same_v<T, LA::NewArray>) {
+      std::vector<LA::t> new_dims;
+      for (auto &dim : ins.dims)
+        new_dims.push_back(kont_lookup_t(kont, dim));
+      return LA::NewArray{kont_lookup(kont, ins.dest), new_dims};
+    } else if constexpr (std::is_same_v<T, LA::NewTuple>)
+      return LA::NewTuple{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.size)};
+    else if constexpr (std::is_same_v<T, LA::BrCond>)
+      return LA::BrCond{kont_lookup_t(kont, ins.cond), kont_lookup(kont, ins.true_label), kont_lookup(kont, ins.false_label)};
+    else
+      return ins;
+  },
                     compiled_instr);
 };
 template <typename Gensym, typename Gensym2>
-std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont) {
+std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops) {
   std::unordered_map<std::string, std::string> map;
   kont.push_back(map);
   std::vector<LA::i> instructions;
   for (auto &instr : scope.instructions) {
-    auto compiled_insts = LB_to_LAinst(instr, gensym, gensym2, kont); // pass the gensym function, the kontinuation of the environments and the instruction
+    auto compiled_insts = LB_to_LAinst(instr, gensym, gensym2, kont, while_loops); // pass the gensym function, the kontinuation of the environments and the instruction
 
     for (auto &compiled_instr : compiled_insts) {
       instructions.push_back(refactor_old_vars(compiled_instr, kont));
@@ -198,6 +216,37 @@ std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gen
   };
   kont.pop_back(); // drop the map from the kontinuation when exiting the scope
   return instructions;
+}
+void map_loop_instrs(std::vector<LA::i> &loop_instructions, WhileInfo &while_loops) {
+
+  std::stack<const LB::While *> loopStack;
+  for (int i = 0; i < loop_instructions.size(); i++) {
+    if (loopStack.size() > 0) {
+      while_loops.loop[i] = loopStack.top();
+      // map instructions to their more nested loop w
+    }
+
+    if (inst_is_labelinst(loop_instructions[i])) {
+      L3::label label_of_interest = std::get<L3::LabelInst>(loop_instructions[i]).lbl;
+      // if (i is the beginning of a while loop w
+      bool do_end = true;
+      for (auto &[w, lbl] : while_loops.begin_while) { // iterate through all the kep value pairs
+        if (lbl.name == label_of_interest.name) {
+          loopStack.push(&w); // push while loop address
+          do_end = false;
+        }
+      }
+
+      // else if (i is the end of a loop) {
+      if (do_end) {
+        for (auto &[w, lbl] : while_loops.end_while) {
+          if (lbl.name == label_of_interest.name && loopStack.size() > 0) {
+            loopStack.pop();
+          }
+        }
+      }
+    }
+  }
 }
 
 LA::fLA fLB_to_fLA(LB::fLB &f) {
@@ -211,7 +260,9 @@ LA::fLA fLB_to_fLA(LB::fLB &f) {
     return "random_random" + std::to_string(counter2++);
   };
   std::vector<std::unordered_map<std::string, std::string>> kont;
-  new_instructions = compile_LB_scope(*f.lscope, gensym, gensym2, kont);
+  WhileInfo while_loops;
+  new_instructions = compile_LB_scope(*f.lscope, gensym, gensym2, kont, while_loops);
+  map_loop_instrs(new_instructions, while_loops);
   LA::fLA result;
   result.name = f.name;
   result.f_type = f.f_type;

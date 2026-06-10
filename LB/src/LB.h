@@ -1,5 +1,6 @@
 #pragma once
 #include "LA.h"
+#include <functional>
 
 namespace LB {
 struct TypeVars {
@@ -24,6 +25,22 @@ struct While {
   cond cnd;
   L3::label then;
   L3::label els;
+  bool operator==(const While &o) const {
+    return then.name == o.then.name && els.name == o.els.name;
+  }
+};
+struct WhileHasher {
+  size_t operator()(const While &w) const {
+    size_t h1 = std::hash<std::string>{}(w.then.name);
+    size_t h2 = std::hash<std::string>{}(w.els.name);
+    return h1 ^ (h2 << 1);
+  }
+};
+struct WhileInfo {
+  std::unordered_map<While, L3::label, WhileHasher> begin_while;
+  std::unordered_map<While, L3::label, WhileHasher> end_while;
+  std::unordered_map<While, L3::label, WhileHasher> cond_labels;
+  std::unordered_map<int, const While *> loop;
 };
 struct Continue {
 };
