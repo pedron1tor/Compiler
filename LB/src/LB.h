@@ -37,20 +37,10 @@ namespace LB
   struct Break
   {
   };
-  struct CallArbitrary
-  {
-    std::string callee;
-    std::optional<std::vector<LA::t>> args;
-  };
-  struct CallAssignArbitrary
-  {
-    std::string dest;
-    LB::CallArbitrary callexpr;
-  };
   struct scope;
   using i = std::variant<
       LB::TypeVars, LA::Assign, LA::BinOp, L3::LabelInst, LB::ifthen, L3::Goto, LB::ReturnTOpt, While, Continue, Break, LA::ArrayRead, LA::ArrayWrite,
-      LA::Length, LB::CallArbitrary, LB::CallAssignArbitrary, LA::NewArray, LA::NewTuple, std::unique_ptr<LB::scope>>;
+      LA::Length, LA::CallArbitrary, LA::CallAssignArbitrary, LA::NewArray, LA::NewTuple, std::shared_ptr<LB::scope>>;
   struct scope
   {
     std::vector<LB::i> instructions;

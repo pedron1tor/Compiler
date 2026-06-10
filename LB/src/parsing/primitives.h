@@ -9,12 +9,13 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace LA {
+namespace LB {
 /*
 tokens parsed
 */
 struct GlobalAccumulator {
-  pLA program;
+  pLB program;
+  std::vector<LB::i> parsed_instructions;
   std::vector<LA::t> parsed_items_t;
   std::vector<IR::op> parsed_ops;
   std::vector<L3::label> parsed_labels;
@@ -22,6 +23,7 @@ struct GlobalAccumulator {
   std::vector<IR::type> parsed_types;
   std::vector<LA::t> parsed_indices;
   std::vector<std::string> parsed_names;
+  std::optional<std::shared_ptr<LB::scope>> curr_scope;
 };
 
 struct parse_number : pegtl::seq<pegtl::sor<
@@ -328,7 +330,7 @@ inline std::string L3t_to_str(L3::t val) {
       return std::to_string(v.value); },
                     val);
 }
-inline std::string t_to_str(t val) {
+inline std::string t_to_str(LA::t val) {
   return std::visit([](auto &v) -> std::string {
     using T = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<T, std::string>)
@@ -525,7 +527,7 @@ inline std::string L3indices_to_str(std::vector<L3::t> indices) {
   };
   return repeated;
 };
-inline std::string indices_to_str(std::vector<t> indices) {
+inline std::string indices_to_str(std::vector<LA::t> indices) {
   std::string repeated = "";
   for (int i = 0; i < indices.size(); i++) {
     repeated += "[";
@@ -715,4 +717,4 @@ struct action<parse_T_void> {
   }
 };
 
-} // namespace LA
+} // namespace LB
