@@ -46,24 +46,29 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
 };
 std::vector<LA::i> compile_LB_scope(LB::scope &scope);
 
-static LA::i LB_to_LAinst(LB::i &inst) {
-  return std::visit([&](auto &ins) -> LA::i {
+static std::vector<LA::i> LB_to_LAinst(LB::i &inst) {
+  return std::visit([&](auto &ins) -> std::vector<LA::i> {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_constructible_v<LA::i, T>) {
-      return ins; // expressions which are passthrough, in the LA namespace...
+      return {ins}; // expressions which are passthrough, in the LA namespace...
     } else if constexpr (std::is_same_v<T, LB::ReturnTOpt>) {
       if (ins.return_thing.has_value()) {
-        return LA::ReturnT{ins.return_thing.value()};
+        return {LA::ReturnT{ins.return_thing.value()}};
 
       } else {
-        return L3::Return{};
+        return {L3::Return{}};
       }
-    } else if constexpr (std::is_same_v<T, LA::Assign>) {
-      return ins;
+    } else if constexpr (std::is_same_v<T, LB::TypeVars>) {
+      std::vector<LA::i> compiled_var_decls;
+      for (auto variable : ins.vars_declared) {
+        compiled_var_decls.push_back(LA::TypeVar{ins.var_type, variable});
+      }
+      return compiled_var_decls;
+
     }
 
     else {
-      return L3::Return{}; // TODO remove this placeholder...
+      return {L3::Return{}}; // TODO remove this placeholder...
     }
   },
                     inst);
@@ -83,7 +88,8 @@ void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::ve
 std::vector<LA::i> compile_LB_scope(LB::scope &scope) {
   std::vector<LA::i> instructions;
   for (auto &instr : scope.instructions) {
-    instructions.push_back(LB_to_LAinst(instr));
+    auto compiled_insts = LB_to_LAinst(instr);
+    instructions.insert(instructions.end(), compiled_insts.begin(), compiled_insts.end());
   }
   return instructions;
 };
