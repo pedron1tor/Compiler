@@ -129,6 +129,8 @@ struct parse_label_inst : parse_label {
 
 struct parse_continue_inst : pegtl::seq<pegtl::string<'c', 'o', 'n', 't', 'i', 'n', 'u', 'e'>, parse_nochar> {};
 struct parse_break_inst : pegtl::seq<pegtl::string<'b', 'r', 'e', 'a', 'k'>> {};
+struct parse_label_inst_useful : parse_label {};
+struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_useful> {};
 struct parse_scope;
 struct parse_i : pegtl::sor<
                      parse_assign_call_callee,
@@ -146,6 +148,7 @@ struct parse_i : pegtl::sor<
                      parse_continue_inst,
                      parse_break_inst,
                      parse_binop,
+                     parse_goto_label,
                      parse_assignment,
                      parse_typevar_decl, parse_scope> {};
 
@@ -269,7 +272,23 @@ struct action<parse_return_t> {
 //     }
 //   }
 // };
-
+template <>
+struct action<parse_label_inst_useful> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_labels.push_back(L3::label{in.string()});
+  }
+};
+template <>
+struct action<parse_goto_label> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto label = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    i newI = L3::Goto{label};
+    acc.kont.back()->instructions.push_back(newI);
+  };
+};
 // binop
 template <>
 struct action<parse_binop_op> {

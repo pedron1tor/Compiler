@@ -174,7 +174,9 @@ void print_instructionLB(LB::i &instr, std::ostream &out) {
       if (ins.return_thing) {
         out << " " << t_to_str(ins.return_thing.value());
       }
-    } else if constexpr (std::is_same_v<T, LA::BrCond>)
+    } else if constexpr (std::is_same_v<T, L3::Goto>)
+      std::cout << "goto " << ins.target.name;
+    else if constexpr (std::is_same_v<T, LA::BrCond>)
       out << "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label;
     else if constexpr (std::is_same_v<T, L3::LabelInst>)
       out << ins.lbl.name;
