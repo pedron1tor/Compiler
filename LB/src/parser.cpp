@@ -56,10 +56,7 @@ struct parse_function_rule : pegtl::seq<parse_seps,
                                         parse_seps,
                                         parse_vars,
                                         parse_seps,
-                                        pegtl::one<'{'>,
-                                        parse_scope,
-                                        parse_seps,
-                                        pegtl::one<'}'>> {
+                                        parse_scope> {
 };
 struct parse_functions_rule : pegtl::seq<
                                   pegtl::plus<parse_function_rule>> {
@@ -134,62 +131,61 @@ LB::pLB parse_file(char *filename) {
   return state.program;
 }
 
-// void print_functionLB(LB::fLB &fn, bool generator, std::ofstream *outputFile) {
-//   std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
-//   std::ostream &out = *outp;
-//   out << type_to_str(fn.f_type) << " " << fn.name << " (";
-//   bool first = true;
-//   for (auto &tv : fn.parameters.input_variables) {
-//     if (!first)
-//       out << ", ";
-//     first = false;
-//     out << type_to_str(tv.var_type) << tv.var_declared;
-//   }
-//   out << ") {\n";
-//   for (auto &instr : fn.instructions) {
-//     out << "\t";
-//     std::visit([&](auto &ins) {
-//       using T = std::decay_t<decltype(ins)>;
-//       if constexpr (std::is_same_v<T, LA::Assign>)
-//         out << ins.dest << " <- " << t_to_str(ins.src);
-//       else if constexpr (std::is_same_v<T, LA::BinOp>)
-//         out << ins.dest << " <- " << t_to_str(ins.left) << " " << op_to_str(ins.operation) << " " << t_to_str(ins.right);
-//       else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
-//         out << ins.callee << call_args_to_str(ins.args);
-//       else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
-//         out <<  ins.dest << " <- " << ins.callexpr.callee << call_args_to_str(ins.callexpr.args);
-//       else if constexpr (std::is_same_v<T, LA::ArrayRead>)
-//         out << ins.dest << " <- " << ins.src << indices_to_str(ins.indices);
-//       else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
-//         out <<  ins.dest << indices_to_str(ins.indices) << " <- " << t_to_str(ins.src);
-//       else if constexpr (std::is_same_v<T, LA::Length>) {
-//         out << ins.dest << " <- length " << ins.src;
-//         if (ins.dim) out << " " << t_to_str(*ins.dim);
-//       }
-//       else if constexpr (std::is_same_v<T, LA::NewArray>)
-//         out <<  ins.dest << " <- new Array(" << dims_to_str(ins.dims) << ")";
-//       else if constexpr (std::is_same_v<T, LA::NewTuple>)
-//         out <<  ins.dest << " <- new Tuple(" << t_to_str(ins.size) << ")";
-//       else if constexpr (std::is_same_v<T, LA::TypeVar>)
-//         out << type_to_str(ins.var_type) <<  ins.var_declared;
-//       else if constexpr (std::is_same_v<T, L3::Return>)
-//         out
-//             << "return";
-//       else if constexpr (std::is_same_v<T, LA::ReturnT>)
-//         out<< "return " << t_to_str(ins.return_thing);
+void print_functionLB(LB::fLB &fn, bool generator, std::ofstream *outputFile) {
+  std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
+  std::ostream &out = *outp;
+  out << type_to_str(fn.f_type) << " " << fn.name << " (";
+  bool first = true;
+  for (auto &tv : fn.parameters.input_variables) {
+    if (!first)
+      out << ", ";
+    first = false;
+    out << type_to_str(tv.var_type) << tv.var_declared;
+  }
+  out << ") {\n";
+  for (auto &instr : fn.lscope.instructions) {
+    out << "\t";
+    std::visit([&](auto &ins) {
+      using T = std::decay_t<decltype(ins)>;
+      if constexpr (std::is_same_v<T, LA::Assign>)
+        out << ins.dest << " <- " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, LA::BinOp>)
+        out << ins.dest << " <- " << t_to_str(ins.left) << " " << op_to_str(ins.operation) << " " << t_to_str(ins.right);
+      else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
+        out << ins.callee << call_args_to_str(ins.args);
+      else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
+        out <<  ins.dest << " <- " << ins.callexpr.callee << call_args_to_str(ins.callexpr.args);
+      else if constexpr (std::is_same_v<T, LA::ArrayRead>)
+        out << ins.dest << " <- " << ins.src << indices_to_str(ins.indices);
+      else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
+        out <<  ins.dest << indices_to_str(ins.indices) << " <- " << t_to_str(ins.src);
+      else if constexpr (std::is_same_v<T, LA::Length>) {
+        out << ins.dest << " <- length " << ins.src;
+        if (ins.dim) out << " " << t_to_str(*ins.dim);
+      }
+      else if constexpr (std::is_same_v<T, LA::NewArray>)
+        out <<  ins.dest << " <- new Array(" << dims_to_str(ins.dims) << ")";
+      else if constexpr (std::is_same_v<T, LA::NewTuple>)
+        out <<  ins.dest << " <- new Tuple(" << t_to_str(ins.size) << ")";
+      else if constexpr (std::is_same_v<T, LA::TypeVar>)
+        out << type_to_str(ins.var_type) <<  ins.var_declared;
+      else if constexpr (std::is_same_v<T, L3::Return>)
+        out
+            << "return";
+      else if constexpr (std::is_same_v<T, LA::ReturnT>)
+        out<< "return " << t_to_str(ins.return_thing);
+      else if constexpr (std::is_same_v<T, LA::BrCond>)
+        out << "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label;
+      else if constexpr (std::is_same_v<T, L3::LabelInst>)
+        out << ins.lbl.name;
+      else if constexpr (std::is_same_v<T, L3::brlabel>)
+        out << "br " << ins.lbl.name; },
+               instr);
+    out << "\n";
+  };
 
-//       else if constexpr (std::is_same_v<T, LA::BrCond>)
-//         out << "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label;
-//       else if constexpr (std::is_same_v<T, L3::LabelInst>)
-//         out << ins.lbl.name;
-//       else if constexpr (std::is_same_v<T, L3::brlabel>)
-//         out << "br " << ins.lbl.name; },
-//                instr);
-//     out << "\n";
-//   };
-
-//   out << "}\n";
-// };
+  out << "}\n";
+};
 
 void print_functionLA(LA::fLA &fn, bool generator, std::ofstream *outputFile) {
   std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
@@ -249,8 +245,8 @@ void print_functionLA(LA::fLA &fn, bool generator, std::ofstream *outputFile) {
 };
 
 void print_source_program(LB::pLB program) {
-  // for (auto &fn : program.functions) {
-  // print_functionLB(fn, false, nullptr);
-  // };
+  for (auto &fn : program.functions) {
+    print_functionLB(fn, false, nullptr);
+  };
 };
 } // namespace LB

@@ -130,7 +130,7 @@ void generate_code(pLB &p) {
   LA::pLA transformed_p;
   transformed_p = pLB_to_pLA(p);
   std::ofstream outputFile;
-  outputFile.open("prog.IR");
+  outputFile.open("prog.LA");
 
   // // build the IR code for each of the funtions inside of the ast/program
   for (auto &fn : transformed_p.functions) {
