@@ -131,21 +131,8 @@ LB::pLB parse_file(char *filename) {
   return state.program;
 }
 
-void print_functionLB(LB::fLB &fn, bool generator, std::ofstream *outputFile) {
-  std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
-  std::ostream &out = *outp;
-  out << type_to_str(fn.f_type) << " " << fn.name << " (";
-  bool first = true;
-  for (auto &tv : fn.parameters.input_variables) {
-    if (!first)
-      out << ", ";
-    first = false;
-    out << type_to_str(tv.var_type) << tv.var_declared;
-  }
-  out << ") {\n";
-  for (auto &instr : fn.lscope.instructions) {
-    out << "\t";
-    std::visit([&](auto &ins) {
+void print_instructionLB(LB::i &instr, std::ostream &out) {
+  std::visit([&](auto &ins) {
       using T = std::decay_t<decltype(ins)>;
       if constexpr (std::is_same_v<T, LA::Assign>)
         out << ins.dest << " <- " << t_to_str(ins.src);
@@ -169,22 +156,45 @@ void print_functionLB(LB::fLB &fn, bool generator, std::ofstream *outputFile) {
         out <<  ins.dest << " <- new Tuple(" << t_to_str(ins.size) << ")";
       else if constexpr (std::is_same_v<T, LA::TypeVar>)
         out << type_to_str(ins.var_type) <<  ins.var_declared;
-      else if constexpr (std::is_same_v<T, L3::Return>)
-        out
-            << "return";
-      else if constexpr (std::is_same_v<T, LA::ReturnT>)
-        out<< "return " << t_to_str(ins.return_thing);
+      else if constexpr (std::is_same_v<T, LB::ReturnTOpt>)
+      {
+        out<< "return"; 
+        if (ins.return_thing ) {
+        out << " " << t_to_str(ins.return_thing.value());
+        }
+      }
       else if constexpr (std::is_same_v<T, LA::BrCond>)
         out << "br " << t_to_str(ins.cond) << " " << ins.true_label << " " << ins.false_label;
       else if constexpr (std::is_same_v<T, L3::LabelInst>)
         out << ins.lbl.name;
       else if constexpr (std::is_same_v<T, L3::brlabel>)
         out << "br " << ins.lbl.name; },
-               instr);
+             instr);
+};
+void print_scopeLB(LB::scope &scope, std::ostream &out) {
+  out << ") {\n";
+  for (auto &instr : scope.instructions) {
+    out << "\t";
+    print_instructionLB(instr, out);
+
     out << "\n";
   };
 
   out << "}\n";
+};
+
+void print_functionLB(LB::fLB &fn, bool generator, std::ofstream *outputFile) {
+  std::ostream *outp = (generator && outputFile) ? static_cast<std::ostream *>(outputFile) : &std::cout;
+  std::ostream &out = *outp;
+  out << type_to_str(fn.f_type) << " " << fn.name << " (";
+  bool first = true;
+  for (auto &tv : fn.parameters.input_variables) {
+    if (!first)
+      out << ", ";
+    first = false;
+    out << type_to_str(tv.var_type) << tv.var_declared;
+    }
+  print_scopeLB(*fn.lscope, out);
 };
 
 void print_functionLA(LA::fLA &fn, bool generator, std::ofstream *outputFile) {

@@ -50,7 +50,7 @@ namespace LB
     IR::type f_type;
     std::string name;
     LA::pars parameters;
-    LB::scope lscope;
+    std::shared_ptr<LB::scope> lscope;
   };
   struct pLB
   {

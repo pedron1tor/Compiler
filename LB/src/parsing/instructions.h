@@ -159,8 +159,8 @@ struct action<parse_scope_begin> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
     auto curr_scope = acc.curr_scope;
-    if (curr_scope) {
-      acc.program.functions.back().lscope = *acc.curr_scope.value();
+    if (curr_scope.has_value()) {
+      acc.program.functions.back().lscope = acc.curr_scope.value();
     }
     acc.curr_scope = std::make_shared<LB::scope>();
   }
@@ -170,9 +170,11 @@ struct action<parse_scope_end> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
     auto curr_scope = acc.curr_scope;
-    if (curr_scope) {
-      acc.program.functions.back().lscope.instructions.push_back(LB::i{curr_scope.value()});
-      acc.curr_scope = std::make_shared<LB::scope>(acc.program.functions.back().lscope);
+    if (acc.program.functions.back().lscope) {
+      acc.program.functions.back().lscope->instructions.push_back(LB::i{curr_scope.value()});
+      acc.curr_scope = acc.program.functions.back().lscope;
+    } else {
+      acc.program.functions.back().lscope = curr_scope.value();
     }
   }
 };
