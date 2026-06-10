@@ -12,9 +12,9 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace LA {
+namespace LB {
 
-// var <- s
+// name <- t
 struct parse_assignment : pegtl::seq<parse_name, parse_spaces, parse_arrow, parse_spaces, parse_t> {};
 
 // op ::= + | - | * | & | << | >> | < | <= | = | >= | >
@@ -42,7 +42,9 @@ struct parse_call_tensor_error : parse_tensor_error {};
 struct parse_callee : parse_name {};
 
 // call callee ( args? )
-struct parse_call_callee : pegtl::seq<parse_callee, parse_seps, parse_args> {};
+struct parse_call_callee : pegtl::seq<
+                               pegtl::not_at<pegtl::sor<parse_if, parse_while>>,
+                               parse_callee, parse_seps, parse_args> {};
 struct parse_call_callee_dest : parse_variable {};
 // var <- call callee ( args? )
 struct parse_assign_call_callee : pegtl::seq<
@@ -103,8 +105,12 @@ struct parse_new_tuple : pegtl::seq<
 
 // type var
 struct parse_typevar_type : parse_type {};
-struct parse_typevar_var : parse_variable {};
-struct parse_typevar_decl : pegtl::seq<parse_typevar_type, parse_spaces, parse_typevar_var> {};
+struct parse_typevar_var : pegtl::seq<
+                               pegtl::not_at<pegtl::seq<parse_type, parse_nochar>>,
+                               parse_variable> {};
+struct parse_typevar_decl : pegtl::seq<parse_typevar_type, parse_spaces,
+
+                                       pegtl::opt<pegtl::seq<parse_typevar_var, pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_typevar_var>>>>> {};
 /*
  terminal instructions
 */
@@ -118,14 +124,24 @@ struct parse_brcond_inst : pegtl::seq<
                                parse_br, parse_spaces, parse_t,
                                parse_spaces, parse_brcond_true,
                                parse_spaces, parse_brcond_false> {};
-// te ::= return | return t
+// return t?
 struct parse_return_inst : parse_return {};
 struct parse_return_t : pegtl::seq<parse_return, parse_seps, parse_t> {};
 
 // label
 struct parse_label_inst : parse_label {
 };
+// continue, break
 
+struct parse_continue_inst : pegtl::seq<pegtl::string<'c', 'o', 'n', 't', 'i', 'n', 'u', 'e'>, parse_nochar> {};
+struct parse_break_inst : pegtl::seq<pegtl::string<'b', 'r', 'e', 'a', 'k'>> {};
+struct parse_label_inst_useful : parse_label {};
+struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_useful> {};
+struct parse_scope;
+struct parse_cond : pegtl::seq<
+                        pegtl::one<'('>, parse_seps, parse_t, parse_seps, parse_binop_op, parse_seps, parse_t, parse_seps, pegtl::one<')'>> {};
+struct parse_if_then_else : pegtl::seq<parse_if, parse_seps, parse_cond, parse_seps, parse_label_inst_useful, parse_seps, parse_label_inst_useful> {};
+struct parse_while_cond_then_else : pegtl::seq<parse_while, parse_seps, parse_cond, parse_seps, parse_label_inst_useful, parse_seps, parse_label_inst_useful> {};
 struct parse_i : pegtl::sor<
                      parse_assign_call_callee,
                      parse_call_callee,
@@ -134,26 +150,73 @@ struct parse_i : pegtl::sor<
                      parse_length_inst,
                      parse_new_array,
                      parse_new_tuple,
-                     parse_brcond_inst,
-                     parse_brlabel_inst,
+                     //  parse_brcond_inst,
+                     //  parse_brlabel_inst,
                      parse_return_t,
                      parse_return_inst,
                      parse_label_inst,
+                     parse_continue_inst,
+                     parse_break_inst,
                      parse_binop,
+                     parse_if_then_else,
+                     parse_while_cond_then_else,
+                     parse_goto_label,
                      parse_assignment,
-                     parse_typevar_decl> {};
+                     parse_typevar_decl, parse_scope> {};
 
 struct parse_instructions : pegtl::star<pegtl::seq<parse_seps, parse_i>> {};
+/*
+scope and scope utils
+*/
+struct parse_scope_begin : pegtl::one<'{'> {};
+struct parse_scope_end : pegtl::one<'}'> {};
+struct parse_scope : pegtl::seq<parse_seps, parse_scope_begin, parse_instructions, parse_seps, parse_scope_end> {};
 
 /*
  * Actions
  */
 template <>
+struct action<parse_scope_begin> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.kont.push_back(std::make_shared<LB::scope>());
+  }
+};
+template <>
+struct action<parse_scope_end> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto top_frame = acc.kont.back(); // get the top frame from the kontinuation, and
+    acc.kont.pop_back();
+    if (acc.kont.empty()) { // if the kontinuation does not have any other scopes left outside, then we're in the outermost scope. Assign to function scope
+      acc.program.functions.back().lscope = top_frame;
+    } else { // O.W. push the frame to the outer scope as an instruction
+      acc.kont.back()->instructions.push_back(LB::i{top_frame});
+    }
+  }
+};
+template <>
 struct action<parse_label_inst> {
   template <typename Input>
   static void apply(const Input &in, GlobalAccumulator &acc) {
+
     L3::label lbl = L3::label{in.string()};
-    acc.program.functions.back().instructions.push_back(L3::LabelInst{lbl}); // whenever a label is encountered in the wild, createa new block
+    acc.kont.back()->instructions.push_back(L3::LabelInst{lbl}); // whenever a label is encountered in the wild, createa new block
+  }
+};
+
+template <>
+struct action<parse_continue_inst> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.kont.back()->instructions.push_back(LB::Continue{});
+  }
+};
+template <>
+struct action<parse_break_inst> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.kont.back()->instructions.push_back(LB::Break{});
   }
 };
 
@@ -162,7 +225,7 @@ template <>
 struct action<parse_return_inst> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    acc.program.functions.back().instructions.push_back(L3::Return{});
+    acc.kont.back()->instructions.push_back(LB::ReturnTOpt{});
   }
 };
 template <>
@@ -171,53 +234,68 @@ struct action<parse_return_t> {
   static void apply(const Input &, GlobalAccumulator &acc) {
     auto val = acc.parsed_items_t.back();
     acc.parsed_items_t.pop_back();
-    acc.program.functions.back().instructions.push_back(LA::ReturnT{val});
-  }
-};
-template <>
-struct action<parse_br_target> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_labels.push_back(L3::label{in.string()});
-  }
-};
-template <>
-struct action<parse_brlabel_inst> {
-  template <typename Input>
-  static void apply(const Input &, GlobalAccumulator &acc) {
-    auto lbl = acc.parsed_labels.back();
-    acc.parsed_labels.pop_back();
-    acc.program.functions.back().instructions.push_back(L3::brlabel{lbl});
-  };
-};
-template <>
-struct action<parse_brcond_true> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_labels.push_back(L3::label{in.string()});
-  }
-};
-template <>
-struct action<parse_brcond_false> {
-  template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) {
-    acc.parsed_labels.push_back(L3::label{in.string()});
-  }
-};
-template <>
-struct action<parse_brcond_inst> {
-  template <typename Input>
-  static void apply(const Input &, GlobalAccumulator &acc) {
-    auto false_lbl = acc.parsed_labels.back().name;
-    acc.parsed_labels.pop_back();
-    auto true_lbl = acc.parsed_labels.back().name;
-    acc.parsed_labels.pop_back();
-    auto cond = acc.parsed_items_t.back();
-    acc.parsed_items_t.pop_back();
-    acc.program.functions.back().instructions.push_back(LA::BrCond{cond, true_lbl, false_lbl});
+    acc.kont.back()->instructions.push_back(LB::ReturnTOpt{val});
   }
 };
 
+template <>
+struct action<parse_label_inst_useful> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.parsed_labels.push_back(L3::label{in.string()});
+  }
+};
+template <>
+struct action<parse_cond> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    LA::t right_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    LA::t left_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    IR::op operation = acc.parsed_ops.back();
+    acc.parsed_ops.pop_back();
+    acc.parsed_conds.push_back(LB::cond{left_item, operation, right_item});
+  };
+};
+
+template <>
+struct action<parse_if_then_else> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    LB::cond condition = acc.parsed_conds.back();
+    acc.parsed_conds.pop_back();
+    L3::label els = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    L3::label thn = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    acc.kont.back()->instructions.push_back(LB::ifthen{condition, thn, els});
+  }
+};
+template <>
+struct action<parse_while_cond_then_else> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    LB::cond condition = acc.parsed_conds.back();
+    acc.parsed_conds.pop_back();
+    L3::label els = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    L3::label thn = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    acc.kont.back()->instructions.push_back(LB::While{condition, thn, els});
+  }
+};
+
+template <>
+struct action<parse_goto_label> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    auto label = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    i newI = L3::Goto{label};
+    acc.kont.back()->instructions.push_back(newI);
+  };
+};
 // binop
 template <>
 struct action<parse_binop_op> {
@@ -240,7 +318,7 @@ struct action<parse_binop> {
     acc.parsed_items_t.pop_back();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
-    acc.program.functions.back().instructions.push_back(i{BinOp{dest, left, operation, right}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::BinOp{dest, left, operation, right}});
   }
 };
 
@@ -252,7 +330,7 @@ struct action<parse_assignment> {
     acc.parsed_items_t.pop_back();
     auto dst = acc.parsed_names.back();
     acc.parsed_names.pop_back();
-    acc.program.functions.back().instructions.push_back(i{LA::Assign{dst, src}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::Assign{dst, src}});
   }
 };
 
@@ -284,7 +362,7 @@ struct action<parse_call_callee> {
     acc.parsed_names.pop_back();
     auto args = std::vector<LA::t>(acc.parsed_call_args.begin(), acc.parsed_call_args.end());
     acc.parsed_call_args.clear();
-    acc.program.functions.back().instructions.push_back(i{LA::CallArbitrary{callee, args}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::CallArbitrary{callee, args}});
   }
 };
 template <>
@@ -297,7 +375,7 @@ struct action<parse_assign_call_callee> {
     acc.parsed_call_args.clear();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
-    acc.program.functions.back().instructions.push_back(i{LA::CallAssignArbitrary{dest, LA::CallArbitrary{callee, args}}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::CallAssignArbitrary{dest, LA::CallArbitrary{callee, args}}});
   }
 };
 
@@ -330,7 +408,7 @@ struct action<parse_array_read> {
     acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
-    acc.program.functions.back().instructions.push_back(i{ArrayRead{dest, src, indices, (int64_t)in.position().line}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::ArrayRead{dest, src, indices, (int64_t)in.position().line}});
   }
 };
 template <>
@@ -348,7 +426,7 @@ struct action<parse_array_write> {
     acc.parsed_names.pop_back();
     auto indices = std::vector<LA::t>(acc.parsed_indices.begin(), acc.parsed_indices.end());
     acc.parsed_indices.clear();
-    acc.program.functions.back().instructions.push_back(i{LA::ArrayWrite{dest, indices, src, (int64_t)in.position().line}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::ArrayWrite{dest, indices, src, (int64_t)in.position().line}});
   }
 };
 
@@ -373,7 +451,7 @@ struct action<parse_length_with_dim> {
     acc.parsed_names.pop_back();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
-    acc.program.functions.back().instructions.push_back(i{LA::Length{dest, src, std::optional<LA::t>{dim}}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::Length{dest, src, std::optional<LA::t>{dim}}});
   }
 };
 template <>
@@ -394,7 +472,7 @@ struct action<parse_length_no_dim> {
     acc.parsed_names.pop_back();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
-    acc.program.functions.back().instructions.push_back(i{Length{dest, src, std::nullopt}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::Length{dest, src, std::nullopt}});
   }
 };
 
@@ -412,7 +490,7 @@ struct action<parse_new_array> {
     acc.parsed_names.pop_back();
     auto dims = std::vector<LA::t>(acc.parsed_call_args.begin(), acc.parsed_call_args.end());
     acc.parsed_call_args.clear();
-    acc.program.functions.back().instructions.push_back(i{LA::NewArray{dest, dims}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::NewArray{dest, dims}});
   }
 };
 template <>
@@ -428,7 +506,7 @@ struct action<parse_new_tuple> {
     acc.parsed_items_t.pop_back();
     auto dest = acc.parsed_names.back();
     acc.parsed_names.pop_back();
-    acc.program.functions.back().instructions.push_back(i{LA::NewTuple{dest, size}});
+    acc.kont.back()->instructions.push_back(LB::i{LA::NewTuple{dest, size}});
   }
 };
 
@@ -436,18 +514,18 @@ struct action<parse_new_tuple> {
 template <>
 struct action<parse_typevar_var> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_var_decls.push_back(in.string()); }
 };
 template <>
 struct action<parse_typevar_decl> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    auto var_name = acc.parsed_names.back();
-    acc.parsed_names.pop_back();
+    auto var_names = acc.parsed_var_decls;
+    acc.parsed_var_decls.clear();
     auto var_type = acc.parsed_types.back();
     acc.parsed_types.pop_back();
-    acc.program.functions.back().instructions.push_back(i{LA::TypeVar{var_type, var_name}});
+    acc.kont.back()->instructions.push_back(LB::i{LB::TypeVars{var_type, var_names}});
   }
 };
 
-} // namespace LA
+} // namespace LB

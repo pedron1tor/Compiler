@@ -6,26 +6,12 @@
 #include <iostream>
 #include <optional>
 #include <set>
+#include <stack>
 #include <unordered_map>
 #include <utils.h>
 
-namespace LA {
+namespace LB {
 
-bool is_terminator(LA::i &instruction) {
-  return std::visit([&](auto &ins) {
-    // no gotos in LA
-    using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, BrCond>)
-      return true;
-    else if constexpr (std::is_same_v<T, L3::Return>)
-      return true;
-    else if constexpr (std::is_same_v<T, LA::ReturnT>)
-      return true;
-    else
-      return false;
-  },
-                    instruction);
-};
 bool f_type_void(LA::fLA &f) {
   return std::visit([&](auto &func) {
     using T = std::decay_t<decltype(func)>;
@@ -46,6 +32,7 @@ bool inst_is_labelinst(LA::i &instr) {
   },
                     instr);
 };
+
 bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator) {
   return std::visit([&](auto &ins) -> bool {
     using T = std::decay_t<decltype(ins)>;
@@ -59,41 +46,69 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
   },
                     inst);
 };
+template <typename Gensym, typename Gensym2>
+std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops);
+template <typename Gensym2>
+std::vector<LA::i> translate_while_loop(LB::While &while_instr, Gensym2 gensym2, WhileInfo &while_loops) {
+  L3::label condlabel = L3::label{gensym2()};
+  std::string gensymmed_var_temp = gensym2();
+  while_loops.begin_while[while_instr] = while_instr.then;
+  while_loops.end_while[while_instr] = while_instr.els;
+  while_loops.cond_labels[while_instr] = condlabel;
+  //   Identify entry and exit point of each while instruction w
+  // while (%v1 = 3) :body_w :after_w
+  // • beginWhile[w] = :body_w
+  // • endWhile[w] = :after_w
+  // 2. Add a new label l just before a while instruction w
+  // • condLabels[w] = l
+  return {
+      L3::LabelInst{L3::label{condlabel}},
+      LA::TypeVar{IR::t_int64{0}, gensymmed_var_temp},
+      LA::BinOp{gensymmed_var_temp, while_instr.cnd.left, while_instr.cnd.op, while_instr.cnd.right},
+      LA::BrCond{gensymmed_var_temp, while_instr.then.name, while_instr.els.name}};
+};
 
-static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars, const std::unordered_map<std::string, IR::type> &type_map) {
-  return std::visit([&](auto &ins) -> IR::i {
+template <typename Gensym, typename Gensym2>
+static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops) {
+  return std::visit([&](auto &ins) -> std::vector<LA::i> {
     using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, LA::Assign>) {
-      L3::s src = la_t_to_l3_s(ins.src);
-      if (code_vars.count(ins.dest)) {
-        if (auto *v = std::get_if<L3::var>(&src); v && !code_vars.count(v->name))
-          src = L3::s{L3::l{"@" + v->name}};
+    if constexpr (std::is_constructible_v<LA::i, T>) {
+      return {ins}; // expressions which are passthrough, in the LA namespace...
+    } else if constexpr (std::is_same_v<T, LB::ReturnTOpt>) {
+      if (ins.return_thing.has_value()) {
+        return {LA::ReturnT{ins.return_thing.value()}};
+
+      } else {
+        return {L3::Return{}};
       }
-      return L3::Assign{L3::w{L3::var{ins.dest}}, src};
-    } else if constexpr (std::is_same_v<T, LA::BinOp>)
-      return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
-    else if constexpr (std::is_same_v<T, LA::ArrayRead>)
-      return IR::ArrayRead{L3::var{ins.dest}, L3::var{ins.src}, la_t_vec_to_l3_t_vec(ins.indices)};
-    else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
-      L3::s src = la_t_to_l3_s(ins.src);
-      if (auto *v = std::get_if<L3::var>(&src); v && !type_map.count(v->name))
-        src = L3::s{L3::l{"@" + v->name}}; // add @ annotation if the variable is a function
-      return IR::ArrayWrite{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.indices), src};
-    } else if constexpr (std::is_same_v<T, LA::Length>)
-      return IR::Length{L3::var{ins.dest}, L3::var{ins.src},
-                        ins.dim ? std::optional<L3::t>{la_t_to_l3_t(*ins.dim)} : std::nullopt};
-    else if constexpr (std::is_same_v<T, LA::NewArray>)
-      return IR::NewArray{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.dims)};
-    else if constexpr (std::is_same_v<T, LA::NewTuple>)
-      return IR::NewTuple{L3::var{ins.dest}, la_t_to_l3_t(ins.size)};
-    else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
-      return L3::CallAssignL3{L3::var{ins.dest},
-                              L3::CallL3{str_to_callee(ins.callexpr.callee, code_vars),
-                                         la_t_vec_to_l3_t_vec(ins.callexpr.args)}};
-    else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
-      return L3::CallL3{str_to_callee(ins.callee, code_vars), la_t_vec_to_l3_t_vec(ins.args)};
-    else
-      return IR::TypeVar{IR::type{IR::t_void{}}, L3::var{""}};
+    } else if constexpr (std::is_same_v<T, LB::TypeVars>) {
+      std::vector<LA::i> compiled_var_decls;
+      for (auto variable : ins.vars_declared) {
+        std::string gensymmed_var = gensym(variable);                           // rename v in i to a new and unique name z
+        kont.back()[variable] = gensymmed_var;                                  // remember the mapping v -> z, for the particular scope
+        compiled_var_decls.push_back(LA::TypeVar{ins.var_type, gensymmed_var}); // return the gensymmed variable for this definiton
+      }
+      return compiled_var_decls;
+    } else if constexpr (std::is_same_v<T, L3::Goto>) {
+      return {
+          L3::brlabel{ins.target}};
+    } else if constexpr (std::is_same_v<T, LB::ifthen>) {
+      std::string gensymmed_var = gensym2();
+      return {
+          LA::TypeVar{IR::t_int64{0}, gensymmed_var}, LA::BinOp{gensymmed_var, ins.cnd.left, ins.cnd.op, ins.cnd.right},
+          LA::BrCond{gensymmed_var, ins.then.name, ins.els.name}};
+    } else if constexpr (std::is_same_v<T, LB::While>) {
+      return translate_while_loop(ins, gensym2, while_loops);
+    } else if constexpr (std::is_same_v<T, std::shared_ptr<LB::scope>>) {
+      return compile_LB_scope(*ins, gensym, gensym2, kont, while_loops);
+    } // flatten the scopes by recursively calling compile_LB_scope. Finally some proper PL stuff....
+    else if constexpr (std::is_same_v<T, LB::Continue>) {
+      return {LA::LB::Continue{}};
+    } else if constexpr (std::is_same_v<T, LB::Break>) {
+      return {LA::LB::Break{}};
+    } else {
+      return {L3::Return{}}; // TODO remove this placeholder...
+    }
   },
                     inst);
 }
@@ -109,212 +124,6 @@ void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::ve
   }
 };
 
-IR::fIR fLA_to_fIR(LA::fLA &f) {
-  // collect code variables to assert if function call is valid later, or not.
-  std::set<std::string> code_vars;
-  std::unordered_map<std::string, IR::type> type_map;
-  for (auto &tv : f.parameters.input_variables) {
-    type_map[tv.var_declared] = tv.var_type;
-    if (std::holds_alternative<IR::t_code>(tv.var_type))
-      code_vars.insert(tv.var_declared);
-  }
-  for (auto &instr : f.instructions)
-    if (auto *tv = std::get_if<LA::TypeVar>(&instr)) {
-      type_map[tv->var_declared] = tv->var_type;
-      if (std::holds_alternative<IR::t_code>(tv->var_type))
-        code_vars.insert(tv->var_declared);
-    }
-  std::vector<IR::TypeVar> all_var_accumulator;
-  int counter = 0;
-  // gensym helper to create labels for the blocks. L cpp for not having it builtin...
-  auto gensym = [&counter]() -> L3::label {
-    return L3::label{":_label_" + std::to_string(counter++)};
-  };
-
-  auto gensym_var = [&counter]() -> L3::var {
-    return L3::var{"_arrayvar_" + std::to_string(counter++)};
-  };
-
-  bool startBB = true;
-  std::vector<IR::bb> blocks; // list of blocks
-  IR::bb block;
-
-  // check if an array, tensor, or tuple has been allocated before their use;
-  // returns the label to continue from after the check
-  auto emit_null_check = [&](const std::string &src_name, int64_t line) -> L3::label {
-    L3::label null_check_lbl = gensym(), error_alloc_lbl = gensym(), after_null_lbl = gensym(); // define all the labels for redirection
-    L3::var is_null = gensym_var();
-    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, is_null});
-
-    block.terminal = IR::te{L3::Goto{null_check_lbl}};
-    blocks.push_back(block);
-
-    // Check if v is not 0
-    // II. If it is 0, then call tensor-error(int64 line)
-    IR::bb null_chk;
-    null_chk.lbl = null_check_lbl;
-    null_chk.instructions.push_back(IR::BinOp{is_null, L3::t{L3::var{src_name}}, IR::op::eq, L3::t{L3::N{0}}});
-    null_chk.terminal = IR::te{IR::BrCond{L3::t{is_null}, error_alloc_lbl, after_null_lbl}};
-    blocks.push_back(null_chk);
-
-    IR::bb error_null;
-    error_null.lbl = error_alloc_lbl;
-    error_null.instructions.push_back(L3::CallL3{L3::CallTensorError{1}, {L3::t{L3::N{line}}}});
-    error_null.terminal = IR::te{L3::Return{}};
-    blocks.push_back(error_null);
-
-    return after_null_lbl; // returns continuation label
-  };
-
-  // for the index i used (e.g., ar[i]), we need to
-  // A. Check i is not negative
-  // B. Check i is less than the length of the array
-  auto emit_bounds_check = [&](const std::string &src_name, L3::t idx, int d,
-                               bool is_tensor, int64_t F, int64_t line, L3::label entry) -> L3::label {
-    L3::var len_var = gensym_var(), neg_cmp = gensym_var(), upper_cmp = gensym_var();
-    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, len_var}); // add to the accumulator for the variable definitions at the top
-    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, neg_cmp});
-    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, upper_cmp});
-    L3::label error_lbl = gensym(), upper_chk_lbl = gensym(), next_entry = gensym();
-
-    //  check i < 0
-    IR::bb chk;
-    chk.lbl = entry;
-    bool is_tuple = type_map.count(src_name) && std::holds_alternative<IR::t_tuple>(type_map[src_name]);
-    std::optional<L3::t> dim = is_tuple ? std::nullopt : std::optional<L3::t>{L3::t{L3::N{(int64_t)d}}};
-    chk.instructions.push_back(IR::Length{len_var, L3::var{src_name}, dim});
-    chk.instructions.push_back(IR::BinOp{neg_cmp, idx, IR::op::lt, L3::t{L3::N{0}}});
-    chk.terminal = IR::te{IR::BrCond{L3::t{neg_cmp}, error_lbl, upper_chk_lbl}};
-    blocks.push_back(chk);
-
-    std::vector<L3::t> err_args = {L3::t{L3::N{line}}};
-    if (is_tensor)
-      err_args.push_back(L3::t{L3::N{(int64_t)d}}); // first dim incorrectly accessed
-    err_args.push_back(L3::t{len_var});             // len of the dimension
-    err_args.push_back(idx);                        // idx used to access the dim
-
-    L3::callee_type err_callee = is_tuple ? L3::callee_type{L3::CallTupleError{}} : L3::callee_type{L3::CallTensorError{F}};
-    IR::bb error_bb, upper_bound_check_block;
-    error_bb.lbl = error_lbl;
-    error_bb.instructions.push_back(L3::CallL3{err_callee, std::move(err_args)});
-    error_bb.terminal = IR::te{L3::Return{}};
-    blocks.push_back(error_bb);
-
-    // cond i >= length src d
-    upper_bound_check_block.lbl = upper_chk_lbl;
-    upper_bound_check_block.instructions.push_back(IR::BinOp{upper_cmp, idx, IR::op::gte, L3::t{len_var}});
-    upper_bound_check_block.terminal = IR::te{IR::BrCond{L3::t{upper_cmp}, error_lbl, next_entry}};
-    blocks.push_back(upper_bound_check_block);
-
-    return next_entry;
-  };
-
-  auto emit_array_checks = [&](const std::string &src_name, const std::vector<LA::t> &indices, int64_t line) {
-    int num_indices = (int)indices.size();
-    bool is_tensor = num_indices > 1;
-    // set arity of the error call
-    int64_t F = is_tensor ? 4 : 3;
-
-    L3::label current_entry = emit_null_check(src_name, line);
-    for (int d = 0; d < num_indices; d++)
-      current_entry = emit_bounds_check(src_name, la_t_to_l3_t(indices[d]), d, is_tensor, F, line, current_entry);
-
-    block = IR::bb{};
-    block.lbl = current_entry;
-    startBB = false;
-  };
-
-  for (auto &instr : f.instructions) {
-    if (inst_is_labelinst(instr)) {
-      auto &lbl = std::get<L3::LabelInst>(instr).lbl; // get the label obj from LabelInst
-      if (!startBB) {
-        block.terminal = IR::te{L3::Goto{lbl}}; // if we've encountered a label but it isn't the start of a bb, then add a goto to the block
-        blocks.push_back(block);
-        block = IR::bb{}; // then start new bb
-      }
-      block.lbl = lbl; // add the label to the block
-      startBB = false;
-    } else { // if the instruction wasn't a label, then gensym a new label to a new block
-      if (startBB) {
-        block = IR::bb{};
-        block.lbl = gensym();
-        startBB = false;
-      }
-      bool is_brlbl = std::holds_alternative<L3::brlabel>(instr);
-      bool is_term = is_terminator(instr) || is_brlbl; // compute whether it's a terminator or brblabel
-      bool is_decl = is_declaration(instr, all_var_accumulator);
-      if (!is_term) {
-        if (!is_decl) {
-          std::visit([&](auto &ins) {
-            using T = std::decay_t<decltype(ins)>;
-            if constexpr (std::is_same_v<T, LA::ArrayRead>) // emit array checks if array read or write
-              emit_array_checks(ins.src, ins.indices, ins.line);
-            else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
-              emit_array_checks(ins.dest, ins.indices, ins.line);
-          },
-                     instr);
-          block.instructions.push_back(LA_to_IRinst(instr, code_vars, type_map));
-        }
-      } else {
-        block.terminal = LAterm_to_IRterm(instr); // transform into IR instruction forms
-        blocks.push_back(block);
-        block = IR::bb{};
-        startBB = true;
-      }
-    }
-  }
-  // return at the bottom of void function, else add returnt for completeness
-  if (!startBB) {
-    block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
-    blocks.push_back(block);
-  } else {
-    // just a return
-    IR::bb empty_block;
-    empty_block.lbl = gensym();
-    empty_block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
-    blocks.push_back(empty_block);
-  }
-
-  IR::pars ir_pars;
-  // wrap the strings into variables
-  for (auto &tv : f.parameters.input_variables)
-    ir_pars.input_variables.push_back(IR::TypeVar{tv.var_type, L3::var{tv.var_declared}});
-  // variable declaration
-  variable_declaration(all_var_accumulator, blocks);
-  IR::fIR result;
-  result.f_type = f.f_type;
-  result.name = L3::l{"@" + f.name};
-  result.parameters = ir_pars;
-  result.blocks = blocks;
-  return result;
-}
-L3::N encode_N(L3::N num) {
-  return L3::N{((2 * num.value) + 1)};
-};
-L3::N decode_N(L3::N num) {
-  return L3::N{(num.value >> 1)};
-}
-
-L3::t encode_t(L3::t orig_value) {
-  return std::visit([&](auto &ins) -> L3::t {
-    using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, L3::N>)
-      return encode_N(ins);
-    else
-      return ins;
-  },
-                    orig_value);
-};
-L3::s encode_s(L3::s orig_value) {
-  return std::visit([&](auto &ins) -> L3::s {
-    using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, L3::N>)
-      return encode_N(ins);
-    else
-      return ins;
-  },
-                    orig_value);
-};
 template <typename T, typename F> // why is there no map in cpp???? .......
 auto map(const std::vector<T> &vec, F f) {
   std::vector<decltype(f(vec[0]))> result;
@@ -324,152 +133,198 @@ auto map(const std::vector<T> &vec, F f) {
   }
   return result;
 }
-std::optional<L3::var> toEncode(IR::i &inst) {
-  return std::visit([&](auto &ins) -> std::optional<L3::var> {
-    using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, IR::BinOp>)
-      return ins.dest;
-    else
-      return std::nullopt;
-  },
-                    inst);
-};
-std::optional<std::vector<L3::t>> toDecode(IR::i &inst) {
-  return std::visit([&](auto &ins) -> std::optional<std::vector<L3::t>> {
-    using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, IR::BinOp>)
-      return std::vector<L3::t>{ins.left, ins.right};
-    else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
-      return ins.indices;
-    else if constexpr (std::is_same_v<T, IR::ArrayRead>)
-      return ins.indices;
-    else if constexpr (std::is_same_v<T, IR::Length>)
-      return std::nullopt;
-    else if constexpr (std::is_same_v<T, IR::BrCond>)
-      return std::vector<L3::t>{ins.cond};
-    else
-      return std::nullopt;
-  },
-                    inst);
+
+std::string kont_lookup(std::vector<std::unordered_map<std::string, std::string>> &kont, std::string &var) {
+
+  for (int i = kont.size() - 1; i >= 0; i--) {
+    if (kont[i].count(var)) {
+      return kont[i][var]; // iterate through the scopes in reverse order, to get the mapping from the deepest scope first
+    }
+  }
+  return var; // O.W just return the original variable
 };
 
-IR::i substitute(IR::i &inst, std::vector<L3::var> identifiers) {
-  auto var_to_t = [](const L3::var &v) -> L3::t { return v; };
-  return std::visit([&](auto &ins) -> IR::i {
+LA::t kont_lookup_t(std::vector<std::unordered_map<std::string, std::string>> &kont, LA::t &possible_var) {
+  return std::visit([&](auto &possible_var) -> LA::t {
+    using T = std::decay_t<decltype(possible_var)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return possible_var; // if the variable is a number, just return t
+    else if constexpr (std::is_same_v<T, std::string>)
+      return kont_lookup(kont, possible_var); // O.W. perform the lookup in the kont
+  },
+                    possible_var);
+};
+
+LA::i refactor_old_vars(LA::i &compiled_instr, std::vector<std::unordered_map<std::string, std::string>> &kont) {
+  return std::visit([&](auto &ins) -> LA::i {
     using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, IR::BinOp>)
-      return IR::BinOp{ins.dest, L3::t{identifiers[0]}, ins.operation, L3::t{identifiers[1]}};
-    else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
-      return IR::ArrayWrite{ins.dest, map(identifiers, var_to_t), encode_s(ins.src)};
-    else if constexpr (std::is_same_v<T, IR::ArrayRead>)
-      return IR::ArrayRead{ins.dest, ins.src, map(identifiers, var_to_t)};
-    else if constexpr (std::is_same_v<T, IR::Length>)
-      return IR::Length{ins.dest, ins.src, L3::t{identifiers[0]}};
+    if constexpr (std::is_same_v<T, LA::Assign>)
+      return LA::Assign{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.src)};
+    else if constexpr (std::is_same_v<T, LA::BinOp>)
+      return LA::BinOp{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.left), ins.operation, kont_lookup_t(kont, ins.right)};
+    else if constexpr (std::is_same_v<T, LA::CallArbitrary>) {
+      std::vector<LA::t> new_args;
+      for (auto &arg : ins.args)
+        new_args.push_back(kont_lookup_t(kont, arg));
+      return LA::CallArbitrary{kont_lookup(kont, ins.callee), new_args};
+    } else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>) {
+      std::vector<LA::t> new_args;
+      for (auto &arg : ins.callexpr.args)
+        new_args.push_back(kont_lookup_t(kont, arg));
+      return LA::CallAssignArbitrary{kont_lookup(kont, ins.dest), LA::CallArbitrary{kont_lookup(kont, ins.callexpr.callee), new_args}};
+    } else if constexpr (std::is_same_v<T, LA::ArrayRead>) {
+      std::vector<LA::t> new_indices;
+      for (auto &idx : ins.indices)
+        new_indices.push_back(kont_lookup_t(kont, idx));
+      return LA::ArrayRead{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), new_indices, ins.line};
+    } else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
+      std::vector<LA::t> new_indices;
+      for (auto &idx : ins.indices)
+        new_indices.push_back(kont_lookup_t(kont, idx));
+      return LA::ArrayWrite{kont_lookup(kont, ins.dest), new_indices, kont_lookup_t(kont, ins.src), ins.line};
+    } else if constexpr (std::is_same_v<T, LA::Length>) {
+      if (ins.dim.has_value()) {
+        LA::t dim_val = ins.dim.value();
+        return LA::Length{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), kont_lookup_t(kont, dim_val)};
+      } else {
+        return LA::Length{kont_lookup(kont, ins.dest), kont_lookup(kont, ins.src), ins.dim};
+      }
+    } else if constexpr (std::is_same_v<T, LA::NewArray>) {
+      std::vector<LA::t> new_dims;
+      for (auto &dim : ins.dims)
+        new_dims.push_back(kont_lookup_t(kont, dim));
+      return LA::NewArray{kont_lookup(kont, ins.dest), new_dims};
+    } else if constexpr (std::is_same_v<T, LA::NewTuple>)
+      return LA::NewTuple{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.size)};
+    else if constexpr (std::is_same_v<T, LA::BrCond>)
+      return LA::BrCond{kont_lookup_t(kont, ins.cond), kont_lookup(kont, ins.true_label), kont_lookup(kont, ins.false_label)};
     else
       return ins;
   },
-                    inst);
+                    compiled_instr);
 };
+template <typename Gensym, typename Gensym2>
+std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops) {
+  std::unordered_map<std::string, std::string> map;
+  kont.push_back(map);
+  std::vector<LA::i> instructions;
+  for (auto &instr : scope.instructions) {
+    auto compiled_insts = LB_to_LAinst(instr, gensym, gensym2, kont, while_loops); // pass the gensym function, the kontinuation of the environments and the instruction
 
-void value_encoding(std::vector<IR::fIR> &function_list) {
-  // Encode all constants not used for array/tuple indices
-  // and 2nd parameter of length
-  int counter = 0;
-  // gensym helper to create labels for the blocks. L cpp for not having it builtin...
-  auto gensym = [&counter]() -> L3::var {
-    return L3::var{"_label_encoding" + std::to_string(counter++)};
-  };
-  std::vector<IR::fIR> new_function_list;
-  for (auto &fn : function_list) {
-    std::vector<IR::i> declarations_first_bb;
-    for (auto &block : fn.blocks) {
-      int bound = block.instructions.size();
-      std::vector<IR::i> block_instructions;
-
-      for (int i = 0; i < bound; i++) {
-        std::optional<std::vector<L3::t>> things_to_decode = toDecode(block.instructions[i]);
-        if (things_to_decode.has_value()) {
-          std::vector<L3::var> identifiers;
-          for (auto thing_to_decode : things_to_decode.value()) {
-            L3::var var_identifier = gensym();
-            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, var_identifier}});
-            block_instructions.push_back(IR::i{IR::BinOp{var_identifier, encode_t(thing_to_decode), IR::op::rshift, L3::N{1}}});
-            identifiers.push_back(var_identifier);
-          }
-          block_instructions.push_back(substitute(block.instructions[i], identifiers));
-        } else {
-          block_instructions.push_back(std::visit([&](auto &ins) -> IR::i {
-            using T = std::decay_t<decltype(ins)>;
-            if constexpr (std::is_same_v<T, L3::Assign>)
-              return L3::Assign{ins.dest, encode_s(ins.src)};
-            else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
-              return L3::CallAssignL3{ins.dest, L3::CallL3{ins.callexpr.callee, map(ins.callexpr.args, encode_t)}};
-            else if constexpr (std::is_same_v<T, L3::CallL3>)
-              return L3::CallL3{ins.callee, map(ins.args, encode_t)};
-            else if constexpr (std::is_same_v<T, IR::NewArray>)
-              return IR::NewArray{ins.dest, map(ins.dims, encode_t)};
-            else if constexpr (std::is_same_v<T, IR::NewTuple>)
-              return IR::NewTuple{ins.dest, encode_t(ins.size)};
-            else
-              return ins;
-          },
-                                                  block.instructions[i]));
-        }
-        std::optional<L3::var> variable_to_encode = toEncode(block.instructions[i]);
-        if (variable_to_encode.has_value()) {
-          // encode the variable
-          block_instructions.push_back(IR::BinOp{
-              variable_to_encode.value(), variable_to_encode.value(), IR::op::lshift, L3::N{1}});
-          block_instructions.push_back(IR::BinOp{
-              variable_to_encode.value(), variable_to_encode.value(), IR::op::add, L3::N{1}});
-        };
-      }
-      // decode BrCond condition and encode ReturnT value
-      block.terminal = std::visit([&](auto &te) -> IR::te {
-        using T = std::decay_t<decltype(te)>;
-        if constexpr (std::is_same_v<T, IR::BrCond>) {
-          L3::var decoded = gensym();
-          declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, decoded}});
-          block_instructions.push_back(IR::i{IR::BinOp{decoded, encode_t(te.cond), IR::op::rshift, L3::N{1}}});
-          return IR::BrCond{L3::t{decoded}, te.true_label, te.false_label};
-        } else if constexpr (std::is_same_v<T, L3::ReturnT>)
-          return L3::ReturnT{encode_t(te.return_thing)};
-        else
-          return te;
-      },
-                                  block.terminal);
-      block.instructions = block_instructions;
+    for (auto &compiled_instr : compiled_insts) {
+      instructions.push_back(refactor_old_vars(compiled_instr, kont));
     }
-    if (!fn.blocks.empty())
-      fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb.begin(), declarations_first_bb.end());
   };
-};
+  kont.pop_back(); // drop the map from the kontinuation when exiting the scope
+  return instructions;
+}
+void map_loop_instrs(std::vector<LA::i> &loop_instructions, WhileInfo &while_loops) {
 
-IR::pIR pLA_to_pIR(LA::pLA &p) {
-  std::vector<IR::fIR> function_list;
+  std::stack<const LB::While *> loopStack;
+  for (int i = 0; i < loop_instructions.size(); i++) {
+    if (loopStack.size() > 0) {
+      while_loops.loop[i] = loopStack.top();
+      // map instructions to their more nested loop w
+    }
+
+    if (inst_is_labelinst(loop_instructions[i])) {
+      L3::label label_of_interest = std::get<L3::LabelInst>(loop_instructions[i]).lbl;
+      // if (i is the beginning of a while loop w
+      bool do_end = true;
+      for (auto &[w, lbl] : while_loops.begin_while) { // iterate through all the kep value pairs
+        if (lbl.name == label_of_interest.name) {
+          loopStack.push(&w); // push while loop address
+          do_end = false;
+        }
+      }
+
+      // else if (i is the end of a loop) {
+      if (do_end) {
+        for (auto &[w, lbl] : while_loops.end_while) {
+          if (lbl.name == label_of_interest.name && loopStack.size() > 0) {
+            loopStack.pop();
+          }
+        }
+      }
+    }
+  }
+}
+const LB::While *fetch_innermost_loop(WhileInfo &while_loops, int idx) {
+  if (while_loops.loop.count(idx)) { // check instruction is inside while loop
+    return while_loops.loop[idx];
+  }
+  return nullptr;
+}
+
+std::vector<LA::i> translate_break_and_continue(std::vector<LA::i> &loop_instructions, WhileInfo &while_loops) {
+  for (int idx = 0; idx < loop_instructions.size(); idx++) {
+    loop_instructions[idx] = std::visit([&](auto &ins)
+                                            -> LA::i {
+      using T = std::decay_t<decltype(ins)>;
+      if constexpr (std::is_same_v<T, LA::LB::Continue>) {
+        const LB::While *innermost_loop = fetch_innermost_loop(while_loops, idx); // Fetch the innermost loop w that i belongs to: w = Loop[i]
+
+        L3::label cond_label = while_loops.cond_labels.at(*innermost_loop); //         • Fetch the label placed just before the condition of w:
+        return L3::brlabel{cond_label};                                     // • Generate a jump to the condition code of w:
+
+      }
+
+      else if constexpr (std::is_same_v<T, LA::LB::Break>) {
+        const LB::While *innermost_loop = fetch_innermost_loop(while_loops, idx); // Fetch the innermost loop w that i belongs to: w = Loop[i]
+        L3::label exit_label = while_loops.end_while.at(*innermost_loop);         // Fetch the exit label of w: l_exit = endWhile[w]
+        return L3::brlabel{exit_label};                                           // • Generate a jump to leave the loop w: br l_exit
+      } else
+        return ins;
+    },
+                                        loop_instructions[idx]);
+  }
+  return loop_instructions;
+}
+
+LA::fLA fLB_to_fLA(LB::fLB &f) {
+  std::vector<LA::i> new_instructions;
+  int counter = 0;
+  int counter2 = 0;
+  auto gensym = [&counter](const std::string &name) -> std::string {
+    return name + "_" + std::to_string(counter++);
+  };
+  auto gensym2 = [&counter2]() -> std::string {
+    return "random_random" + std::to_string(counter2++);
+  };
+  std::vector<std::unordered_map<std::string, std::string>> kont;
+  WhileInfo while_loops;
+  new_instructions = compile_LB_scope(*f.lscope, gensym, gensym2, kont, while_loops);
+  map_loop_instrs(new_instructions, while_loops);
+  new_instructions = translate_break_and_continue(new_instructions, while_loops);
+  LA::fLA result;
+  result.name = f.name;
+  result.f_type = f.f_type;
+  result.parameters = f.parameters;
+  result.instructions = new_instructions;
+  return result;
+}
+
+LA::pLA pLB_to_pLA(LB::pLB &p) {
+  std::vector<LA::fLA> function_list;
 
   for (auto &fn : p.functions) {
-    // bb generation and variable declaration done in fLA_to_fIR
-    function_list.push_back(fLA_to_fIR(fn));
+    function_list.push_back(fLB_to_fLA(fn));
   }
-  // value encoding
-  value_encoding(function_list);
-  // allocation and bounds check
-  return IR::pIR{
+  return LA::pLA{
       function_list};
 };
 
-void generate_code(pLA &p) {
-  IR::pIR transformed_p;
-  transformed_p = pLA_to_pIR(p);
+void generate_code(pLB &p) {
+  LA::pLA transformed_p;
+  transformed_p = pLB_to_pLA(p);
   std::ofstream outputFile;
-  outputFile.open("prog.IR");
+  outputFile.open("prog.LA");
 
-  // // build the IR code for each of the funtions inside of the ast/program
+  // // build the LA code for each of the funtions inside of the ast/program
   for (auto &fn : transformed_p.functions) {
-    print_functionIR(fn, true, &outputFile);
+    print_functionLA(fn, true, &outputFile);
   };
 
   outputFile.close();
 }
-} // namespace LA
+} // namespace LB

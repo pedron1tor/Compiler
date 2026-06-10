@@ -1,6 +1,6 @@
 #pragma once
-#include "LA.h"
+#include "LB.h"
 
-namespace LA {
-void generate_code(LA::pLA &program);
+namespace LB {
+void generate_code(LB::pLB &program);
 }

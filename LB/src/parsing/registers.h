@@ -12,7 +12,7 @@
 namespace pegtl = TAO_PEGTL_NAMESPACE;
 using namespace pegtl;
 
-namespace LA {
+namespace LB {
 struct parse_arrow : pegtl::string<'<', '-'> {
 };
 
@@ -42,4 +42,4 @@ struct action<parse_variable_t> {
   }
 };
 
-} // namespace LA
+} // namespace LB
