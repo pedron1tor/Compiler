@@ -237,53 +237,7 @@ struct action<parse_return_t> {
     acc.kont.back()->instructions.push_back(LB::ReturnTOpt{val});
   }
 };
-// template <>
-// struct action<parse_br_target> {
-//   template <typename Input>
-//   static void apply(const Input &in, GlobalAccumulator &acc) {
-//     acc.kont.back()->instructions.push_back(L3::label{in.string()});
-//   }
-// };
-// template <>
-// struct action<parse_brlabel_inst> {
-//   template <typename Input>
-//   static void apply(const Input &, GlobalAccumulator &acc) {
-//     if (acc.curr_scope) {
-//       auto lbl = acc.parsed_labels.back();
-//       acc.parsed_labels.pop_back();
-//       acc.kont.back()->instructions.push_back(L3::brlabel{lbl});
-//     }
-//   };
-// };
-// template <>
-// struct action<parse_brcond_true> {
-//   template <typename Input>
-//   static void apply(const Input &in, GlobalAccumulator &acc) {
-//     acc.kont.back()->instructions.push_back(L3::label{in.string()});
-//   }
-// };
-// template <>
-// struct action<parse_brcond_false> {
-//   template <typename Input>
-//   static void apply(const Input &in, GlobalAccumulator &acc) {
-//     acc.kont.back()->instructions.push_back(L3::label{in.string()});
-//   }
-// };
-// template <>
-// struct action<parse_brcond_inst> {
-//   template <typename Input>
-//   static void apply(const Input &, GlobalAccumulator &acc) {
-//     if (acc.curr_scope) {
-//       auto false_lbl = acc.parsed_labels.back().name;
-//       acc.parsed_labels.pop_back();
-//       auto true_lbl = acc.parsed_labels.back().name;
-//       acc.parsed_labels.pop_back();
-//       auto cond = acc.parsed_items_t.back();
-//       acc.parsed_items_t.pop_back();
-//       acc.kont.back()->instructions.push_back(LB::i{LA::BrCond{cond, true_lbl, false_lbl}});
-//     }
-//   }
-// };
+
 template <>
 struct action<parse_label_inst_useful> {
   template <typename Input>
