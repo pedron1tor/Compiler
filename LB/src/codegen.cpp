@@ -50,7 +50,7 @@ template <typename Gensym, typename Gensym2>
 std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont, WhileInfo &while_loops);
 template <typename Gensym2>
 std::vector<LA::i> translate_while_loop(LB::While &while_instr, Gensym2 gensym2, WhileInfo &while_loops) {
-  L3::label condlabel = L3::label{gensym2()};
+  L3::label condlabel = L3::label{":" + gensym2()};
   std::string gensymmed_var_temp = gensym2();
   while_loops.begin_while[while_instr] = while_instr.then;
   while_loops.end_while[while_instr] = while_instr.els;
