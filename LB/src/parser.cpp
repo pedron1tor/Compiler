@@ -157,7 +157,11 @@ void print_instructionLB(LB::i &instr, std::ostream &out) {
       out << ins.dest << " <- new Tuple(" << t_to_str(ins.size) << ")";
     else if constexpr (std::is_same_v<T, LB::TypeVars>) {
       out << type_to_str(ins.var_type);
+      bool first = true;
       for (auto var : ins.vars_declared) {
+        if (!first) {
+          out << ", ";
+        }
         out << var;
       }
 

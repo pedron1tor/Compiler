@@ -39,8 +39,10 @@ namespace LB
   };
   struct scope;
   using i = std::variant<
-      LB::TypeVars, LA::Assign, LA::BinOp, L3::LabelInst, LB::ifthen, L3::Goto, LB::ReturnTOpt, While, Continue, Break, LA::ArrayRead, LA::ArrayWrite,
-      LA::Length, LA::CallArbitrary, LA::CallAssignArbitrary, LA::NewArray, LA::NewTuple, std::shared_ptr<LB::scope>>;
+      LB::TypeVars, LA::Assign, LA::BinOp, L3::LabelInst, LB::ifthen, L3::Goto, 
+      LB::ReturnTOpt, LB::While, LB::Continue, LB::Break, LA::ArrayRead, LA::ArrayWrite,
+      LA::Length, LA::CallArbitrary, LA::CallAssignArbitrary, LA::NewArray, 
+      LA::NewTuple, std::shared_ptr<LB::scope>>;
   struct scope
   {
     std::vector<LB::i> instructions;

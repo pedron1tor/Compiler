@@ -44,41 +44,27 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
   },
                     inst);
 };
+std::vector<LA::i> compile_LB_scope(LB::scope &scope);
 
-static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars, const std::unordered_map<std::string, IR::type> &type_map) {
-  return std::visit([&](auto &ins) -> IR::i {
+static LA::i LB_to_LAinst(LB::i &inst) {
+  return std::visit([&](auto &ins) -> LA::i {
     using T = std::decay_t<decltype(ins)>;
-    if constexpr (std::is_same_v<T, LA::Assign>) {
-      L3::s src = la_t_to_l3_s(ins.src);
-      if (code_vars.count(ins.dest)) {
-        if (auto *v = std::get_if<L3::var>(&src); v && !code_vars.count(v->name))
-          src = L3::s{L3::l{"@" + v->name}};
+    if constexpr (std::is_constructible_v<LA::i, T>) {
+      return ins; // expressions which are passthrough, in the LA namespace...
+    } else if constexpr (std::is_same_v<T, LB::ReturnTOpt>) {
+      if (ins.return_thing.has_value()) {
+        return LA::ReturnT{ins.return_thing.value()};
+
+      } else {
+        return L3::Return{};
       }
-      return L3::Assign{L3::w{L3::var{ins.dest}}, src};
-    } else if constexpr (std::is_same_v<T, LA::BinOp>)
-      return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
-    else if constexpr (std::is_same_v<T, LA::ArrayRead>)
-      return IR::ArrayRead{L3::var{ins.dest}, L3::var{ins.src}, la_t_vec_to_l3_t_vec(ins.indices)};
-    else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
-      L3::s src = la_t_to_l3_s(ins.src);
-      if (auto *v = std::get_if<L3::var>(&src); v && !type_map.count(v->name))
-        src = L3::s{L3::l{"@" + v->name}}; // add @ annotation if the variable is a function
-      return IR::ArrayWrite{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.indices), src};
-    } else if constexpr (std::is_same_v<T, LA::Length>)
-      return IR::Length{L3::var{ins.dest}, L3::var{ins.src},
-                        ins.dim ? std::optional<L3::t>{la_t_to_l3_t(*ins.dim)} : std::nullopt};
-    else if constexpr (std::is_same_v<T, LA::NewArray>)
-      return IR::NewArray{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.dims)};
-    else if constexpr (std::is_same_v<T, LA::NewTuple>)
-      return IR::NewTuple{L3::var{ins.dest}, la_t_to_l3_t(ins.size)};
-    else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
-      return L3::CallAssignL3{L3::var{ins.dest},
-                              L3::CallL3{str_to_callee(ins.callexpr.callee, code_vars),
-                                         la_t_vec_to_l3_t_vec(ins.callexpr.args)}};
-    else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
-      return L3::CallL3{str_to_callee(ins.callee, code_vars), la_t_vec_to_l3_t_vec(ins.args)};
-    else
-      return IR::TypeVar{IR::type{IR::t_void{}}, L3::var{""}};
+    } else if constexpr (std::is_same_v<T, LA::Assign>) {
+      return ins;
+    }
+
+    else {
+      return L3::Return{}; // TODO remove this placeholder...
+    }
   },
                     inst);
 }
@@ -94,15 +80,22 @@ void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::ve
   }
 };
 
-IR::fIR fLA_to_fIR(LA::fLA &f) {
-
-  for (auto &instr : f.instructions) {
+std::vector<LA::i> compile_LB_scope(LB::scope &scope) {
+  std::vector<LA::i> instructions;
+  for (auto &instr : scope.instructions) {
+    instructions.push_back(LB_to_LAinst(instr));
   }
-  IR::fIR result;
+  return instructions;
+};
+
+LA::fLA fLB_to_fLA(LB::fLB &f) {
+  std::vector<LA::i> new_instructions;
+  new_instructions = compile_LB_scope(*f.lscope);
+  LA::fLA result;
+  result.name = f.name;
   result.f_type = f.f_type;
-  result.name = L3::l{"@" + f.name};
   // result.parameters = ir_pars;
-  // result.blocks = new_insts;
+  result.instructions = new_instructions;
   return result;
 }
 
@@ -120,7 +113,7 @@ LA::pLA pLB_to_pLA(LB::pLB &p) {
   std::vector<LA::fLA> function_list;
 
   for (auto &fn : p.functions) {
-    // function_list.push_back(fLA_to_fIR(fn));
+    function_list.push_back(fLB_to_fLA(fn));
   }
   return LA::pLA{
       function_list};
@@ -132,7 +125,7 @@ void generate_code(pLB &p) {
   std::ofstream outputFile;
   outputFile.open("prog.LA");
 
-  // // build the IR code for each of the funtions inside of the ast/program
+  // // build the LA code for each of the funtions inside of the ast/program
   for (auto &fn : transformed_p.functions) {
     print_functionLA(fn, true, &outputFile);
   };
