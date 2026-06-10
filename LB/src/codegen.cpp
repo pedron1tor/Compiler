@@ -198,6 +198,8 @@ LA::i refactor_old_vars(LA::i &compiled_instr, std::vector<std::unordered_map<st
       return LA::NewTuple{kont_lookup(kont, ins.dest), kont_lookup_t(kont, ins.size)};
     else if constexpr (std::is_same_v<T, LA::BrCond>)
       return LA::BrCond{kont_lookup_t(kont, ins.cond), kont_lookup(kont, ins.true_label), kont_lookup(kont, ins.false_label)};
+    else if constexpr (std::is_same_v<T, LA::ReturnT>)
+      return LA::ReturnT{kont_lookup_t(kont, ins.return_thing)};
     else
       return ins;
   },
