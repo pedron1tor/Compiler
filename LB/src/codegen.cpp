@@ -46,8 +46,8 @@ bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator)
 };
 template <typename Gensym>
 std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, std::vector<std::unordered_map<std::string, std::string>> &kont);
-template <typename Gensym>
-static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, std::vector<std::unordered_map<std::string, std::string>> &kont) {
+template <typename Gensym, typename Gensym2>
+static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont) {
   return std::visit([&](auto &ins) -> std::vector<LA::i> {
     using T = std::decay_t<decltype(ins)>;
     if constexpr (std::is_constructible_v<LA::i, T>) {
@@ -71,7 +71,7 @@ static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, std::vector<s
       return {
           L3::brlabel{ins.target}};
     } else if constexpr (std::is_same_v<T, std::shared_ptr<LB::scope>>) {
-      return compile_LB_scope(*ins, gensym, kont);
+      return compile_LB_scope(*ins, gensym, gensym2, kont);
     } // flatten the scopes by recursively calling compile_LB_scope. Finally some proper PL stuff....
 
     else {
@@ -179,13 +179,13 @@ LA::i refactor_old_vars(LA::i &compiled_instr, std::vector<std::unordered_map<st
         return ins; },
                     compiled_instr);
 };
-template <typename Gensym>
-std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, std::vector<std::unordered_map<std::string, std::string>> &kont) {
+template <typename Gensym, typename Gensym2>
+std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, Gensym2 gensym2, std::vector<std::unordered_map<std::string, std::string>> &kont) {
   std::unordered_map<std::string, std::string> map;
   kont.push_back(map);
   std::vector<LA::i> instructions;
   for (auto &instr : scope.instructions) {
-    auto compiled_insts = LB_to_LAinst(instr, gensym, kont); // pass the gensym function, the kontinuation of the environments and the instruction
+    auto compiled_insts = LB_to_LAinst(instr, gensym, gensym2, kont); // pass the gensym function, the kontinuation of the environments and the instruction
 
     for (auto &compiled_instr : compiled_insts) {
       instructions.push_back(refactor_old_vars(compiled_instr, kont));
@@ -198,11 +198,15 @@ std::vector<LA::i> compile_LB_scope(LB::scope &scope, Gensym gensym, std::vector
 LA::fLA fLB_to_fLA(LB::fLB &f) {
   std::vector<LA::i> new_instructions;
   int counter = 0;
+  int counter2 = 0;
   auto gensym = [&counter](const std::string &name) -> std::string {
     return name + "_" + std::to_string(counter++);
   };
+  auto gensym2 = [&counter2]() -> std::string {
+    return "random_random" + std::to_string(counter2++);
+  };
   std::vector<std::unordered_map<std::string, std::string>> kont;
-  new_instructions = compile_LB_scope(*f.lscope, gensym, kont);
+  new_instructions = compile_LB_scope(*f.lscope, gensym, gensym2, kont);
   LA::fLA result;
   result.name = f.name;
   result.f_type = f.f_type;
