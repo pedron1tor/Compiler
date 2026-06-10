@@ -185,6 +185,13 @@ void print_instructionLB(LB::i &instr, std::ostream &out) {
       out << "br " << ins.lbl.name;
     else if constexpr (std::is_same_v<T, std::shared_ptr<LB::scope>>)
       print_scopeLB(*ins, out);
+    else if constexpr (std::is_same_v<T, LB::While>) {
+      out << "while " << "(" << t_to_str(ins.cnd.left) << " " << op_to_str(ins.cnd.op) << " " << t_to_str(ins.cnd.right) << ") "
+          << ins.then.name << " " << ins.els.name;
+    } else if constexpr (std::is_same_v<T, LB::ifthen>) {
+      out << "if " << "(" << t_to_str(ins.cnd.left) << " " << op_to_str(ins.cnd.op) << " " << t_to_str(ins.cnd.right) << ") "
+          << ins.then.name << " " << ins.els.name;
+    }
   },
              instr);
 };

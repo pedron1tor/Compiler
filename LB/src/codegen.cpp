@@ -67,8 +67,7 @@ static std::vector<LA::i> LB_to_LAinst(LB::i &inst) {
 
     } else if constexpr (std::is_same_v<T, L3::Goto>) {
       return {
-        L3::brlabel { ins.target }
-      }
+          L3::brlabel{ins.target}};
     }
 
     else {
@@ -100,6 +99,10 @@ std::vector<LA::i> compile_LB_scope(LB::scope &scope) {
 
 LA::fLA fLB_to_fLA(LB::fLB &f) {
   std::vector<LA::i> new_instructions;
+  int counter = 0;
+  auto gensym = [&counter]() -> L3::label {
+    return L3::label{":_label_" + std::to_string(counter++)};
+  };
   new_instructions = compile_LB_scope(*f.lscope);
   LA::fLA result;
   result.name = f.name;

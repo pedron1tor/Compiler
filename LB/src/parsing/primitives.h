@@ -25,6 +25,7 @@ struct GlobalAccumulator {
   std::vector<std::string> parsed_names;
   std::vector<std::string> parsed_var_decls;
   std::vector<std::shared_ptr<LB::scope>> kont;
+  std::vector<LB::cond> parsed_conds;
 };
 
 struct parse_number : pegtl::seq<pegtl::sor<
@@ -126,6 +127,8 @@ new
 length
 Array (constructor)
 Tuple (constructor)
+if
+while
 */
 struct parse_goto : pegtl::seq<pegtl::string<'g', 'o', 't', 'o'>, parse_nochar> {};
 struct parse_return : pegtl::seq<pegtl::string<'r', 'e', 't', 'u', 'r', 'n'>, parse_nochar> {
@@ -150,6 +153,9 @@ struct parse_br : pegtl::seq<pegtl::string<'b', 'r'>, parse_nochar> {
 };
 struct parse_comma : pegtl::one<','> {
 };
+
+struct parse_if : pegtl::seq<pegtl::string<'i', 'f'>, parse_nochar> {};
+struct parse_while : pegtl::seq<pegtl::string<'w', 'h', 'i', 'l', 'e'>, parse_nochar> {};
 
 struct parse_void : pegtl::seq<pegtl::string<'v', 'o', 'i', 'd'>, parse_nochar> {};
 struct parse_int64 : pegtl::seq<pegtl::string<'i', 'n', 't', '6', '4'>, parse_nochar> {};

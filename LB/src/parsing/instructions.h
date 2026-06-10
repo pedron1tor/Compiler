@@ -136,6 +136,10 @@ struct parse_break_inst : pegtl::seq<pegtl::string<'b', 'r', 'e', 'a', 'k'>> {};
 struct parse_label_inst_useful : parse_label {};
 struct parse_goto_label : pegtl::seq<parse_goto, parse_spaces, parse_label_inst_useful> {};
 struct parse_scope;
+struct parse_cond : pegtl::seq<
+                        pegtl::one<'('>, parse_seps, parse_t, parse_seps, parse_binop_op, parse_seps, parse_t, parse_seps, pegtl::one<')'>> {};
+struct parse_if_then_else : pegtl::seq<parse_if, parse_seps, parse_cond, parse_seps, parse_label_inst_useful, parse_seps, parse_label_inst_useful> {};
+struct parse_while_cond_then_else : pegtl::seq<parse_while, parse_seps, parse_cond, parse_seps, parse_label_inst_useful, parse_seps, parse_label_inst_useful> {};
 struct parse_i : pegtl::sor<
                      parse_assign_call_callee,
                      parse_call_callee,
@@ -152,6 +156,8 @@ struct parse_i : pegtl::sor<
                      parse_continue_inst,
                      parse_break_inst,
                      parse_binop,
+                     parse_if_then_else,
+                     parse_while_cond_then_else,
                      parse_goto_label,
                      parse_assignment,
                      parse_typevar_decl, parse_scope> {};
@@ -283,6 +289,47 @@ struct action<parse_label_inst_useful> {
     acc.parsed_labels.push_back(L3::label{in.string()});
   }
 };
+template <>
+struct action<parse_cond> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    LA::t right_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    LA::t left_item = acc.parsed_items_t.back();
+    acc.parsed_items_t.pop_back();
+    IR::op operation = acc.parsed_ops.back();
+    acc.parsed_ops.pop_back();
+    acc.parsed_conds.push_back(LB::cond{left_item, operation, right_item});
+  };
+};
+
+template <>
+struct action<parse_if_then_else> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    LB::cond condition = acc.parsed_conds.back();
+    acc.parsed_conds.pop_back();
+    L3::label els = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    L3::label thn = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    acc.kont.back()->instructions.push_back(LB::ifthen{condition, thn, els});
+  }
+};
+template <>
+struct action<parse_while_cond_then_else> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    LB::cond condition = acc.parsed_conds.back();
+    acc.parsed_conds.pop_back();
+    L3::label els = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    L3::label thn = acc.parsed_labels.back();
+    acc.parsed_labels.pop_back();
+    acc.kont.back()->instructions.push_back(LB::While{condition, thn, els});
+  }
+};
+
 template <>
 struct action<parse_goto_label> {
   template <typename Input>
