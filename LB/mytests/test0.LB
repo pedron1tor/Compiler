@@ -14,6 +14,8 @@ void main ( ){
   name <- name(args)
   ame <- new Tuple(0)
   name <- new Array(0, 0, 0)
+  while (c < v) :body :exit
+  if (c = 42) :WOW :WOW2
   return 0
   return
 }

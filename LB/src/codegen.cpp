@@ -70,6 +70,11 @@ static std::vector<LA::i> LB_to_LAinst(LB::i &inst, Gensym gensym, Gensym2 gensy
     } else if constexpr (std::is_same_v<T, L3::Goto>) {
       return {
           L3::brlabel{ins.target}};
+    } else if constexpr (std::is_same_v<T, LB::ifthen>) {
+      std::string gensymmed_var = gensym2();
+      return {
+          LA::TypeVar{IR::t_int64{0}, gensymmed_var}, LA::BinOp{gensymmed_var, ins.cnd.left, ins.cnd.op, ins.cnd.right},
+          LA::BrCond{gensymmed_var, ins.then.name, ins.els.name}};
     } else if constexpr (std::is_same_v<T, std::shared_ptr<LB::scope>>) {
       return compile_LB_scope(*ins, gensym, gensym2, kont);
     } // flatten the scopes by recursively calling compile_LB_scope. Finally some proper PL stuff....
