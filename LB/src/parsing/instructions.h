@@ -42,7 +42,9 @@ struct parse_call_tensor_error : parse_tensor_error {};
 struct parse_callee : parse_name {};
 
 // call callee ( args? )
-struct parse_call_callee : pegtl::seq<parse_callee, parse_seps, parse_args> {};
+struct parse_call_callee : pegtl::seq<
+                               pegtl::not_at<pegtl::sor<parse_if, parse_while>>,
+                               parse_callee, parse_seps, parse_args> {};
 struct parse_call_callee_dest : parse_variable {};
 // var <- call callee ( args? )
 struct parse_assign_call_callee : pegtl::seq<
