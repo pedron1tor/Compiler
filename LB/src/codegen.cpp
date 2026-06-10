@@ -1,0 +1,475 @@
+#include "LA.h"
+#include "parser.h"
+#include "parsing/primitives.h"
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <optional>
+#include <set>
+#include <unordered_map>
+#include <utils.h>
+
+namespace LA {
+
+bool is_terminator(LA::i &instruction) {
+  return std::visit([&](auto &ins) {
+    // no gotos in LA
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, BrCond>)
+      return true;
+    else if constexpr (std::is_same_v<T, L3::Return>)
+      return true;
+    else if constexpr (std::is_same_v<T, LA::ReturnT>)
+      return true;
+    else
+      return false;
+  },
+                    instruction);
+};
+bool f_type_void(LA::fLA &f) {
+  return std::visit([&](auto &func) {
+    using T = std::decay_t<decltype(func)>;
+    if constexpr (std::is_same_v<T, IR::t_void>)
+      return true;
+    else
+      return false;
+  },
+                    f.f_type);
+};
+bool inst_is_labelinst(LA::i &instr) {
+  return std::visit([&](auto &ins) {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::LabelInst>)
+      return true;
+    else
+      return false;
+  },
+                    instr);
+};
+bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator) {
+  return std::visit([&](auto &ins) -> bool {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, LA::TypeVar>) {
+      IR::TypeVar type_var = IR::TypeVar{ins.var_type, L3::var{ins.var_declared}};
+      variable_accumulator.push_back(type_var);
+      return true;
+    } else {
+      return false;
+    }
+  },
+                    inst);
+};
+
+static IR::i LA_to_IRinst(LA::i &inst, const std::set<std::string> &code_vars, const std::unordered_map<std::string, IR::type> &type_map) {
+  return std::visit([&](auto &ins) -> IR::i {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, LA::Assign>) {
+      L3::s src = la_t_to_l3_s(ins.src);
+      if (code_vars.count(ins.dest)) {
+        if (auto *v = std::get_if<L3::var>(&src); v && !code_vars.count(v->name))
+          src = L3::s{L3::l{"@" + v->name}};
+      }
+      return L3::Assign{L3::w{L3::var{ins.dest}}, src};
+    } else if constexpr (std::is_same_v<T, LA::BinOp>)
+      return IR::BinOp{L3::var{ins.dest}, la_t_to_l3_t(ins.left), ins.operation, la_t_to_l3_t(ins.right)};
+    else if constexpr (std::is_same_v<T, LA::ArrayRead>)
+      return IR::ArrayRead{L3::var{ins.dest}, L3::var{ins.src}, la_t_vec_to_l3_t_vec(ins.indices)};
+    else if constexpr (std::is_same_v<T, LA::ArrayWrite>) {
+      L3::s src = la_t_to_l3_s(ins.src);
+      if (auto *v = std::get_if<L3::var>(&src); v && !type_map.count(v->name))
+        src = L3::s{L3::l{"@" + v->name}}; // add @ annotation if the variable is a function
+      return IR::ArrayWrite{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.indices), src};
+    } else if constexpr (std::is_same_v<T, LA::Length>)
+      return IR::Length{L3::var{ins.dest}, L3::var{ins.src},
+                        ins.dim ? std::optional<L3::t>{la_t_to_l3_t(*ins.dim)} : std::nullopt};
+    else if constexpr (std::is_same_v<T, LA::NewArray>)
+      return IR::NewArray{L3::var{ins.dest}, la_t_vec_to_l3_t_vec(ins.dims)};
+    else if constexpr (std::is_same_v<T, LA::NewTuple>)
+      return IR::NewTuple{L3::var{ins.dest}, la_t_to_l3_t(ins.size)};
+    else if constexpr (std::is_same_v<T, LA::CallAssignArbitrary>)
+      return L3::CallAssignL3{L3::var{ins.dest},
+                              L3::CallL3{str_to_callee(ins.callexpr.callee, code_vars),
+                                         la_t_vec_to_l3_t_vec(ins.callexpr.args)}};
+    else if constexpr (std::is_same_v<T, LA::CallArbitrary>)
+      return L3::CallL3{str_to_callee(ins.callee, code_vars), la_t_vec_to_l3_t_vec(ins.args)};
+    else
+      return IR::TypeVar{IR::type{IR::t_void{}}, L3::var{""}};
+  },
+                    inst);
+}
+void variable_declaration(std::vector<IR::TypeVar> &all_var_accumulator, std::vector<IR::bb> &blocks) {
+  if (blocks.size() > 0) {
+    std::vector<IR::i> prefix;
+    for (auto &typed_var : all_var_accumulator)
+      prefix.push_back(IR::i{typed_var});
+    for (auto &typed_var : all_var_accumulator) {
+      prefix.push_back(IR::i{L3::Assign{typed_var.var_declared, L3::N{0}}});
+    }
+    blocks[0].instructions.insert(blocks[0].instructions.begin(), prefix.begin(), prefix.end());
+  }
+};
+
+IR::fIR fLA_to_fIR(LA::fLA &f) {
+  // collect code variables to assert if function call is valid later, or not.
+  std::set<std::string> code_vars;
+  std::unordered_map<std::string, IR::type> type_map;
+  for (auto &tv : f.parameters.input_variables) {
+    type_map[tv.var_declared] = tv.var_type;
+    if (std::holds_alternative<IR::t_code>(tv.var_type))
+      code_vars.insert(tv.var_declared);
+  }
+  for (auto &instr : f.instructions)
+    if (auto *tv = std::get_if<LA::TypeVar>(&instr)) {
+      type_map[tv->var_declared] = tv->var_type;
+      if (std::holds_alternative<IR::t_code>(tv->var_type))
+        code_vars.insert(tv->var_declared);
+    }
+  std::vector<IR::TypeVar> all_var_accumulator;
+  int counter = 0;
+  // gensym helper to create labels for the blocks. L cpp for not having it builtin...
+  auto gensym = [&counter]() -> L3::label {
+    return L3::label{":_label_" + std::to_string(counter++)};
+  };
+
+  auto gensym_var = [&counter]() -> L3::var {
+    return L3::var{"_arrayvar_" + std::to_string(counter++)};
+  };
+
+  bool startBB = true;
+  std::vector<IR::bb> blocks; // list of blocks
+  IR::bb block;
+
+  // check if an array, tensor, or tuple has been allocated before their use;
+  // returns the label to continue from after the check
+  auto emit_null_check = [&](const std::string &src_name, int64_t line) -> L3::label {
+    L3::label null_check_lbl = gensym(), error_alloc_lbl = gensym(), after_null_lbl = gensym(); // define all the labels for redirection
+    L3::var is_null = gensym_var();
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, is_null});
+
+    block.terminal = IR::te{L3::Goto{null_check_lbl}};
+    blocks.push_back(block);
+
+    // Check if v is not 0
+    // II. If it is 0, then call tensor-error(int64 line)
+    IR::bb null_chk;
+    null_chk.lbl = null_check_lbl;
+    null_chk.instructions.push_back(IR::BinOp{is_null, L3::t{L3::var{src_name}}, IR::op::eq, L3::t{L3::N{0}}});
+    null_chk.terminal = IR::te{IR::BrCond{L3::t{is_null}, error_alloc_lbl, after_null_lbl}};
+    blocks.push_back(null_chk);
+
+    IR::bb error_null;
+    error_null.lbl = error_alloc_lbl;
+    error_null.instructions.push_back(L3::CallL3{L3::CallTensorError{1}, {L3::t{L3::N{line}}}});
+    error_null.terminal = IR::te{L3::Return{}};
+    blocks.push_back(error_null);
+
+    return after_null_lbl; // returns continuation label
+  };
+
+  // for the index i used (e.g., ar[i]), we need to
+  // A. Check i is not negative
+  // B. Check i is less than the length of the array
+  auto emit_bounds_check = [&](const std::string &src_name, L3::t idx, int d,
+                               bool is_tensor, int64_t F, int64_t line, L3::label entry) -> L3::label {
+    L3::var len_var = gensym_var(), neg_cmp = gensym_var(), upper_cmp = gensym_var();
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, len_var}); // add to the accumulator for the variable definitions at the top
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, neg_cmp});
+    all_var_accumulator.push_back(IR::TypeVar{IR::type{IR::t_int64{}}, upper_cmp});
+    L3::label error_lbl = gensym(), upper_chk_lbl = gensym(), next_entry = gensym();
+
+    //  check i < 0
+    IR::bb chk;
+    chk.lbl = entry;
+    bool is_tuple = type_map.count(src_name) && std::holds_alternative<IR::t_tuple>(type_map[src_name]);
+    std::optional<L3::t> dim = is_tuple ? std::nullopt : std::optional<L3::t>{L3::t{L3::N{(int64_t)d}}};
+    chk.instructions.push_back(IR::Length{len_var, L3::var{src_name}, dim});
+    chk.instructions.push_back(IR::BinOp{neg_cmp, idx, IR::op::lt, L3::t{L3::N{0}}});
+    chk.terminal = IR::te{IR::BrCond{L3::t{neg_cmp}, error_lbl, upper_chk_lbl}};
+    blocks.push_back(chk);
+
+    std::vector<L3::t> err_args = {L3::t{L3::N{line}}};
+    if (is_tensor)
+      err_args.push_back(L3::t{L3::N{(int64_t)d}}); // first dim incorrectly accessed
+    err_args.push_back(L3::t{len_var});             // len of the dimension
+    err_args.push_back(idx);                        // idx used to access the dim
+
+    L3::callee_type err_callee = is_tuple ? L3::callee_type{L3::CallTupleError{}} : L3::callee_type{L3::CallTensorError{F}};
+    IR::bb error_bb, upper_bound_check_block;
+    error_bb.lbl = error_lbl;
+    error_bb.instructions.push_back(L3::CallL3{err_callee, std::move(err_args)});
+    error_bb.terminal = IR::te{L3::Return{}};
+    blocks.push_back(error_bb);
+
+    // cond i >= length src d
+    upper_bound_check_block.lbl = upper_chk_lbl;
+    upper_bound_check_block.instructions.push_back(IR::BinOp{upper_cmp, idx, IR::op::gte, L3::t{len_var}});
+    upper_bound_check_block.terminal = IR::te{IR::BrCond{L3::t{upper_cmp}, error_lbl, next_entry}};
+    blocks.push_back(upper_bound_check_block);
+
+    return next_entry;
+  };
+
+  auto emit_array_checks = [&](const std::string &src_name, const std::vector<LA::t> &indices, int64_t line) {
+    int num_indices = (int)indices.size();
+    bool is_tensor = num_indices > 1;
+    // set arity of the error call
+    int64_t F = is_tensor ? 4 : 3;
+
+    L3::label current_entry = emit_null_check(src_name, line);
+    for (int d = 0; d < num_indices; d++)
+      current_entry = emit_bounds_check(src_name, la_t_to_l3_t(indices[d]), d, is_tensor, F, line, current_entry);
+
+    block = IR::bb{};
+    block.lbl = current_entry;
+    startBB = false;
+  };
+
+  for (auto &instr : f.instructions) {
+    if (inst_is_labelinst(instr)) {
+      auto &lbl = std::get<L3::LabelInst>(instr).lbl; // get the label obj from LabelInst
+      if (!startBB) {
+        block.terminal = IR::te{L3::Goto{lbl}}; // if we've encountered a label but it isn't the start of a bb, then add a goto to the block
+        blocks.push_back(block);
+        block = IR::bb{}; // then start new bb
+      }
+      block.lbl = lbl; // add the label to the block
+      startBB = false;
+    } else { // if the instruction wasn't a label, then gensym a new label to a new block
+      if (startBB) {
+        block = IR::bb{};
+        block.lbl = gensym();
+        startBB = false;
+      }
+      bool is_brlbl = std::holds_alternative<L3::brlabel>(instr);
+      bool is_term = is_terminator(instr) || is_brlbl; // compute whether it's a terminator or brblabel
+      bool is_decl = is_declaration(instr, all_var_accumulator);
+      if (!is_term) {
+        if (!is_decl) {
+          std::visit([&](auto &ins) {
+            using T = std::decay_t<decltype(ins)>;
+            if constexpr (std::is_same_v<T, LA::ArrayRead>) // emit array checks if array read or write
+              emit_array_checks(ins.src, ins.indices, ins.line);
+            else if constexpr (std::is_same_v<T, LA::ArrayWrite>)
+              emit_array_checks(ins.dest, ins.indices, ins.line);
+          },
+                     instr);
+          block.instructions.push_back(LA_to_IRinst(instr, code_vars, type_map));
+        }
+      } else {
+        block.terminal = LAterm_to_IRterm(instr); // transform into IR instruction forms
+        blocks.push_back(block);
+        block = IR::bb{};
+        startBB = true;
+      }
+    }
+  }
+  // return at the bottom of void function, else add returnt for completeness
+  if (!startBB) {
+    block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
+    blocks.push_back(block);
+  } else {
+    // just a return
+    IR::bb empty_block;
+    empty_block.lbl = gensym();
+    empty_block.terminal = f_type_void(f) ? IR::te{L3::Return{}} : IR::te{L3::ReturnT{L3::t{L3::N{0}}}};
+    blocks.push_back(empty_block);
+  }
+
+  IR::pars ir_pars;
+  // wrap the strings into variables
+  for (auto &tv : f.parameters.input_variables)
+    ir_pars.input_variables.push_back(IR::TypeVar{tv.var_type, L3::var{tv.var_declared}});
+  // variable declaration
+  variable_declaration(all_var_accumulator, blocks);
+  IR::fIR result;
+  result.f_type = f.f_type;
+  result.name = L3::l{"@" + f.name};
+  result.parameters = ir_pars;
+  result.blocks = blocks;
+  return result;
+}
+L3::N encode_N(L3::N num) {
+  return L3::N{((2 * num.value) + 1)};
+};
+L3::N decode_N(L3::N num) {
+  return L3::N{(num.value >> 1)};
+}
+
+L3::t encode_t(L3::t orig_value) {
+  return std::visit([&](auto &ins) -> L3::t {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return encode_N(ins);
+    else
+      return ins;
+  },
+                    orig_value);
+};
+L3::s encode_s(L3::s orig_value) {
+  return std::visit([&](auto &ins) -> L3::s {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, L3::N>)
+      return encode_N(ins);
+    else
+      return ins;
+  },
+                    orig_value);
+};
+template <typename T, typename F> // why is there no map in cpp???? .......
+auto map(const std::vector<T> &vec, F f) {
+  std::vector<decltype(f(vec[0]))> result;
+  result.reserve(vec.size());
+  for (const auto &x : vec) {
+    result.push_back(f(x));
+  }
+  return result;
+}
+std::optional<L3::var> toEncode(IR::i &inst) {
+  return std::visit([&](auto &ins) -> std::optional<L3::var> {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, IR::BinOp>)
+      return ins.dest;
+    else
+      return std::nullopt;
+  },
+                    inst);
+};
+std::optional<std::vector<L3::t>> toDecode(IR::i &inst) {
+  return std::visit([&](auto &ins) -> std::optional<std::vector<L3::t>> {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, IR::BinOp>)
+      return std::vector<L3::t>{ins.left, ins.right};
+    else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
+      return ins.indices;
+    else if constexpr (std::is_same_v<T, IR::ArrayRead>)
+      return ins.indices;
+    else if constexpr (std::is_same_v<T, IR::Length>)
+      return std::nullopt;
+    else if constexpr (std::is_same_v<T, IR::BrCond>)
+      return std::vector<L3::t>{ins.cond};
+    else
+      return std::nullopt;
+  },
+                    inst);
+};
+
+IR::i substitute(IR::i &inst, std::vector<L3::var> identifiers) {
+  auto var_to_t = [](const L3::var &v) -> L3::t { return v; };
+  return std::visit([&](auto &ins) -> IR::i {
+    using T = std::decay_t<decltype(ins)>;
+    if constexpr (std::is_same_v<T, IR::BinOp>)
+      return IR::BinOp{ins.dest, L3::t{identifiers[0]}, ins.operation, L3::t{identifiers[1]}};
+    else if constexpr (std::is_same_v<T, IR::ArrayWrite>)
+      return IR::ArrayWrite{ins.dest, map(identifiers, var_to_t), encode_s(ins.src)};
+    else if constexpr (std::is_same_v<T, IR::ArrayRead>)
+      return IR::ArrayRead{ins.dest, ins.src, map(identifiers, var_to_t)};
+    else if constexpr (std::is_same_v<T, IR::Length>)
+      return IR::Length{ins.dest, ins.src, L3::t{identifiers[0]}};
+    else
+      return ins;
+  },
+                    inst);
+};
+
+void value_encoding(std::vector<IR::fIR> &function_list) {
+  // Encode all constants not used for array/tuple indices
+  // and 2nd parameter of length
+  int counter = 0;
+  // gensym helper to create labels for the blocks. L cpp for not having it builtin...
+  auto gensym = [&counter]() -> L3::var {
+    return L3::var{"_label_encoding" + std::to_string(counter++)};
+  };
+  std::vector<IR::fIR> new_function_list;
+  for (auto &fn : function_list) {
+    std::vector<IR::i> declarations_first_bb;
+    for (auto &block : fn.blocks) {
+      int bound = block.instructions.size();
+      std::vector<IR::i> block_instructions;
+
+      for (int i = 0; i < bound; i++) {
+        std::optional<std::vector<L3::t>> things_to_decode = toDecode(block.instructions[i]);
+        if (things_to_decode.has_value()) {
+          std::vector<L3::var> identifiers;
+          for (auto thing_to_decode : things_to_decode.value()) {
+            L3::var var_identifier = gensym();
+            declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, var_identifier}});
+            block_instructions.push_back(IR::i{IR::BinOp{var_identifier, encode_t(thing_to_decode), IR::op::rshift, L3::N{1}}});
+            identifiers.push_back(var_identifier);
+          }
+          block_instructions.push_back(substitute(block.instructions[i], identifiers));
+        } else {
+          block_instructions.push_back(std::visit([&](auto &ins) -> IR::i {
+            using T = std::decay_t<decltype(ins)>;
+            if constexpr (std::is_same_v<T, L3::Assign>)
+              return L3::Assign{ins.dest, encode_s(ins.src)};
+            else if constexpr (std::is_same_v<T, L3::CallAssignL3>)
+              return L3::CallAssignL3{ins.dest, L3::CallL3{ins.callexpr.callee, map(ins.callexpr.args, encode_t)}};
+            else if constexpr (std::is_same_v<T, L3::CallL3>)
+              return L3::CallL3{ins.callee, map(ins.args, encode_t)};
+            else if constexpr (std::is_same_v<T, IR::NewArray>)
+              return IR::NewArray{ins.dest, map(ins.dims, encode_t)};
+            else if constexpr (std::is_same_v<T, IR::NewTuple>)
+              return IR::NewTuple{ins.dest, encode_t(ins.size)};
+            else
+              return ins;
+          },
+                                                  block.instructions[i]));
+        }
+        std::optional<L3::var> variable_to_encode = toEncode(block.instructions[i]);
+        if (variable_to_encode.has_value()) {
+          // encode the variable
+          block_instructions.push_back(IR::BinOp{
+              variable_to_encode.value(), variable_to_encode.value(), IR::op::lshift, L3::N{1}});
+          block_instructions.push_back(IR::BinOp{
+              variable_to_encode.value(), variable_to_encode.value(), IR::op::add, L3::N{1}});
+        };
+      }
+      // decode BrCond condition and encode ReturnT value
+      block.terminal = std::visit([&](auto &te) -> IR::te {
+        using T = std::decay_t<decltype(te)>;
+        if constexpr (std::is_same_v<T, IR::BrCond>) {
+          L3::var decoded = gensym();
+          declarations_first_bb.push_back(IR::i{IR::TypeVar{IR::type{IR::t_int64{}}, decoded}});
+          block_instructions.push_back(IR::i{IR::BinOp{decoded, encode_t(te.cond), IR::op::rshift, L3::N{1}}});
+          return IR::BrCond{L3::t{decoded}, te.true_label, te.false_label};
+        } else if constexpr (std::is_same_v<T, L3::ReturnT>)
+          return L3::ReturnT{encode_t(te.return_thing)};
+        else
+          return te;
+      },
+                                  block.terminal);
+      block.instructions = block_instructions;
+    }
+    if (!fn.blocks.empty())
+      fn.blocks[0].instructions.insert(fn.blocks[0].instructions.begin(), declarations_first_bb.begin(), declarations_first_bb.end());
+  };
+};
+
+IR::pIR pLA_to_pIR(LA::pLA &p) {
+  std::vector<IR::fIR> function_list;
+
+  for (auto &fn : p.functions) {
+    // bb generation and variable declaration done in fLA_to_fIR
+    function_list.push_back(fLA_to_fIR(fn));
+  }
+  // value encoding
+  value_encoding(function_list);
+  // allocation and bounds check
+  return IR::pIR{
+      function_list};
+};
+
+void generate_code(pLA &p) {
+  IR::pIR transformed_p;
+  transformed_p = pLA_to_pIR(p);
+  std::ofstream outputFile;
+  outputFile.open("prog.IR");
+
+  // // build the IR code for each of the funtions inside of the ast/program
+  for (auto &fn : transformed_p.functions) {
+    print_functionIR(fn, true, &outputFile);
+  };
+
+  outputFile.close();
+}
+} // namespace LA
