@@ -32,6 +32,7 @@ bool inst_is_labelinst(LA::i &instr) {
   },
                     instr);
 };
+
 bool is_declaration(LA::i &inst, std::vector<IR::TypeVar> &variable_accumulator) {
   return std::visit([&](auto &ins) -> bool {
     using T = std::decay_t<decltype(ins)>;
@@ -248,6 +249,37 @@ void map_loop_instrs(std::vector<LA::i> &loop_instructions, WhileInfo &while_loo
     }
   }
 }
+const LB::While *fetch_innermost_loop(WhileInfo &while_loops, int idx) {
+  if (while_loops.loop.count(idx)) { // check instruction is inside while loop
+    return while_loops.loop[idx];
+  }
+  return nullptr;
+}
+
+std::vector<LA::i> translate_break_and_continue(std::vector<LA::i> &loop_instructions, WhileInfo &while_loops) {
+  for (int idx = 0; idx < loop_instructions.size(); idx++) {
+    loop_instructions[idx] = std::visit([&](auto &ins)
+                                            -> LA::i {
+      using T = std::decay_t<decltype(ins)>;
+      if constexpr (std::is_same_v<T, LA::LB::Continue>) {
+        const LB::While *innermost_loop = fetch_innermost_loop(while_loops, idx); // Fetch the innermost loop w that i belongs to: w = Loop[i]
+
+        L3::label cond_label = while_loops.cond_labels.at(*innermost_loop); //         • Fetch the label placed just before the condition of w:
+        return L3::brlabel{cond_label};                                     // • Generate a jump to the condition code of w:
+
+      }
+
+      else if constexpr (std::is_same_v<T, LA::LB::Break>) {
+        const LB::While *innermost_loop = fetch_innermost_loop(while_loops, idx); // Fetch the innermost loop w that i belongs to: w = Loop[i]
+        L3::label exit_label = while_loops.end_while.at(*innermost_loop);         // Fetch the exit label of w: l_exit = endWhile[w]
+        return L3::brlabel{exit_label};                                           // • Generate a jump to leave the loop w: br l_exit
+      } else
+        return ins;
+    },
+                                        loop_instructions[idx]);
+  }
+  return loop_instructions;
+}
 
 LA::fLA fLB_to_fLA(LB::fLB &f) {
   std::vector<LA::i> new_instructions;
@@ -263,6 +295,7 @@ LA::fLA fLB_to_fLA(LB::fLB &f) {
   WhileInfo while_loops;
   new_instructions = compile_LB_scope(*f.lscope, gensym, gensym2, kont, while_loops);
   map_loop_instrs(new_instructions, while_loops);
+  new_instructions = translate_break_and_continue(new_instructions, while_loops);
   LA::fLA result;
   result.name = f.name;
   result.f_type = f.f_type;
