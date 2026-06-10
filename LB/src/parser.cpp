@@ -165,6 +165,10 @@ void print_instructionLB(LB::i &instr, std::ostream &out) {
         out << var;
       }
 
+    } else if constexpr (std::is_same_v<T, LB::Continue>) {
+      out << "continue";
+    } else if constexpr (std::is_same_v<T, LB::Break>) {
+      out << "break";
     } else if constexpr (std::is_same_v<T, LB::ReturnTOpt>) {
       out << "return";
       if (ins.return_thing) {

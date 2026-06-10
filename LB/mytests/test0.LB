@@ -1,9 +1,11 @@
 void main ( ){
-    {
+  
   int64 v1
   v1 <- 2
   print(v1)
-  }
+  continue
+  break
+
   return
 
 }

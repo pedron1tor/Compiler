@@ -125,6 +125,10 @@ struct parse_return_t : pegtl::seq<parse_return, parse_seps, parse_t> {};
 // label
 struct parse_label_inst : parse_label {
 };
+// continue, break
+
+struct parse_continue_inst : pegtl::seq<pegtl::string<'c', 'o', 'n', 't', 'i', 'n', 'u', 'e'>, parse_nochar> {};
+struct parse_break_inst : pegtl::seq<pegtl::string<'b', 'r', 'e', 'a', 'k'>> {};
 struct parse_scope;
 struct parse_i : pegtl::sor<
                      parse_assign_call_callee,
@@ -139,6 +143,8 @@ struct parse_i : pegtl::sor<
                      parse_return_t,
                      parse_return_inst,
                      parse_label_inst,
+                     parse_continue_inst,
+                     parse_break_inst,
                      parse_binop,
                      parse_assignment,
                      parse_typevar_decl, parse_scope> {};
@@ -181,6 +187,21 @@ struct action<parse_label_inst> {
 
     L3::label lbl = L3::label{in.string()};
     acc.kont.back()->instructions.push_back(L3::LabelInst{lbl}); // whenever a label is encountered in the wild, createa new block
+  }
+};
+
+template <>
+struct action<parse_continue_inst> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.kont.back()->instructions.push_back(LB::Continue{});
+  }
+};
+template <>
+struct action<parse_break_inst> {
+  template <typename Input>
+  static void apply(const Input &in, GlobalAccumulator &acc) {
+    acc.kont.back()->instructions.push_back(LB::Break{});
   }
 };
 
