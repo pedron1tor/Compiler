@@ -65,6 +65,10 @@ static std::vector<LA::i> LB_to_LAinst(LB::i &inst) {
       }
       return compiled_var_decls;
 
+    } else if constexpr (std::is_same_v<T, L3::Goto>) {
+      return {
+        L3::brlabel { ins.target }
+      }
     }
 
     else {
