@@ -103,8 +103,12 @@ struct parse_new_tuple : pegtl::seq<
 
 // type var
 struct parse_typevar_type : parse_type {};
-struct parse_typevar_var : parse_variable {};
-struct parse_typevar_decl : pegtl::seq<parse_typevar_type, parse_spaces, parse_typevar_var> {};
+struct parse_typevar_var : pegtl::seq<
+                               pegtl::not_at<pegtl::seq<parse_type, parse_nochar>>,
+                               parse_variable> {};
+struct parse_typevar_decl : pegtl::seq<parse_typevar_type, parse_spaces,
+
+                                       pegtl::opt<pegtl::seq<parse_typevar_var, pegtl::star<pegtl::seq<parse_seps, parse_comma, parse_seps, parse_typevar_var>>>>> {};
 /*
  terminal instructions
 */
@@ -507,17 +511,17 @@ struct action<parse_new_tuple> {
 template <>
 struct action<parse_typevar_var> {
   template <typename Input>
-  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_names.push_back(in.string()); }
+  static void apply(const Input &in, GlobalAccumulator &acc) { acc.parsed_var_decls.push_back(in.string()); }
 };
 template <>
 struct action<parse_typevar_decl> {
   template <typename Input>
   static void apply(const Input &, GlobalAccumulator &acc) {
-    auto var_name = acc.parsed_names.back(); // TODO
-    acc.parsed_names.pop_back();
+    auto var_names = acc.parsed_var_decls;
+    acc.parsed_var_decls.clear();
     auto var_type = acc.parsed_types.back();
     acc.parsed_types.pop_back();
-    acc.kont.back()->instructions.push_back(LB::i{LB::TypeVars{var_type, std::vector{var_name}}});
+    acc.kont.back()->instructions.push_back(LB::i{LB::TypeVars{var_type, var_names}});
   }
 };
 

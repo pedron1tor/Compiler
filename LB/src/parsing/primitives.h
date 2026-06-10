@@ -23,6 +23,7 @@ struct GlobalAccumulator {
   std::vector<IR::type> parsed_types;
   std::vector<LA::t> parsed_indices;
   std::vector<std::string> parsed_names;
+  std::vector<std::string> parsed_var_decls;
   std::vector<std::shared_ptr<LB::scope>> kont;
 };
 

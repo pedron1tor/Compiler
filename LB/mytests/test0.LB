@@ -1,11 +1,19 @@
 void main ( ){
-  
-  int64 v1
+  int64 v1, v2, v3, v4
   v1 <- 2
   print(v1)
   continue
   break
-
+  goto :while
+  :while
+  c <- c + 1
+  array[0] <- 0
+  array <- array[0]
+  name <- length name 0
+  name <- length name
+  name <- name(args)
+  ame <- new Tuple(0)
+  name <- new Array(0, 0, 0)
+  return 0
   return
-
 }

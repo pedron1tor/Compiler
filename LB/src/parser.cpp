@@ -162,6 +162,7 @@ void print_instructionLB(LB::i &instr, std::ostream &out) {
         if (!first) {
           out << ", ";
         }
+        first = false;
         out << var;
       }
 
