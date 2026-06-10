@@ -23,7 +23,7 @@ struct GlobalAccumulator {
   std::vector<IR::type> parsed_types;
   std::vector<LA::t> parsed_indices;
   std::vector<std::string> parsed_names;
-  std::optional<std::shared_ptr<LB::scope>> curr_scope;
+  std::vector<std::shared_ptr<LB::scope>> kont;
 };
 
 struct parse_number : pegtl::seq<pegtl::sor<
