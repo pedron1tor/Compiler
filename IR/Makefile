@@ -4,11 +4,6 @@ CC_FLAGS		:= --std=c++17 -I./src -I../lib/PEGTL/include -I../lib -I../util -g3 -
 CC				:= g++
 PL_CLASS        := IR
 COMPILER 		:= bin/$(PL_CLASS)
-TEST_DIR		:= tests
-OUT_DIR			:= out
-BUILD_DIR		:= build
-ROOT_DIR		:= ..
-RUNTIME			:= $(ROOT_DIR)/lib/runtime.c
 
 build: dirs $(COMPILER)
 
@@ -28,20 +23,7 @@ $(COMPILER): $(OBJ_FILES)
 obj/%.o: src/%.cpp
 	$(CC) $(CC_FLAGS) -c -o $@ $<
 
-compile:
-	python3 ../scripts/compile.py $(ROOT_DIR) $(PL_CLASS) $(FILE) $(BUILD_DIR) $(RUNTIME)
-
-run:
-	python3 ../scripts/compile_and_run.py $(ROOT_DIR) $(PL_CLASS) $(FILE) $(BUILD_DIR) $(RUNTIME)
-
-test:
-	python3 ../scripts/test_compiler.py $(ROOT_DIR) $(PL_CLASS) $(TEST_DIR) $(BUILD_DIR) $(RUNTIME) --out $(OUT_DIR)
-
-copy_instructor_bin:
-	mkdir -p bin ;
-	cp .bin/* bin/ ;
-
 clean:
-	rm -fr bin obj *.out *.o core.* build/ out/
+	rm -fr bin obj *.out *.o core.*
 
-.PHONY: compiler all dirs bin $(COMPILER) test test_fast copy_instructor_bin clean
+.PHONY: build all dirs clean

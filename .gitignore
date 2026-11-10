@@ -1,5 +1,16 @@
-L1/out
-L2/out
-L3/out
-IR/out
-LA/out
+# Build output
+*/bin/
+*/.bin/
+*/obj/
+*/build/
+*/out/
+*/prog.*
+*.o
+*.out
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+.claude/
+__pycache__/

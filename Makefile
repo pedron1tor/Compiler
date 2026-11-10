@@ -23,11 +23,7 @@ LB_lang:
 LC_lang:
 	cd LC ; make
 
-submission:
-	./scripts/create_submission.sh
-
 clean:
-	rm -f *.bz2 ; 
 	cd L1 ; make clean ; 
 	cd L2 ; make clean ; 
 	cd L3 ; make clean ; 
