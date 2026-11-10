@@ -19,8 +19,6 @@ Each stage is a standalone compiler in its own directory. It has a PEG grammar (
 | **L2 → L1** | L1 extended with unlimited variables | Liveness analysis, interference graph, graph-coloring register allocation, spilling |
 | **L1 → x86-64** | Register-level language that closely mirrors x86-64 | Assembly emission (AT&T syntax) |
 
-`LC` is a placeholder for a higher-level front end and is not implemented.
-
 ### Register allocation (L2)
 
 The L2 stage is the most algorithm-heavy part of the project (`L2/src/algorithms/`):
